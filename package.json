@@ -1,0 +1,19 @@
+{
+  "name": "lab-inventory",
+  "version": "1.0.0",
+  "description": "ระบบคลังห้องแลป/เวิร์กช็อป — เบิกจ่าย/ยืม-คืน",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "init-db": "node scripts/init-db.js"
+  },
+  "engines": {
+    "node": "24.x"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cookie-session": "^2.1.0",
+    "express": "^4.19.2"
+  }
+}
