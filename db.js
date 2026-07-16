@@ -21,6 +21,33 @@ if (TURSO_URL) {
   } catch (e) {
     console.error('Turso sync ครั้งแรกล้มเหลว:', e.message);
   }
+
+  // ---------- auto-sync: ดันการเขียนขึ้น Turso primary (durable ข้าม redeploy) ----------
+  // debounce 800ms หลังเขียนล่าสุด = รวมหลาย write เป็น sync เดียว (ประหยัด quota)
+  let syncTimer = null;
+  const scheduleSync = () => {
+    if (syncTimer) return;
+    syncTimer = setTimeout(() => {
+      syncTimer = null;
+      try { db.sync(); } catch (e) { console.error('Turso auto-sync ล้มเหลว:', e.message); }
+    }, 800);
+  };
+  const origPrepare = db.prepare.bind(db);
+  const origExec = db.exec.bind(db);
+  db.prepare = (sql) => {
+    const st = origPrepare(sql);
+    if (/^\s*(INSERT|UPDATE|DELETE|REPLACE)/i.test(sql)) {
+      const origRun = st.run.bind(st);
+      st.run = (...a) => { const r = origRun(...a); scheduleSync(); return r; };
+    }
+    return st;
+  };
+  db.exec = (sql) => { const r = origExec(sql); scheduleSync(); return r; };
+
+  // flush ขึ้น Turso ก่อนปิด (Render ส่ง SIGTERM ตอน redeploy) — กัน write ล่าสุดหาย
+  const flush = () => { try { db.sync(); } catch {} process.exit(0); };
+  process.on('SIGTERM', flush);
+  process.on('SIGINT', flush);
 } else {
   db = new Database(DB_PATH);
   db.exec('PRAGMA journal_mode = WAL;'); // WAL เฉพาะ local (embedded replica จัดการเอง)
