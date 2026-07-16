@@ -1,6 +1,7 @@
 # Render Blueprint — deploy อัตโนมัติทุก git push
-# โหมด demo (free): ข้อมูล + รูป ไม่ถาวร รีเซ็ตตอน redeploy/sleep
-# อยากถาวร: plan starter + เพิ่ม block disk + env DB_PATH=/var/data/inventory.db (ดู git history commit ก่อน)
+# ข้อมูลถาวรผ่าน Turso: ตั้ง env TURSO_URL + TURSO_TOKEN (ในหน้า Render dashboard)
+#   ไม่ตั้ง = ข้อมูลรีเซ็ตทุก redeploy (demo)
+#   ตั้งแล้ว = ถาวรบน Turso cloud ข้าม redeploy (รูปยังหาย เพราะเก็บใน uploads/ บน disk ephemeral)
 services:
   - type: web
     name: lab-inventory
@@ -17,3 +18,8 @@ services:
       - key: ADMIN_USER
         value: admin
       # ADMIN_PASS: ไม่ตั้ง = ใช้ default admin1234 จาก init-db
+      # กรอกค่าจริง 2 ตัวนี้ในหน้า Render dashboard เพื่อเปิดโหมดถาวร (Turso)
+      - key: TURSO_URL
+        sync: false
+      - key: TURSO_TOKEN
+        sync: false

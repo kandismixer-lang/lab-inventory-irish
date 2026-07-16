@@ -1,12 +1,30 @@
 const path = require('path');
 const fs = require('fs');
-const { DatabaseSync } = require('node:sqlite'); // ในตัวของ Node 22.5+ (ไม่ต้อง build native)
+const Database = require('libsql'); // API แบบ better-sqlite3 (sync) + รองรับ Turso embedded replica
 
 const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'data', 'inventory.db');
 fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
 
-const db = new DatabaseSync(DB_PATH);
-db.exec('PRAGMA journal_mode = WAL;');
+// ถ้าตั้ง TURSO_URL + TURSO_TOKEN = ใช้ Turso (ข้อมูลถาวรบน cloud ข้าม redeploy)
+//   - boot: ดึงข้อมูลจาก Turso primary มาไฟล์ local
+//   - write: ส่งไป primary อัตโนมัติ (write-through) + apply local
+// ถ้าไม่ตั้ง = SQLite ไฟล์ local ธรรมดา (dev)
+const TURSO_URL = process.env.TURSO_URL;
+const TURSO_TOKEN = process.env.TURSO_TOKEN;
+
+let db;
+if (TURSO_URL) {
+  db = new Database(DB_PATH, { syncUrl: TURSO_URL, authToken: TURSO_TOKEN });
+  try {
+    db.sync();
+    console.log('เชื่อม Turso + sync สำเร็จ');
+  } catch (e) {
+    console.error('Turso sync ครั้งแรกล้มเหลว:', e.message);
+  }
+} else {
+  db = new Database(DB_PATH);
+  db.exec('PRAGMA journal_mode = WAL;'); // WAL เฉพาะ local (embedded replica จัดการเอง)
+}
 db.exec('PRAGMA foreign_keys = ON;');
 
 db.exec(`
