@@ -188,6 +188,19 @@ function ItemForm({ item, me, onClose, onSaved }) {
   const [location, setLocation] = useState(item?.location || '');
   const type = CATEGORY_TYPE[category] || 'consumable';
 
+  // สร้างหน่วยอัตโนมัติตอนเพิ่มรายการใหม่ (track รายตัว)
+  const [uprefix, setUprefix] = useState('');
+  const [ucount, setUcount] = useState('');
+  const [ustart, setUstart] = useState('1');
+  const [upad, setUpad] = useState('2');
+  const uN = parseInt(ucount, 10) || 0;
+  const mkCode = (x) => `${uprefix}${String(x).padStart(Math.max(0, parseInt(upad, 10) || 0), '0')}`;
+  const uStartNum = parseInt(ustart, 10) || 0;
+  const uPreview = uN > 0
+    ? (uN <= 2 ? Array.from({ length: uN }, (_, i) => mkCode(uStartNum + i)).join(', ')
+      : `${mkCode(uStartNum)} … ${mkCode(uStartNum + uN - 1)}`)
+    : '';
+
   useEffect(() => { api('/api/locations').then(setLocations); }, []);
   // ถ้าเปลี่ยนหมวดเป็น "ใช้แล้วทิ้ง" ให้เลิก track
   useEffect(() => { if (type !== 'tool') setTracked(false); }, [type]);
@@ -210,8 +223,18 @@ function ItemForm({ item, me, onClose, onSaved }) {
     b.location = location;
     b.tracked = tracked ? 1 : 0;
     try {
-      if (item) await api('/api/items/' + item.id, { method: 'PUT', body: b });
-      else await api('/api/items', { method: 'POST', body: b });
+      if (item) {
+        await api('/api/items/' + item.id, { method: 'PUT', body: b });
+      } else {
+        const created = await api('/api/items', { method: 'POST', body: b });
+        // สร้างหน่วยอัตโนมัติถ้า track รายตัว + ระบุจำนวน
+        if (tracked && uN > 0) {
+          await api('/api/items/' + created.id + '/units', {
+            method: 'POST',
+            body: { mode: 'bulk', prefix: uprefix.trim(), start: uStartNum, count: uN, pad: parseInt(upad, 10) || 0 },
+          });
+        }
+      }
       toast('บันทึกแล้ว');
       onSaved();
     } catch (er) { setErr(er.message); }
@@ -254,7 +277,21 @@ function ItemForm({ item, me, onClose, onSaved }) {
             <span>Track รายตัว — มีรหัสประจำแต่ละชิ้น (เช่น RPI-01…RPI-20)</span>
           </label>
         )}
-        {tracked && <div className="hint">บันทึกแล้วไปกด "จัดการหน่วย" เพื่อสร้างรหัสทีละหลายชิ้น</div>}
+        {tracked && item && <div className="hint">ไปกด "จัดการหน่วย" เพื่อเพิ่ม/แก้รหัสหน่วย</div>}
+        {tracked && !item && (
+          <div style={{ marginTop: 8, padding: '10px 12px', background: '#f1f5ff', borderRadius: 8 }}>
+            <div className="hint" style={{ marginTop: 0 }}>สร้างหน่วยอัตโนมัติตอนบันทึก (เว้นจำนวนว่าง = ไปสร้างเองทีหลัง)</div>
+            <div className="form-row">
+              <label>Prefix รหัส<input value={uprefix} onChange={(e) => setUprefix(e.target.value)} placeholder="เช่น RPI-" /></label>
+              <label>จำนวน<input type="number" min="0" max="500" value={ucount} onChange={(e) => setUcount(e.target.value)} placeholder="เช่น 20" /></label>
+            </div>
+            <div className="form-row">
+              <label>เริ่มที่เลข<input type="number" min="0" value={ustart} onChange={(e) => setUstart(e.target.value)} /></label>
+              <label>เติมศูนย์ (จำนวนหลัก)<input type="number" min="0" value={upad} onChange={(e) => setUpad(e.target.value)} /></label>
+            </div>
+            {uPreview && <div className="hint" style={{ marginBottom: 0 }}>ตัวอย่างรหัส: <b>{uPreview}</b> ({uN} ชิ้น)</div>}
+          </div>
+        )}
         <div className="form-row">
           {!item && !tracked && <label>จำนวนตั้งต้น<input name="qty" type="number" min="0" defaultValue="0" /></label>}
           {!tracked && <label>จุดเตือนของใกล้หมด<input name="min_qty" type="number" min="0" defaultValue={item?.min_qty ?? 0} /></label>}
