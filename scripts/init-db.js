@@ -17,17 +17,44 @@ if (exists) {
   console.log('!! กรุณาเปลี่ยนรหัสผ่านหลัง login ครั้งแรก');
 }
 
-// ข้อมูลตัวอย่าง (ใส่ครั้งเดียวตอน DB ว่าง)
+// ---------- ข้อมูล base (ใส่ตอน DB ว่าง — สร้างใหม่ทุก deploy บน host ephemeral) ----------
+// name, category, qty, tracked, prefix(สำหรับ tracked)
+const BASE_ITEMS = [
+  ['Base-Frame',                'ชิ้นส่วน/อุปกรณ์', 19, false],
+  ['DC-DC Step-Down Buck 300W 20A', 'บอร์ด',      19, true,  'DCDC-'],
+  ['ESP-Frame',                 'ชิ้นส่วน/อุปกรณ์', 15, false],
+  ['Encoder',                   'บอร์ด',           19, true,  'ENC-'],
+  ['Lidar',                     'ชิ้นส่วน/อุปกรณ์', 20, true,  'LIDAR-'],
+  ['Lidar-Frame',               'ชิ้นส่วน/อุปกรณ์', 19, false],
+  ['MotorDrive',                'ชิ้นส่วน/อุปกรณ์', 38, false],
+  ['Raspberry Pi 4',            'บอร์ด',           3,  true,  'RPI4-'],
+  ['Raspberry Pi 5',            'บอร์ด',           19, true,  'RPI5-'],
+  ['Roof-Frame',                'ชิ้นส่วน/อุปกรณ์', 19, false],
+  ['Stepdown-3A',               'บอร์ด',           19, true,  'STEP3A-'],
+];
+
 const itemCount = db.prepare('SELECT COUNT(*) c FROM items').get().c;
 if (itemCount === 0) {
-  const ins = db.prepare(
-    'INSERT INTO items (name, type, unit, location, qty, min_qty) VALUES (?,?,?,?,?,?)'
+  const insItem = db.prepare(
+    "INSERT INTO items (name, type, category, unit, location, qty, min_qty, tracked) VALUES (?,?,?,?,?,?,?,?)"
   );
-  ins.run('ถุงมือไนไตร (M)', 'consumable', 'กล่อง', 'ตู้ A ชั้น 1', 20, 5);
-  ins.run('แอลกอฮอล์ 70%', 'consumable', 'ขวด', 'ตู้ A ชั้น 2', 12, 3);
-  ins.run('มัลติมิเตอร์', 'tool', 'เครื่อง', 'ตู้เครื่องมือ B', 3, 0);
-  ins.run('หัวแร้ง', 'tool', 'ด้าม', 'ตู้เครื่องมือ B', 4, 0);
-  console.log('ใส่ข้อมูลตัวอย่าง 4 รายการ');
+  const insUnit = db.prepare(
+    "INSERT INTO units (item_id, code, status) VALUES (?,?, 'available')"
+  );
+  db.tx(() => {
+    for (const [name, category, qty, tracked, prefix] of BASE_ITEMS) {
+      // หมวดทั้งหมดนี้เป็นกลุ่มยืม-คืน (type=tool)
+      const info = insItem.run(name, 'tool', category, 'ชิ้น', '', tracked ? 0 : qty, 0, tracked ? 1 : 0);
+      const itemId = Number(info.lastInsertRowid);
+      if (tracked) {
+        for (let i = 1; i <= qty; i++) {
+          insUnit.run(itemId, `${prefix}${String(i).padStart(2, '0')}`);
+        }
+        db.recalcTracked(itemId);
+      }
+    }
+  });
+  console.log(`ใส่ข้อมูล base ${BASE_ITEMS.length} รายการ`);
 }
 
 console.log('เสร็จสิ้น');
