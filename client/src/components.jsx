@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
 
 // ---------- Toast ----------
 const ToastCtx = createContext(() => {});
@@ -23,8 +23,14 @@ export function ToastProvider({ children }) {
 
 // ---------- Modal ----------
 export function Modal({ title, onClose, children }) {
+  // ปิดเฉพาะตอน "กดเริ่ม" บนพื้นหลังจริง — กันปิดพลาดตอนลากเลือกข้อความในฟอร์มแล้วปล่อยเมาส์นอกกล่อง
+  const downOnBackdrop = useRef(false);
   return (
-    <div className="modal" onClick={(e) => e.target.classList.contains('modal') && onClose()}>
+    <div
+      className="modal"
+      onMouseDown={(e) => { downOnBackdrop.current = e.target.classList.contains('modal'); }}
+      onMouseUp={(e) => { if (downOnBackdrop.current && e.target.classList.contains('modal')) onClose(); downOnBackdrop.current = false; }}
+    >
       <div className="modal-box card">
         <div className="modal-head">
           <h3>{title}</h3>

@@ -213,6 +213,8 @@ tr.expand-row > td { background: var(--mist); padding: 0; border-right: none; }
 .unit-chip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 12px; border: 1px solid var(--line-strong); border-radius: var(--pill); font-size: 0.82rem; cursor: pointer; user-select: none; font-family: var(--font-mono); }
 .unit-chip:hover { border-color: var(--primary); color: var(--primary); }
 .unit-chip.on { background: var(--primary); color: #fff; border-color: var(--primary); }
+.unit-chip.disabled { opacity: .4; cursor: not-allowed; }
+.unit-chip.disabled:hover { border-color: var(--line-strong); color: inherit; }
 .unit-chip input { width: auto; margin: 0; }
 
 .thumb { margin: 0; cursor: pointer; text-align: center; }

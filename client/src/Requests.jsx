@@ -121,12 +121,16 @@ function RequestCard({ r, me, onDone }) {
                   เลือกหน่วยให้ครบ {r.qty} ชิ้น (ว่าง {units.length}) — เลือกแล้ว {pickUnits.length}
                 </div>
                 <div className="unit-chips">
-                  {units.map((u) => (
-                    <label key={u.id} className={'unit-chip' + (pickUnits.includes(u.id) ? ' on' : '')}>
-                      <input type="checkbox" checked={pickUnits.includes(u.id)} onChange={() => toggleUnit(u.id)} />
-                      {u.code}
-                    </label>
-                  ))}
+                  {units.map((u) => {
+                    const on = pickUnits.includes(u.id);
+                    const full = !on && pickUnits.length >= r.qty; // ครบจำนวนที่ขอแล้ว ห้ามติ๊กเพิ่ม
+                    return (
+                      <label key={u.id} className={'unit-chip' + (on ? ' on' : '') + (full ? ' disabled' : '')}>
+                        <input type="checkbox" checked={on} disabled={full} onChange={() => toggleUnit(u.id)} />
+                        {u.code}
+                      </label>
+                    );
+                  })}
                 </div>
                 <button className="btn small primary" disabled={pickUnits.length !== r.qty}
                   onClick={() => call('approve', { unit_ids: pickUnits })}>อนุมัติให้ยืม</button>
