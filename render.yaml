@@ -1,24 +1,19 @@
 # Render Blueprint — deploy อัตโนมัติทุก git push
-# โหมดถาวร (มี disk) = ต้องใช้ plan starter. โหมด demo = เปลี่ยน plan: free + ลบ block disk ออก
+# โหมด demo (free): ข้อมูล + รูป ไม่ถาวร รีเซ็ตตอน redeploy/sleep
+# อยากถาวร: plan starter + เพิ่ม block disk + env DB_PATH=/var/data/inventory.db (ดู git history commit ก่อน)
 services:
   - type: web
     name: lab-inventory
     runtime: node
-    plan: starter            # demo: เปลี่ยนเป็น free (ข้อมูลไม่ถาวร)
+    plan: free
     buildCommand: npm install && npm --prefix client install && npm --prefix client run build
     startCommand: node scripts/init-db.js && node server.js
     autoDeploy: true
     envVars:
       - key: NODE_VERSION
         value: 24.16.0
-      - key: DB_PATH
-        value: /var/data/inventory.db   # demo (free): ลบ env นี้ทิ้ง จะใช้ path ในโปรเจกต์แทน
       - key: SESSION_SECRET
-        generateValue: true             # สุ่มให้อัตโนมัติ
+        generateValue: true
       - key: ADMIN_USER
         value: admin
-      # ADMIN_PASS: ตั้งเองในหน้า Render (ไม่ตั้ง = ใช้ default admin1234 จาก init-db)
-    disk:                    # demo (free): ลบทั้ง block disk นี้
-      name: data
-      mountPath: /var/data
-      sizeGB: 1
+      # ADMIN_PASS: ไม่ตั้ง = ใช้ default admin1234 จาก init-db
