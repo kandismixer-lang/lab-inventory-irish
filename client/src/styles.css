@@ -107,7 +107,7 @@ h1, h3 { font-family: var(--font-display); font-weight: 500; letter-spacing: -0.
 @keyframes navUnderline { from { transform: scaleX(0); opacity: 0; } to { transform: scaleX(1); opacity: 1; } }
 .userbox { display: flex; align-items: center; gap: 8px; }
 
-main { max-width: 1050px; margin: 24px auto; padding: 0 16px; }
+main { max-width: 1050px; margin: 24px auto; padding: 0 16px 96px; }
 
 /* grid cards */
 .stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px,1fr)); gap: 12px; margin-bottom: 18px; }
@@ -217,10 +217,15 @@ tr.expand-row > td { background: var(--mist); padding: 0; border-right: none; }
 .unit-chip.disabled:hover { border-color: var(--line-strong); color: inherit; }
 .unit-chip input { width: auto; margin: 0; }
 
-/* ตะกร้า */
-.cart-bar { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); z-index: 40;
-  display: flex; align-items: center; gap: 14px; background: var(--ink); color: #fff;
-  padding: 10px 16px; border-radius: var(--pill); box-shadow: var(--shadow-soft); cursor: pointer; animation: fadeInUp .25s ease both; }
+/* ตะกร้า — แถบลอยมุมขวาล่าง (ไม่ชน toast ที่อยู่กลาง) */
+.cart-bar { position: fixed; bottom: 20px; right: 20px; z-index: 40;
+  display: inline-flex; align-items: center; gap: 8px; background: var(--ink); color: #fff;
+  padding: 12px 18px; border: none; border-radius: var(--pill); box-shadow: var(--shadow-soft);
+  cursor: pointer; font: inherit; font-weight: 500; animation: fadeInUp .25s ease both; }
+.cart-bar:hover { background: var(--navy); }
+.cart-bar b { font-weight: 700; }
+.cart-cta { margin-left: 4px; opacity: .85; }
+.cart-toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
 .cart-lines { display: flex; flex-direction: column; gap: 8px; max-height: 46vh; overflow: auto; }
 .cart-line { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); }
 .cart-line:last-child { border-bottom: none; }

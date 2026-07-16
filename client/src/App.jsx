@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { api } from './api.js';
 import { ToastProvider, DialogProvider, Modal, useToast } from './components.jsx';
+import { CartProvider } from './Cart.jsx';
 import Dashboard from './Dashboard.jsx';
 import Items from './Items.jsx';
 import Log from './Log.jsx';
@@ -84,7 +85,7 @@ function Shell({ me, onLogout }) {
   };
 
   return (
-    <>
+    <CartProvider>
       <header className="topbar">
         <div className="brand">🧪 คลัง IRiSH LAB</div>
         <nav className="tabs">
@@ -107,7 +108,7 @@ function Shell({ me, onLogout }) {
         <Comp me={me} />
       </main>
       {changingPw && <ChangePw onClose={() => setChangingPw(false)} />}
-    </>
+    </CartProvider>
   );
 }
 
