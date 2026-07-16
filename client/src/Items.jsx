@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { api, TYPE_LABEL, KIND_LABEL, STATUS_LABEL, CATEGORY_GROUPS, CATEGORY_TYPE, fileToScaledDataURL } from './api.js';
-import { Table, Modal, useToast } from './components.jsx';
+import { Table, Modal, useToast, useConfirm, usePrompt } from './components.jsx';
 
 export const catLabel = (i) => i.category || TYPE_LABEL[i.type];
 
@@ -245,6 +245,8 @@ function Summary({ items }) {
 
 function ItemForm({ item, me, onClose, onSaved }) {
   const toast = useToast();
+  const confirm = useConfirm();
+  const promptDlg = usePrompt();
   const [err, setErr] = useState('');
   const [category, setCategory] = useState(item?.category || 'วัสดุสิ้นเปลือง');
   const [tracked, setTracked] = useState(!!item?.tracked);
@@ -279,7 +281,7 @@ function ItemForm({ item, me, onClose, onSaved }) {
   useEffect(() => { if (type !== 'tool') setTracked(false); }, [type]);
 
   const addLocation = async () => {
-    const name = prompt('ชื่อตู้/ที่เก็บใหม่ (เช่น ตู้ D ชั้น 1)');
+    const name = await promptDlg({ title: 'เพิ่มตู้/ที่เก็บใหม่', placeholder: 'เช่น ตู้ D ชั้น 1' });
     if (!name || !name.trim()) return;
     try {
       const loc = await api('/api/locations', { method: 'POST', body: { name: name.trim() } });
@@ -314,7 +316,7 @@ function ItemForm({ item, me, onClose, onSaved }) {
     } catch (er) { setErr(er.message); }
   };
   const del = async () => {
-    if (!confirm('ลบรายการนี้? (ประวัติยังเก็บไว้)')) return;
+    if (!(await confirm({ title: 'ลบรายการนี้?', message: 'รายการจะถูกซ่อน (ประวัติ/ข้อมูลยังเก็บไว้)' }))) return;
     await api('/api/items/' + item.id, { method: 'DELETE' });
     toast('ลบแล้ว');
     onSaved();
@@ -449,6 +451,8 @@ const UNIT_BTNS = {
 
 function UnitsPanel({ item, me, onChanged }) {
   const toast = useToast();
+  const confirm = useConfirm();
+  const promptDlg = usePrompt();
   const [tab, setTab] = useState('list'); // list | add
   const [units, setUnits] = useState([]);
   const [err, setErr] = useState('');
@@ -460,7 +464,7 @@ function UnitsPanel({ item, me, onChanged }) {
     setErr('');
     let person;
     if (action === 'borrow') {
-      person = prompt(`ยืม ${unit.code} — ใครยืม?`, me.fullname || me.username);
+      person = await promptDlg({ title: `ยืม ${unit.code}`, message: 'ใครยืม?', value: me.fullname || me.username });
       if (person === null) return;
     }
     try {
@@ -471,7 +475,7 @@ function UnitsPanel({ item, me, onChanged }) {
   };
 
   const del = async (unit) => {
-    if (!confirm(`เลิกใช้หน่วย ${unit.code}?`)) return;
+    if (!(await confirm({ title: `เลิกใช้หน่วย ${unit.code}?`, message: 'หน่วยนี้จะถูกนำออกจากคลัง (ประวัติยังอยู่)' }))) return;
     await api(`/api/units/${unit.id}`, { method: 'DELETE' });
     toast('เลิกใช้แล้ว'); load(); onChanged();
   };

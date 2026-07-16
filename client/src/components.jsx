@@ -21,6 +21,43 @@ export function ToastProvider({ children }) {
   );
 }
 
+// ---------- Confirm / Prompt (modal สวย แทน confirm()/prompt() เนทีฟ) ----------
+const DialogCtx = createContext({ confirm: async () => false, prompt: async () => null });
+export const useConfirm = () => useContext(DialogCtx).confirm;
+export const usePrompt = () => useContext(DialogCtx).prompt;
+
+export function DialogProvider({ children }) {
+  const [dlg, setDlg] = useState(null); // { kind, title, message, danger, value, resolve, okText }
+  const close = (result) => { dlg?.resolve(result); setDlg(null); };
+  const api = useRef({});
+  api.current.confirm = (opts) => new Promise((resolve) =>
+    setDlg({ kind: 'confirm', okText: 'ยืนยัน', danger: true, ...normalize(opts), resolve }));
+  api.current.prompt = (opts) => new Promise((resolve) =>
+    setDlg({ kind: 'prompt', okText: 'ตกลง', value: '', ...normalize(opts), resolve }));
+
+  return (
+    <DialogCtx.Provider value={{ confirm: (o) => api.current.confirm(o), prompt: (o) => api.current.prompt(o) }}>
+      {children}
+      {dlg && (
+        <Modal title={dlg.title} onClose={() => close(dlg.kind === 'prompt' ? null : false)}>
+          {dlg.message && <p style={{ margin: '0 0 12px', color: 'var(--muted)' }}>{dlg.message}</p>}
+          {dlg.kind === 'prompt' && (
+            <input autoFocus value={dlg.value} onChange={(e) => setDlg((d) => ({ ...d, value: e.target.value }))}
+              onKeyDown={(e) => { if (e.key === 'Enter') close(dlg.value); }} placeholder={dlg.placeholder || ''} />
+          )}
+          <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+            <button className="btn" style={{ flex: 1 }} onClick={() => close(dlg.kind === 'prompt' ? null : false)}>ยกเลิก</button>
+            <button className={'btn ' + (dlg.danger ? 'danger' : 'primary')} style={{ flex: 1 }}
+              onClick={() => close(dlg.kind === 'prompt' ? dlg.value : true)}>{dlg.okText}</button>
+          </div>
+        </Modal>
+      )}
+    </DialogCtx.Provider>
+  );
+}
+// รับได้ทั้ง string หรือ object
+function normalize(opts) { return typeof opts === 'string' ? { title: opts } : (opts || {}); }
+
 // ---------- Modal ----------
 export function Modal({ title, onClose, children }) {
   // ปิดเฉพาะตอน "กดเริ่ม" บนพื้นหลังจริง — กันปิดพลาดตอนลากเลือกข้อความในฟอร์มแล้วปล่อยเมาส์นอกกล่อง

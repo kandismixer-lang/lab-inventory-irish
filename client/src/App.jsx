@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { api } from './api.js';
-import { ToastProvider, Modal, useToast } from './components.jsx';
+import { ToastProvider, DialogProvider, Modal, useToast } from './components.jsx';
 import Dashboard from './Dashboard.jsx';
 import Items from './Items.jsx';
 import Log from './Log.jsx';
@@ -10,7 +10,9 @@ import Requests from './Requests.jsx';
 export default function App() {
   return (
     <ToastProvider>
-      <Root />
+      <DialogProvider>
+        <Root />
+      </DialogProvider>
     </ToastProvider>
   );
 }

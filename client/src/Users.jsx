@@ -1,17 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import { api } from './api.js';
-import { Table, Modal, useToast } from './components.jsx';
+import { Table, Modal, useToast, useConfirm } from './components.jsx';
 
 export default function Users({ me }) {
   const [users, setUsers] = useState([]);
   const [adding, setAdding] = useState(false);
   const toast = useToast();
+  const confirm = useConfirm();
 
   const load = () => api('/api/users').then(setUsers);
   useEffect(() => { load(); }, []);
 
   const del = async (id) => {
-    if (!confirm('ลบผู้ใช้นี้?')) return;
+    if (!(await confirm({ title: 'ลบผู้ใช้นี้?', message: 'ผู้ใช้จะถูกซ่อนและเข้าระบบไม่ได้ (ประวัติยังเก็บไว้)' }))) return;
     await api('/api/users/' + id, { method: 'DELETE' });
     toast('ลบแล้ว');
     load();
