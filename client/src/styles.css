@@ -161,6 +161,11 @@ tr.expand-row > td { background: #f8fafc; padding: 0; border-right: none; }
 .req-actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
 .req-imgs { display: flex; gap: 8px; }
 .unit-select { padding: 5px 8px; border: 1px solid var(--line); border-radius: 8px; font: inherit; font-size: 0.85rem; }
+.unit-pick { display: flex; flex-direction: column; gap: 6px; }
+.unit-chips { display: flex; flex-wrap: wrap; gap: 6px; max-width: 420px; }
+.unit-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border: 1px solid var(--line); border-radius: 999px; font-size: 0.82rem; cursor: pointer; user-select: none; }
+.unit-chip.on { background: #2563eb; color: #fff; border-color: #2563eb; }
+.unit-chip input { width: auto; margin: 0; }
 
 .thumb { margin: 0; cursor: pointer; text-align: center; }
 .thumb img { width: 72px; height: 72px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); }

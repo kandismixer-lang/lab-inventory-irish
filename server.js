@@ -417,6 +417,7 @@ const REQ_SELECT = `
   SELECT r.*,
     i.name AS item_name, i.unit AS item_unit, i.type AS item_type, i.tracked,
     u.code AS unit_code,
+    (SELECT GROUP_CONCAT(u2.code, ', ') FROM request_units ru JOIN units u2 ON u2.id = ru.unit_id WHERE ru.request_id = r.id) AS unit_codes,
     req.username AS requester_name, req.fullname AS requester_fullname,
     apr.username AS approver_name
   FROM requests r
@@ -490,21 +491,42 @@ app.get('/api/requests/counts', requireAuth, (req, res) => {
 function getReq(id) {
   return db.prepare('SELECT * FROM requests WHERE id = ?').get(id);
 }
+// หน่วยที่จองไว้ให้คำขอ (fallback unit_id เดี่ยวสำหรับข้อมูลเก่า)
+function reqUnitIds(r) {
+  const ids = db.prepare('SELECT unit_id FROM request_units WHERE request_id = ?').all(r.id).map((x) => x.unit_id);
+  if (ids.length) return ids;
+  return r.unit_id ? [r.unit_id] : [];
+}
 
-// Admin: อนุมัติ (เลือกหน่วยถ้า track รายตัว)
+// Admin: อนุมัติ (เลือกหน่วยถ้า track รายตัว — ได้หลายหน่วยตามจำนวนที่ขอ)
 app.post('/api/requests/:id/approve', requireAuth, requireAdmin, (req, res) => {
   const r = getReq(req.params.id);
   if (!r || r.status !== 'pending') return res.status(400).json({ error: 'คำขอนี้อนุมัติไม่ได้' });
   const item = db.prepare('SELECT * FROM items WHERE id = ?').get(r.item_id);
-  let unitId = null;
   if (item.tracked) {
-    unitId = parseInt(req.body?.unit_id, 10);
-    const unit = db.prepare("SELECT * FROM units WHERE id = ? AND item_id = ? AND active=1 AND status='available'").get(unitId, item.id);
-    if (!unit) return res.status(400).json({ error: 'ต้องเลือกหน่วยที่ว่างให้ผู้ยืม' });
+    // รับ unit_ids (array) — รองรับ unit_id เดี่ยวเพื่อความเข้ากันได้เก่า
+    let ids = req.body?.unit_ids;
+    if (!Array.isArray(ids)) ids = req.body?.unit_id != null ? [req.body.unit_id] : [];
+    ids = [...new Set(ids.map((x) => parseInt(x, 10)).filter((x) => x))];
+    if (ids.length !== r.qty)
+      return res.status(400).json({ error: `ต้องเลือกหน่วยว่างให้ครบ ${r.qty} ชิ้น` });
+    for (const id of ids) {
+      const unit = db.prepare("SELECT * FROM units WHERE id = ? AND item_id = ? AND active=1 AND status='available'").get(id, item.id);
+      if (!unit) return res.status(400).json({ error: 'มีหน่วยที่เลือกไม่ว่างแล้ว' });
+    }
+    db.tx(() => {
+      db.prepare('DELETE FROM request_units WHERE request_id = ?').run(r.id);
+      const ins = db.prepare('INSERT INTO request_units (request_id, unit_id) VALUES (?,?)');
+      ids.forEach((id) => ins.run(r.id, id));
+      db.prepare(
+        "UPDATE requests SET status='approved', approver_id=?, unit_id=?, approved_at=datetime('now','localtime') WHERE id=?"
+      ).run(req.user.id, ids[0], r.id);
+    });
+    return res.json({ ok: true });
   }
   db.prepare(
-    "UPDATE requests SET status='approved', approver_id=?, unit_id=?, approved_at=datetime('now','localtime') WHERE id=?"
-  ).run(req.user.id, unitId, r.id);
+    "UPDATE requests SET status='approved', approver_id=?, approved_at=datetime('now','localtime') WHERE id=?"
+  ).run(req.user.id, r.id);
   res.json({ ok: true });
 });
 
@@ -531,14 +553,18 @@ app.post('/api/requests/:id/handover', requireAuth, requireAdmin, (req, res) => 
   try {
     db.tx(() => {
       if (item.tracked) {
-        const unit = db.prepare("SELECT * FROM units WHERE id=? AND status='available'").get(r.unit_id);
-        if (!unit) throw new Error('หน่วยที่เลือกไม่ว่างแล้ว');
-        db.prepare("UPDATE units SET status='borrowed', holder=? WHERE id=?").run(who, unit.id);
+        const ids = reqUnitIds(r);
+        if (ids.length !== r.qty) throw new Error('จำนวนหน่วยที่จองไว้ไม่ครบตามคำขอ');
+        for (const uid of ids) {
+          const unit = db.prepare("SELECT * FROM units WHERE id=? AND status='available'").get(uid);
+          if (!unit) throw new Error('มีหน่วยที่เลือกไม่ว่างแล้ว');
+          db.prepare("UPDATE units SET status='borrowed', holder=? WHERE id=?").run(who, unit.id);
+          db.prepare(
+            `INSERT INTO transactions (item_id, unit_id, user_id, kind, qty, delta, person, note)
+             VALUES (?,?,?, 'borrow', 1, -1, ?, ?)`
+          ).run(item.id, unit.id, req.user.id, who, `ส่งมอบตามคำขอ #${r.id}: ${unit.code}`);
+        }
         db.recalcTracked(item.id);
-        db.prepare(
-          `INSERT INTO transactions (item_id, unit_id, user_id, kind, qty, delta, person, note)
-           VALUES (?,?,?, 'borrow', 1, -1, ?, ?)`
-        ).run(item.id, unit.id, req.user.id, who, `ส่งมอบตามคำขอ #${r.id}: ${unit.code}`);
       } else {
         if (item.qty < r.qty) throw new Error(`คงเหลือไม่พอ (มี ${item.qty})`);
         const delta = -r.qty;
@@ -589,13 +615,16 @@ app.post('/api/requests/:id/return', requireAuth, (req, res) => {
     return res.status(403).json({ error: 'ไม่มีสิทธิ์' });
   const item = db.prepare('SELECT * FROM items WHERE id = ?').get(r.item_id);
   db.tx(() => {
-    if (item.tracked && r.unit_id) {
-      db.prepare("UPDATE units SET status='available', holder='' WHERE id=?").run(r.unit_id);
+    const ids = item.tracked ? reqUnitIds(r) : [];
+    if (item.tracked && ids.length) {
+      for (const uid of ids) {
+        db.prepare("UPDATE units SET status='available', holder='' WHERE id=?").run(uid);
+        db.prepare(
+          `INSERT INTO transactions (item_id, unit_id, user_id, kind, qty, delta, person, note)
+           VALUES (?,?,?, 'return', 1, 1, '', ?)`
+        ).run(item.id, uid, req.user.id, `คืนตามคำขอ #${r.id}`);
+      }
       db.recalcTracked(item.id);
-      db.prepare(
-        `INSERT INTO transactions (item_id, unit_id, user_id, kind, qty, delta, person, note)
-         VALUES (?,?,?, 'return', 1, 1, '', ?)`
-      ).run(item.id, r.unit_id, req.user.id, `คืนตามคำขอ #${r.id}`);
     } else if (item.type === 'tool') {
       db.prepare('UPDATE items SET qty = qty + ? WHERE id = ?').run(r.qty, item.id);
       db.prepare(

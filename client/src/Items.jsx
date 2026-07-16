@@ -134,9 +134,9 @@ export function RequestForm({ item, me, onClose, onDone }) {
       </div>
       <form onSubmit={submit}>
         <label>จำนวน ({item.unit})
-          <input name="qty" type="number" min="1" max={item.tracked ? 1 : item.qty} defaultValue="1" required />
+          <input name="qty" type="number" min="1" max={item.qty} defaultValue="1" required />
         </label>
-        {item.tracked && <div className="hint">ของ track รายตัว — ขอได้ครั้งละ 1 หน่วย</div>}
+        {item.tracked && <div className="hint">ของ track รายตัว — Admin จะเลือกหน่วยจริงให้ครบตามจำนวนตอนอนุมัติ</div>}
         <label>เหตุผล/รายละเอียด (ไม่บังคับ)<input name="note" placeholder="เช่น ใช้ทำโปรเจกต์ ..." /></label>
         <div className="err">{err}</div>
         <button className="btn primary" type="submit" style={{ marginTop: 14, width: '100%' }}>ส่งคำขอ</button>

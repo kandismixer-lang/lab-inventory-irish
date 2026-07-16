@@ -86,6 +86,13 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_req_status ON requests(status);
   CREATE INDEX IF NOT EXISTS idx_req_requester ON requests(requester_id);
 
+  -- หน่วยที่จองให้คำขอ (tracked ยืมได้หลายหน่วยต่อคำขอ)
+  CREATE TABLE IF NOT EXISTS request_units (
+    request_id INTEGER NOT NULL REFERENCES requests(id),
+    unit_id    INTEGER NOT NULL REFERENCES units(id)
+  );
+  CREATE INDEX IF NOT EXISTS idx_ru_req ON request_units(request_id);
+
   -- ตู้/ที่เก็บของ (จัดการเป็นรายการ เลือกจาก dropdown)
   CREATE TABLE IF NOT EXISTS locations (
     id     INTEGER PRIMARY KEY AUTOINCREMENT,

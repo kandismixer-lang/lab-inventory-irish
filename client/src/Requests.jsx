@@ -60,8 +60,9 @@ function RequestCard({ r, me, onDone }) {
   const st = REQ_STATUS[r.status] || { label: r.status, cls: '' };
   const [modal, setModal] = useState(null); // 'handover' | 'receive' | 'reject'
   const [units, setUnits] = useState([]);   // หน่วยว่างของ item นี้ (pending + tracked)
-  const [pickUnit, setPickUnit] = useState('');
+  const [pickUnits, setPickUnits] = useState([]); // เลือกได้หลายหน่วย
   const toast = useToast();
+  const toggleUnit = (id) => setPickUnits((p) => p.includes(id) ? p.filter((x) => x !== id) : [...p, id]);
 
   // โหลดหน่วยว่างเมื่อเป็นคำขอ pending ของ item ที่ track รายตัว (สำหรับ admin เลือกให้ยืม)
   useEffect(() => {
@@ -84,7 +85,7 @@ function RequestCard({ r, me, onDone }) {
         <div className="req-title">
           <strong>{r.item_name}</strong>
           <span className="muted">×{r.qty} {r.item_unit}</span>
-          {r.unit_code && <span className="badge st-borrowed">{r.unit_code}</span>}
+          {(r.unit_codes || r.unit_code) && <span className="badge st-borrowed">{r.unit_codes || r.unit_code}</span>}
           <span className={'badge ' + st.cls}>{st.label}</span>
         </div>
         <div className="req-sub">
@@ -108,14 +109,21 @@ function RequestCard({ r, me, onDone }) {
         {isAdmin && r.status === 'pending' && (
           <>
             {r.tracked ? (
-              <>
-                <select className="unit-select" value={pickUnit} onChange={(e) => setPickUnit(e.target.value)}>
-                  <option value="">ว่าง {units.length} — เลือกหน่วย</option>
-                  {units.map((u) => <option key={u.id} value={u.id}>{u.code}</option>)}
-                </select>
-                <button className="btn small primary" disabled={!pickUnit}
-                  onClick={() => call('approve', { unit_id: pickUnit })}>อนุมัติให้ยืม</button>
-              </>
+              <div className="unit-pick">
+                <div className="hint" style={{ margin: '0 0 4px' }}>
+                  เลือกหน่วยให้ครบ {r.qty} ชิ้น (ว่าง {units.length}) — เลือกแล้ว {pickUnits.length}
+                </div>
+                <div className="unit-chips">
+                  {units.map((u) => (
+                    <label key={u.id} className={'unit-chip' + (pickUnits.includes(u.id) ? ' on' : '')}>
+                      <input type="checkbox" checked={pickUnits.includes(u.id)} onChange={() => toggleUnit(u.id)} />
+                      {u.code}
+                    </label>
+                  ))}
+                </div>
+                <button className="btn small primary" disabled={pickUnits.length !== r.qty}
+                  onClick={() => call('approve', { unit_ids: pickUnits })}>อนุมัติให้ยืม</button>
+              </div>
             ) : (
               <button className="btn small primary" onClick={() => call('approve', {})}>อนุมัติ</button>
             )}
