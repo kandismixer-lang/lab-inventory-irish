@@ -18,7 +18,7 @@ export const STATUS_LABEL = { available: 'ว่าง', borrowed: 'ถูกย
 
 // หมวดหมู่ย่อย แบ่งตามพฤติกรรม (tool = ยืม-คืน, consumable = เบิกหมด)
 export const CATEGORY_GROUPS = [
-  { group: 'ใช้แล้วคืน (ยืม-คืน)', type: 'tool', cats: ['เครื่องมือ', 'บอร์ด', 'หุ่นยนต์', 'สาย USB (ไม่ตัด)'] },
+  { group: 'ใช้แล้วคืน (ยืม-คืน)', type: 'tool', cats: ['เครื่องมือ', 'ชิ้นส่วน/อุปกรณ์', 'บอร์ด', 'หุ่นยนต์', 'สาย USB (ไม่ตัด)'] },
   { group: 'ใช้แล้วทิ้ง (เบิกหมด)', type: 'consumable', cats: ['สายไฟ', 'วัสดุสิ้นเปลือง', 'สาย USB (ใช้ตัด)'] },
 ];
 export const CATEGORY_TYPE = {};

@@ -47,6 +47,7 @@ function requireAdmin(req, res, next) {
 // หมวดหมู่ → พฤติกรรม (tool = ยืม-คืน, consumable = เบิกหมด)
 const CATEGORY_TYPE = {
   'เครื่องมือ': 'tool',
+  'ชิ้นส่วน/อุปกรณ์': 'tool',
   'บอร์ด': 'tool',
   'หุ่นยนต์': 'tool',
   'สาย USB (ไม่ตัด)': 'tool',
