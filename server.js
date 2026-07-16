@@ -1,4 +1,5 @@
 const path = require('path');
+const fs = require('fs');
 const express = require('express');
 const cookieSession = require('cookie-session');
 const bcrypt = require('bcryptjs');
@@ -9,6 +10,12 @@ const PORT = process.env.PORT || 3000;
 
 app.use(express.json({ limit: '12mb' })); // เผื่อรูปหลักฐาน (data URL)
 app.use(express.static(path.join(__dirname, 'public')));
+
+// โฟลเดอร์เก็บรูปหลักฐาน (แยกไฟล์จาก DB) — อยู่ข้าง DB บน disk ถาวร
+const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'data', 'inventory.db');
+const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(path.dirname(DB_PATH), 'uploads');
+fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+app.use('/uploads', express.static(UPLOAD_DIR));
 app.use(
   cookieSession({
     name: 'sess',
@@ -418,11 +425,18 @@ const REQ_SELECT = `
   LEFT JOIN users apr ON apr.id = r.approver_id
 `;
 
-// เก็บ data URL รูปให้สั้นลงถ้าจำเป็น (จำกัดขนาดคร่าวๆ)
-function cleanImage(img) {
-  if (typeof img !== 'string' || !img.startsWith('data:image/')) return null;
-  if (img.length > 12 * 1024 * 1024) return null; // กันรูปใหญ่เกิน
-  return img;
+// รับ data URL จาก client → เขียนเป็นไฟล์รูปใน UPLOAD_DIR → คืน path (/uploads/xxx.jpg)
+// รูปเก่าที่เก็บเป็น base64 ใน DB ยังแสดงได้ปกติ (backward compatible)
+function saveImage(dataUrl, baseName) {
+  if (typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image/')) return null;
+  const m = dataUrl.match(/^data:image\/([a-zA-Z0-9.+-]+);base64,(.+)$/);
+  if (!m) return null;
+  const ext = m[1].toLowerCase() === 'jpeg' ? 'jpg' : m[1].toLowerCase();
+  const buf = Buffer.from(m[2], 'base64');
+  if (buf.length > 12 * 1024 * 1024) return null; // กันรูปใหญ่เกิน
+  const file = `${baseName}-${Date.now()}.${ext}`;
+  fs.writeFileSync(path.join(UPLOAD_DIR, file), buf);
+  return `/uploads/${file}`;
 }
 
 // Staff/Admin สร้างคำขอ (เลือกแค่ "ชนิดของ")
@@ -509,7 +523,7 @@ app.post('/api/requests/:id/handover', requireAuth, requireAdmin, (req, res) => 
   const r = getReq(req.params.id);
   if (!r || r.status !== 'approved') return res.status(400).json({ error: 'คำขอนี้ส่งมอบไม่ได้' });
   const item = db.prepare('SELECT * FROM items WHERE id = ?').get(r.item_id);
-  const img = cleanImage(req.body?.image);
+  const img = saveImage(req.body?.image, `req-${r.id}-handover`);
   const requester = db.prepare('SELECT * FROM users WHERE id = ?').get(r.requester_id);
   const who = requester.fullname || requester.username;
 
@@ -549,7 +563,7 @@ app.post('/api/requests/:id/receive', requireAuth, (req, res) => {
   if (!r || r.status !== 'handed') return res.status(400).json({ error: 'คำขอนี้ยืนยันรับไม่ได้' });
   if (r.requester_id !== req.user.id && req.user.role !== 'admin')
     return res.status(403).json({ error: 'ยืนยันได้เฉพาะผู้ขอ' });
-  const img = cleanImage(req.body?.image);
+  const img = saveImage(req.body?.image, `req-${r.id}-receive`);
   db.prepare(
     "UPDATE requests SET status='received', image_receive=?, received_at=datetime('now','localtime') WHERE id=?"
   ).run(img, r.id);
