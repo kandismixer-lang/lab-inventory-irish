@@ -23,8 +23,19 @@
   --font-display: "Space Grotesk", "Segoe UI", sans-serif;
   --font-body: "Inter", "Segoe UI", Tahoma, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  --shadow-soft: 0 1px 2px rgba(20,24,31,.04), 0 4px 12px rgba(20,24,31,.06), 0 12px 28px rgba(20,24,31,.05);
 }
 * { box-sizing: border-box; }
+
+/* ---------- ลูกเล่น motion (เคารพ prefers-reduced-motion) ---------- */
+@keyframes fadeInUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+main > * { animation: fadeInUp .4s ease both; }
+.modal-box { animation: fadeInUp .22s ease both; }
+.modal { animation: fadeIn .18s ease both; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
 body {
   margin: 0;
   font-family: var(--font-body);
@@ -67,6 +78,8 @@ h1, h3 { font-family: var(--font-display); font-weight: 500; letter-spacing: -0.
   font-weight: 500; transition: background .15s, border-color .15s, color .15s;
 }
 .btn:hover { background: var(--mist); border-color: var(--text); }
+.btn:active { transform: translateY(1px); }
+.btn.primary:hover { box-shadow: var(--shadow-soft); }
 .btn.primary { background: var(--ink); color: #fff; border-color: var(--ink); }
 .btn.primary:hover { background: var(--navy); border-color: var(--navy); }
 .btn.danger { color: #fff; background: var(--danger); border-color: var(--danger); }
@@ -81,21 +94,25 @@ h1, h3 { font-family: var(--font-display); font-weight: 500; letter-spacing: -0.
 /* topbar */
 .topbar {
   display: flex; align-items: center; gap: 16px;
-  background: #fff; border-bottom: 1px solid var(--line);
+  background: rgba(255,255,255,.82); backdrop-filter: saturate(1.4) blur(10px);
+  border-bottom: 1px solid var(--line);
   padding: 12px 18px; flex-wrap: wrap; position: sticky; top: 0; z-index: 20;
 }
 .brand { font-weight: 500; font-family: var(--font-display); letter-spacing: -0.01em; font-size: 1.15rem; }
 .tabs { display: flex; gap: 4px; flex: 1; }
-.tab { border: none; background: none; padding: 8px 12px; border-radius: var(--pill); cursor: pointer; color: var(--muted); font: inherit; font-weight: 500; }
+.tab { position: relative; border: none; background: none; padding: 8px 12px; border-radius: var(--pill); cursor: pointer; color: var(--muted); font: inherit; font-weight: 500; transition: color .15s; }
 .tab:hover { color: var(--text); }
-.tab.active { background: var(--wash-blue); color: var(--primary); }
+.tab.active { color: var(--primary); }
+.tab.active::after { content: ""; position: absolute; left: 12px; right: 12px; bottom: 2px; height: 2px; background: var(--primary); border-radius: 2px; animation: navUnderline .25s ease both; }
+@keyframes navUnderline { from { transform: scaleX(0); opacity: 0; } to { transform: scaleX(1); opacity: 1; } }
 .userbox { display: flex; align-items: center; gap: 8px; }
 
 main { max-width: 1050px; margin: 24px auto; padding: 0 16px; }
 
 /* grid cards */
 .stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px,1fr)); gap: 12px; margin-bottom: 18px; }
-.stat { text-align: center; }
+.stat { text-align: center; transition: transform .18s ease, box-shadow .18s ease; }
+.stat:hover { transform: translateY(-2px); box-shadow: var(--shadow-soft); }
 .stat .num { font-size: 2rem; font-weight: 500; font-family: var(--font-display); letter-spacing: -0.02em; }
 .stat .lbl { color: var(--muted); font-size: 0.78rem; font-family: var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; }
 
@@ -108,6 +125,8 @@ th { background: var(--mist); color: var(--muted); font-weight: 400; font-family
 tr:last-child td { border-bottom: none; }
 td.right, th.right { text-align: right; }
 th:not(:last-child), td:not(:last-child) { border-right: 1px solid var(--line); }
+tbody tr { transition: background .15s; }
+tbody tr:hover > td { background: var(--wash-blue); }
 
 /* สีตามความหมายของตัวเลขในตาราง (data coloring — คงเดิม) */
 .col-total  { color: var(--primary); font-weight: 600; }
@@ -177,7 +196,8 @@ tr.expand-row > td { background: var(--mist); padding: 0; border-right: none; }
 
 /* คำขอเป็นแถบยาวเต็มความกว้าง */
 .req-list { display: flex; flex-direction: column; gap: 10px; }
-.req-bar { display: flex; align-items: center; gap: 16px; padding: 16px; flex-wrap: wrap; }
+.req-bar { display: flex; align-items: center; gap: 16px; padding: 16px; flex-wrap: wrap; transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease; }
+.req-bar:hover { transform: translateY(-2px); box-shadow: var(--shadow-soft); border-color: var(--line-strong); }
 .req-info { flex: 1; min-width: 200px; display: flex; flex-direction: column; gap: 4px; }
 .req-title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .req-title strong { font-family: var(--font-display); font-weight: 500; letter-spacing: -0.01em; }
