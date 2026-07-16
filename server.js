@@ -462,6 +462,32 @@ app.post('/api/requests', requireAuth, (req, res) => {
   res.json({ id: Number(info.lastInsertRowid) });
 });
 
+// สร้างออเดอร์ = หลายรายการใน 1 ใบ (ตะกร้า) — แต่ละบรรทัดเป็น request แยก (reuse workflow เดิม)
+app.post('/api/orders', requireAuth, (req, res) => {
+  const { note, items } = req.body || {};
+  if (!Array.isArray(items) || items.length === 0)
+    return res.status(400).json({ error: 'ตะกร้าว่าง' });
+  // ตรวจของก่อนทั้งหมด
+  const lines = [];
+  for (const it of items) {
+    const item = db.prepare('SELECT * FROM items WHERE id = ? AND active = 1').get(it.item_id);
+    if (!item) return res.status(404).json({ error: `ไม่พบรายการของ (id ${it.item_id})` });
+    const n = Math.max(1, parseInt(it.qty, 10) || 1);
+    lines.push({ item, qty: n, note: (it.note || '').trim(), kind: item.type === 'consumable' ? 'issue' : 'borrow' });
+  }
+  const orderId = db.tx(() => {
+    const oi = db.prepare('INSERT INTO orders (requester_id, note) VALUES (?,?)').run(req.user.id, (note || '').trim());
+    const oid = Number(oi.lastInsertRowid);
+    const ins = db.prepare(
+      `INSERT INTO requests (item_id, requester_id, kind, qty, note, status, order_id)
+       VALUES (?,?,?,?,?, 'pending', ?)`
+    );
+    lines.forEach((l) => ins.run(l.item.id, req.user.id, l.kind, l.qty, l.note, oid));
+    return oid;
+  });
+  res.json({ id: orderId, lines: lines.length });
+});
+
 // รายการคำขอ — staff เห็นของตัวเอง, admin เห็นทั้งหมด
 app.get('/api/requests', requireAuth, (req, res) => {
   const { status, scope } = req.query;

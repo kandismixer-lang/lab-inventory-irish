@@ -52,12 +52,61 @@ export default function Requests({ me }) {
         <p className="muted">— ไม่มีคำขอ —</p>
       ) : (
         <div className="req-list">
-          {rows.map((r) => (
-            <RequestCard key={r.id} r={r} me={me} onDone={() => { load(); toast('อัปเดตแล้ว'); }} />
+          {groupByOrder(rows).map((g) => (
+            g.orderId == null
+              ? <RequestCard key={'r' + g.lines[0].id} r={g.lines[0]} me={me} onDone={() => { load(); toast('อัปเดตแล้ว'); }} />
+              : <OrderCard key={'o' + g.orderId} lines={g.lines} me={me} onDone={() => { load(); toast('อัปเดตแล้ว'); }} />
           ))}
         </div>
       )}
     </>
+  );
+}
+
+// จัดกลุ่มคำขอตาม order_id (คงลำดับตามที่ backend ส่งมา, ใหม่สุดก่อน)
+function groupByOrder(rows) {
+  const out = [];
+  const idx = {};
+  for (const r of rows) {
+    if (r.order_id == null) { out.push({ orderId: null, lines: [r] }); continue; }
+    if (idx[r.order_id] == null) { idx[r.order_id] = out.length; out.push({ orderId: r.order_id, lines: [] }); }
+    out[idx[r.order_id]].lines.push(r);
+  }
+  return out;
+}
+
+// การ์ดออเดอร์ = สรุป 1 ใบ กดกางดูรายการข้างใน
+function OrderCard({ lines, me, onDone }) {
+  const [open, setOpen] = useState(false);
+  const first = lines[0];
+  const totalQty = lines.reduce((s, l) => s + l.qty, 0);
+  // สรุปสถานะรวม
+  const byStatus = {};
+  lines.forEach((l) => { byStatus[l.status] = (byStatus[l.status] || 0) + 1; });
+  const summary = Object.entries(byStatus)
+    .map(([s, n]) => `${(REQ_STATUS[s] || { label: s }).label} ${n}`).join(' · ');
+  return (
+    <div className="order-card card">
+      <div className="order-head" onClick={() => setOpen((v) => !v)}>
+        <div className="req-info">
+          <div className="req-title">
+            <span className="badge st-handed">ออเดอร์ #{first.order_id}</span>
+            <strong>{lines.length} รายการ · {totalQty} ชิ้น</strong>
+          </div>
+          <div className="req-sub">
+            <span>👤 {first.requester_fullname || first.requester_name}</span>
+            <span className="hint">🕑 {first.created_at}</span>
+            <span className="muted">{summary}</span>
+          </div>
+        </div>
+        <button className="btn small info">{open ? 'ซ่อนรายการ ▲' : 'ดูรายการ ▼'}</button>
+      </div>
+      {open && (
+        <div className="order-lines">
+          {lines.map((r) => <RequestCard key={r.id} r={r} me={me} onDone={onDone} />)}
+        </div>
+      )}
+    </div>
   );
 }
 

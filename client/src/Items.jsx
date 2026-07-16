@@ -13,7 +13,18 @@ export default function Items({ me }) {
   const [requesting, setRequesting] = useState(null); // item ที่ staff กำลังขอ
   const [expanded, setExpanded] = useState(null); // id ของ item ที่กางหน่วยย่อยอยู่
   const [showEmpty, setShowEmpty] = useState(false); // แสดงของใช้แล้วทิ้งที่เบิกหมด
+  const [cart, setCart] = useState([]);      // ตะกร้า: [{item, qty, note}]
+  const [cartOpen, setCartOpen] = useState(false);
   const toast = useToast();
+  const addToCart = (item, qty, note) => {
+    setCart((p) => {
+      const ex = p.find((c) => c.item.id === item.id);
+      if (ex) return p.map((c) => c.item.id === item.id ? { ...c, qty: Math.min(item.qty, c.qty + qty), note: note || c.note } : c);
+      return [...p, { item, qty, note }];
+    });
+    setRequesting(null);
+    toast('เพิ่มลงตะกร้าแล้ว');
+  };
   const timer = useRef();
 
   const load = (query = q, empty = showEmpty) =>
@@ -112,21 +123,19 @@ export default function Items({ me }) {
         <ItemForm item={editing} me={me} onClose={() => setEditing(undefined)} onSaved={refresh} />
       )}
       {moving && <MoveForm item={moving} me={me} onClose={() => setMoving(null)} onDone={refresh} />}
-      {requesting && <RequestForm item={requesting} me={me} onClose={() => setRequesting(null)} onDone={() => { setRequesting(null); toast('ส่งคำขอแล้ว รออนุมัติ'); }} />}
+      {requesting && <RequestForm item={requesting} onClose={() => setRequesting(null)} onAdd={addToCart} />}
+      <CartBar cart={cart} onOpen={() => setCartOpen(true)} />
+      {cartOpen && <CartModal cart={cart} setCart={setCart} onClose={() => setCartOpen(false)} onSubmitted={() => setCartOpen(false)} />}
     </>
   );
 }
 
-// Staff ขอยืม/ขอเบิก — เลือกแค่ชนิดของ + จำนวน
-export function RequestForm({ item, me, onClose, onDone }) {
-  const [err, setErr] = useState('');
-  const submit = async (e) => {
+// Staff ขอยืม/ขอเบิก — เลือกจำนวน แล้วเพิ่มลงตะกร้า (ส่งเป็น 1 ออเดอร์ทีเดียว)
+export function RequestForm({ item, onClose, onAdd }) {
+  const submit = (e) => {
     e.preventDefault();
     const b = Object.fromEntries(new FormData(e.target));
-    try {
-      await api('/api/requests', { method: 'POST', body: { item_id: item.id, qty: b.qty, note: b.note } });
-      onDone();
-    } catch (er) { setErr(er.message); }
+    onAdd(item, Math.max(1, parseInt(b.qty, 10) || 1), (b.note || '').trim());
   };
   return (
     <Modal title={(item.type === 'consumable' ? 'ขอเบิก' : 'ขอยืม') + ' — ' + item.name} onClose={onClose}>
@@ -139,9 +148,63 @@ export function RequestForm({ item, me, onClose, onDone }) {
         </label>
         {item.tracked && <div className="hint">ของ track รายตัว — Admin จะเลือกหน่วยจริงให้ครบตามจำนวนตอนอนุมัติ</div>}
         <label>เหตุผล/รายละเอียด (ไม่บังคับ)<input name="note" placeholder="เช่น ใช้ทำโปรเจกต์ ..." /></label>
-        <div className="err">{err}</div>
-        <button className="btn primary" type="submit" style={{ marginTop: 14, width: '100%' }}>ส่งคำขอ</button>
+        <button className="btn primary" type="submit" style={{ marginTop: 14, width: '100%' }}>เพิ่มลงตะกร้า</button>
       </form>
+    </Modal>
+  );
+}
+
+// ตะกร้า — แถบลอยล่างจอ + modal ยืนยันส่งเป็น 1 ออเดอร์
+function CartBar({ cart, onOpen }) {
+  if (cart.length === 0) return null;
+  const total = cart.reduce((s, c) => s + c.qty, 0);
+  return (
+    <div className="cart-bar" onClick={onOpen}>
+      <span>🛒 ตะกร้า {cart.length} รายการ · {total} ชิ้น</span>
+      <button className="btn small primary" onClick={onOpen}>ดูตะกร้า / ยืมทั้งหมด</button>
+    </div>
+  );
+}
+
+function CartModal({ cart, setCart, onClose, onSubmitted }) {
+  const toast = useToast();
+  const [note, setNote] = useState('');
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+  const setQty = (id, q) => setCart((p) => p.map((c) => c.item.id === id ? { ...c, qty: Math.max(1, Math.min(c.item.qty, parseInt(q, 10) || 1)) } : c));
+  const remove = (id) => setCart((p) => p.filter((c) => c.item.id !== id));
+  const submit = async () => {
+    if (cart.length === 0) return;
+    setBusy(true); setErr('');
+    try {
+      const r = await api('/api/orders', { method: 'POST', body: { note, items: cart.map((c) => ({ item_id: c.item.id, qty: c.qty, note: c.note })) } });
+      setCart([]);
+      onSubmitted(r);
+      toast(`ส่งออเดอร์แล้ว ${r.lines} รายการ`);
+    } catch (e) { setErr(e.message); } finally { setBusy(false); }
+  };
+  return (
+    <Modal title="ตะกร้ายืม/เบิก" onClose={onClose}>
+      {cart.length === 0 ? <p className="muted">— ตะกร้าว่าง —</p> : (
+        <div className="cart-lines">
+          {cart.map((c) => (
+            <div key={c.item.id} className="cart-line">
+              <div className="cart-line-info">
+                <strong>{c.item.name}</strong>
+                <span className="badge">{catLabel(c.item)}</span>
+                {c.note ? <span className="hint">📝 {c.note}</span> : null}
+              </div>
+              <input type="number" min="1" max={c.item.qty} value={c.qty} onChange={(e) => setQty(c.item.id, e.target.value)} style={{ width: 70 }} />
+              <button className="btn small danger" onClick={() => remove(c.item.id)}>ลบ</button>
+            </div>
+          ))}
+        </div>
+      )}
+      <label style={{ marginTop: 10 }}>หมายเหตุออเดอร์ (ไม่บังคับ)<input value={note} onChange={(e) => setNote(e.target.value)} placeholder="เช่น งานแข่ง..." /></label>
+      <div className="err">{err}</div>
+      <button className="btn primary" disabled={cart.length === 0 || busy} onClick={submit} style={{ marginTop: 12, width: '100%' }}>
+        {busy ? 'กำลังส่ง…' : `ยืนยันยืมทั้งหมด (${cart.length} รายการ)`}
+      </button>
     </Modal>
   );
 }
