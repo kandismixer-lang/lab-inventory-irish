@@ -207,6 +207,8 @@ app.post('/api/items', requireAuth, requireAdmin, (req, res) => {
     }
     return newId;
   });
+  const imgPath = saveImage(req.body?.image, `item-${id}`);
+  if (imgPath) db.prepare('UPDATE items SET image=? WHERE id=?').run(imgPath, id);
   res.json({ id });
 });
 
@@ -227,6 +229,8 @@ app.put('/api/items/:id', requireAuth, requireAdmin, (req, res) => {
     (note ?? item.note).trim(),
     item.id
   );
+  const imgPath = saveImage(req.body?.image, `item-${item.id}`);
+  if (imgPath) db.prepare('UPDATE items SET image=? WHERE id=?').run(imgPath, item.id);
   res.json({ ok: true });
 });
 
@@ -479,7 +483,8 @@ app.get('/api/requests/counts', requireAuth, (req, res) => {
   if (req.user.role === 'admin') {
     const pending = db.prepare("SELECT COUNT(*) n FROM requests WHERE status='pending'").get().n;
     const toHand = db.prepare("SELECT COUNT(*) n FROM requests WHERE status='approved'").get().n;
-    res.json({ pending, toHand });
+    const handed = db.prepare("SELECT COUNT(*) n FROM requests WHERE status='handed'").get().n;
+    res.json({ pending, toHand, handed });
   } else {
     const toConfirm = db
       .prepare("SELECT COUNT(*) n FROM requests WHERE status='handed' AND requester_id=?")

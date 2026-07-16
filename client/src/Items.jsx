@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { api, TYPE_LABEL, KIND_LABEL, STATUS_LABEL, CATEGORY_GROUPS, CATEGORY_TYPE } from './api.js';
+import { api, TYPE_LABEL, KIND_LABEL, STATUS_LABEL, CATEGORY_GROUPS, CATEGORY_TYPE, fileToScaledDataURL } from './api.js';
 import { Table, Modal, useToast } from './components.jsx';
 
 export const catLabel = (i) => i.category || TYPE_LABEL[i.type];
@@ -66,6 +66,7 @@ export default function Items({ me }) {
                     <strong>{i.name}</strong>
                     {i.tracked ? <span className="hint">📇 track รายตัว</span> : null}
                     <div className="hint">📍 {i.location || '—'}{i.note ? ` · ${i.note}` : ''}</div>
+                    {i.image ? <img className="item-thumb" src={i.image} alt={i.name} /> : null}
                   </td>
                   <td><span className={'badge ' + i.type}>{catLabel(i)}</span></td>
                   <td><span className="col-total">{i.total_qty} {i.unit}</span></td>
@@ -187,6 +188,15 @@ function ItemForm({ item, me, onClose, onSaved }) {
   const [locations, setLocations] = useState([]);
   const [location, setLocation] = useState(item?.location || '');
   const type = CATEGORY_TYPE[category] || 'consumable';
+  const [img, setImg] = useState('');            // รูปใหม่ (data URL) ถ้าเลือก
+  const [imgBusy, setImgBusy] = useState(false);
+  const imgRef = useRef();
+  const pickImg = async (e) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    setImgBusy(true);
+    try { setImg(await fileToScaledDataURL(f)); } finally { setImgBusy(false); }
+  };
 
   // สร้างหน่วยอัตโนมัติตอนเพิ่มรายการใหม่ (track รายตัว)
   const [uprefix, setUprefix] = useState('');
@@ -222,6 +232,7 @@ function ItemForm({ item, me, onClose, onSaved }) {
     b.category = category;
     b.location = location;
     b.tracked = tracked ? 1 : 0;
+    if (img) b.image = img;
     try {
       if (item) {
         await api('/api/items/' + item.id, { method: 'PUT', body: b });
@@ -297,6 +308,15 @@ function ItemForm({ item, me, onClose, onSaved }) {
           {!tracked && <label>จุดเตือนของใกล้หมด<input name="min_qty" type="number" min="0" defaultValue={item?.min_qty ?? 0} /></label>}
         </div>
         <label>หมายเหตุ<input name="note" defaultValue={item?.note || ''} /></label>
+        <label style={{ marginTop: 4 }}>รูปสินค้า (ไม่บังคับ)</label>
+        <input ref={imgRef} type="file" accept="image/*" onChange={pickImg} style={{ display: 'none' }} />
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <button type="button" className="btn small info" onClick={() => imgRef.current.click()}>
+            📷 {img ? 'เปลี่ยนรูป' : (item?.image ? 'เปลี่ยนรูป' : 'เลือกรูป')}
+          </button>
+          {imgBusy && <span className="muted">กำลังย่อรูป…</span>}
+          {(img || item?.image) && <img className="item-thumb" src={img || item.image} alt="preview" />}
+        </div>
         <div className="err">{err}</div>
         <button className="btn primary" type="submit" style={{ marginTop: 14, width: '100%' }}>
           {item ? 'บันทึกการแก้ไข' : 'เพิ่มรายการ'}

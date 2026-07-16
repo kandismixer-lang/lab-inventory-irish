@@ -3,9 +3,9 @@ import { api, REQ_STATUS, fileToScaledDataURL } from './api.js';
 import { Modal, useToast } from './components.jsx';
 
 const ADMIN_TABS = [
-  ['pending', 'รออนุมัติ'],
-  ['approved', 'รอส่งมอบ'],
-  ['handed', 'รอผู้ยืมยืนยัน'],
+  ['pending', 'รออนุมัติ', 'pending'],
+  ['approved', 'รอส่งมอบ', 'toHand'],
+  ['handed', 'รอผู้ยืมยืนยัน', 'handed'],
   ['received', 'ถูกยืมอยู่'],
   ['', 'ทั้งหมด'],
 ];
@@ -18,6 +18,7 @@ export default function Requests({ me }) {
   const isAdmin = me.role === 'admin';
   const [tab, setTab] = useState(isAdmin ? 'pending' : '');
   const [rows, setRows] = useState([]);
+  const [counts, setCounts] = useState({});
   const toast = useToast();
 
   const load = () => {
@@ -27,6 +28,7 @@ export default function Requests({ me }) {
       if (tab === 'active') data = data.filter((r) => ['pending', 'approved', 'handed'].includes(r.status));
       setRows(data);
     });
+    api('/api/requests/counts').then(setCounts).catch(() => {});
   };
   useEffect(() => { load(); }, [tab]);
 
@@ -36,9 +38,14 @@ export default function Requests({ me }) {
     <>
       <div className="section-title">คำขอยืม/เบิก</div>
       <div className="subtabs wrap">
-        {tabs.map(([k, label]) => (
-          <button key={k} className={'btn small' + (tab === k ? ' active' : '')} onClick={() => setTab(k)}>{label}</button>
-        ))}
+        {tabs.map(([k, label, countKey]) => {
+          const n = countKey ? counts[countKey] : 0;
+          return (
+            <button key={k} className={'btn small' + (tab === k ? ' active' : '')} onClick={() => setTab(k)}>
+              {label}{n > 0 && <span className="tab-count">{n}</span>}
+            </button>
+          );
+        })}
       </div>
 
       {rows.length === 0 ? (

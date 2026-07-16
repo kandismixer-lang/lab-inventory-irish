@@ -161,6 +161,9 @@ tr.expand-row > td { background: #f8fafc; padding: 0; border-right: none; }
 .req-actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
 .req-imgs { display: flex; gap: 8px; }
 .unit-select { padding: 5px 8px; border: 1px solid var(--line); border-radius: 8px; font: inherit; font-size: 0.85rem; }
+.item-thumb { display: block; margin-top: 6px; width: 64px; height: 64px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); }
+.tab-count { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; margin-left: 6px; padding: 0 5px; border-radius: 999px; background: #ef4444; color: #fff; font-size: 0.72rem; font-weight: 700; }
+.btn.small.active .tab-count { background: #fff; color: #2563eb; }
 .unit-pick { display: flex; flex-direction: column; gap: 6px; }
 .unit-chips { display: flex; flex-wrap: wrap; gap: 6px; max-width: 420px; }
 .unit-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border: 1px solid var(--line); border-radius: 999px; font-size: 0.82rem; cursor: pointer; user-select: none; }
