@@ -106,7 +106,7 @@ export default function Items({ me }) {
                     </div>
                   </td>
                 </tr>
-                {isOpen && i.tracked && (
+                {isOpen && !!i.tracked && (
                   <tr className="expand-row">
                     <td colSpan={6}>
                       <UnitsPanel item={i} me={me} onChanged={load} />
@@ -146,7 +146,7 @@ export function RequestForm({ item, onClose, onAdd }) {
         <label>จำนวน ({item.unit})
           <input name="qty" type="number" min="1" max={item.qty} defaultValue="1" required />
         </label>
-        {item.tracked && <div className="hint">ของ track รายตัว — Admin จะเลือกหน่วยจริงให้ครบตามจำนวนตอนอนุมัติ</div>}
+        {!!item.tracked && <div className="hint">ของ track รายตัว — Admin จะเลือกหน่วยจริงให้ครบตามจำนวนตอนอนุมัติ</div>}
         <label>เหตุผล/รายละเอียด (ไม่บังคับ)<input name="note" placeholder="เช่น ใช้ทำโปรเจกต์ ..." /></label>
         <button className="btn primary" type="submit" style={{ marginTop: 14, width: '100%' }}>เพิ่มลงตะกร้า</button>
       </form>
