@@ -65,7 +65,7 @@ function resolveCategory(category, fallbackType) {
 // ---------- auth ----------
 app.post('/api/login', (req, res) => {
   const { username, password } = req.body || {};
-  const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
+  const user = db.prepare('SELECT * FROM users WHERE username = ? AND active = 1').get(username);
   if (!user || !bcrypt.compareSync(password || '', user.password))
     return res.status(401).json({ error: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' });
   req.session.uid = user.id;
@@ -100,7 +100,7 @@ app.post('/api/change-password', requireAuth, (req, res) => {
 // ---------- users (admin) ----------
 app.get('/api/users', requireAuth, requireAdmin, (req, res) => {
   res.json(
-    db.prepare('SELECT id, username, fullname, role, created_at FROM users ORDER BY id').all()
+    db.prepare('SELECT id, username, fullname, role, created_at FROM users WHERE active = 1 ORDER BY id').all()
   );
 });
 
@@ -126,7 +126,8 @@ app.post('/api/users', requireAuth, requireAdmin, (req, res) => {
 app.delete('/api/users/:id', requireAuth, requireAdmin, (req, res) => {
   const id = Number(req.params.id);
   if (id === req.user.id) return res.status(400).json({ error: 'ลบตัวเองไม่ได้' });
-  db.prepare('DELETE FROM users WHERE id = ?').run(id);
+  // soft-delete: ซ่อน + ห้าม login แต่เก็บประวัติ/คำขอที่อ้างถึง (กัน FK constraint พัง)
+  db.prepare('UPDATE users SET active = 0 WHERE id = ?').run(id);
   res.json({ ok: true });
 });
 
