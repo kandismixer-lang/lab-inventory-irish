@@ -6,7 +6,8 @@ import { useCart } from './Cart.jsx';
 export const catLabel = (i) => i.category || TYPE_LABEL[i.type];
 
 export default function Items({ me }) {
-  const isAdmin = me.role === 'admin';
+  // guest จัดการคลังได้เท่า admin (คำขอ/ผู้ใช้เท่านั้นที่ต้อง login)
+  const isAdmin = me.role === 'admin' || me.role === 'guest';
   const [q, setQ] = useState('');
   const [items, setItems] = useState([]);
   const [editing, setEditing] = useState(undefined); // undefined=ปิด, null=เพิ่มใหม่, obj=แก้ไข

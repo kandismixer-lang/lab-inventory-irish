@@ -101,7 +101,9 @@ export function Table({ headers, rows }) {
           <tr><td colSpan={headers.length} className="muted">— ไม่มีข้อมูล —</td></tr>
         ) : (
           rows.map((r, i) => (
-            <tr key={r.key ?? i}>{r.cells.map((c, j) => <td key={j}>{c}</td>)}</tr>
+            <tr key={r.key ?? i} onClick={r.onClick} className={r.onClick ? 'row-click' : undefined}>
+              {r.cells.map((c, j) => <td key={j}>{c}</td>)}
+            </tr>
           ))
         )}
       </tbody>

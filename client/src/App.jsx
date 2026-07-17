@@ -100,8 +100,8 @@ function Login({ onLogin }) {
 const VIEWS = {
   dashboard: { label: 'แดชบอร์ด', comp: Dashboard },
   items: { label: 'รายการของ', comp: Items },
+  log: { label: 'ประวัติทั้งหมด', comp: Log },
   requests: { label: 'คำขอ', comp: Requests, needLogin: true },
-  log: { label: 'ประวัติทั้งหมด', comp: Log, adminOnly: true },
   users: { label: 'ผู้ใช้', comp: Users, adminOnly: true },
 };
 // เมนูนี้เห็นได้ไหม
@@ -167,8 +167,14 @@ function Shell({ me, onMe }) {
           </div>
         </aside>
         <main>
-          <Comp me={me} />
+          <Comp me={me} go={setView} />
         </main>
+        {view !== 'items' && (
+          <button className="borrow-fab" onClick={() => setView('items')}>
+            <span className="fab-pulse" aria-hidden="true" />
+            🛒 ยืมของ กดที่นี่
+          </button>
+        )}
       </div>
       {changingPw && <ChangePw onClose={() => setChangingPw(false)} />}
       {loggingIn && <LoginModal onClose={() => setLoggingIn(false)} onLogin={(u) => { onMe(u); setLoggingIn(false); }} />}

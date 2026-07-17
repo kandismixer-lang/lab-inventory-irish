@@ -21,7 +21,7 @@ export function TxTable({ rows }) {
   );
 }
 
-export default function Dashboard() {
+export default function Dashboard({ go }) {
   const [d, setD] = useState(null);
   useEffect(() => { api('/api/dashboard').then(setD); }, []);
   if (!d) return <p className="muted">กำลังโหลด...</p>;
@@ -47,29 +47,13 @@ export default function Dashboard() {
         </>
       )}
 
-      {d.unitsOut && d.unitsOut.length > 0 && (
-        <>
-          <div className="section-title">📇 หน่วยที่ไม่อยู่ในคลัง (ถูกยืม/พัง/หาย)</div>
-          <Table
-            headers={['รหัส', 'ของ', 'สถานะ', 'อยู่กับ']}
-            rows={d.unitsOut.map((u, i) => ({
-              key: i,
-              cells: [
-                <span style={{ fontFamily: 'ui-monospace, monospace', fontWeight: 600 }}>{u.code}</span>,
-                u.item_name,
-                <span className={'badge st-' + u.status}>{STATUS_LABEL[u.status]}</span>,
-                u.holder || '-',
-              ],
-            }))}
-          />
-        </>
-      )}
-
       <div className="section-title">🔧 เครื่องมือ (คงเหลือในคลัง = ไม่ถูกยืม)</div>
+      <div className="hint" style={{ marginBottom: 6 }}>กดที่แถวเพื่อไปหน้ารายการของ (ยืม/จัดการ)</div>
       <Table
-        headers={['ชื่อ', 'มีทั้งหมด', 'ถูกยืม', 'คงเหลือ']}
+        headers={['ชื่อ', 'มีทั้งหมด', 'ถูกยืม/พัง', 'คงเหลือ']}
         rows={d.borrowedOut.map((i) => ({
           key: i.id,
+          onClick: () => go && go('items'),
           cells: [
             i.name,
             <span className="col-total">{i.total_qty} {i.unit}</span>,
@@ -79,7 +63,11 @@ export default function Dashboard() {
                 {(i.borrowers || []).map((b, n) => (
                   <div key={n} className="borrow-line">
                     <span className="borrow-code">{b.label}</span>
-                    <span className="hint">{b.person}</span>
+                    <span className={'hint' + (b.status !== 'borrowed' ? ' col-out' : '')}>
+                      {b.status === 'borrowed'
+                        ? `${b.person || '—'}-ยืม`
+                        : STATUS_LABEL[b.status]}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -88,6 +76,24 @@ export default function Dashboard() {
           ],
         }))}
       />
+
+      {d.unitsOut && d.unitsOut.length > 0 && (
+        <>
+          <div className="section-title">📇 หน่วยที่ไม่อยู่ในคลัง (ถูกยืม/พัง/หาย)</div>
+          <Table
+            headers={['รหัส', 'ของ', 'สถานะ', 'อยู่กับ']}
+            rows={d.unitsOut.map((u, i) => ({
+              key: i,
+              cells: [
+                <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent)' }}>{u.code}</span>,
+                u.item_name,
+                <span className={'badge st-' + u.status}>{STATUS_LABEL[u.status]}</span>,
+                u.holder || '-',
+              ],
+            }))}
+          />
+        </>
+      )}
 
       <div className="section-title">🕑 ความเคลื่อนไหวล่าสุด</div>
       <TxTable rows={d.recent} />

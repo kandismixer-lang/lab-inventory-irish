@@ -26,14 +26,21 @@ app.use(
 );
 
 // ---------- helpers ----------
-// ผู้เยี่ยมชม (ยังไม่ login) — ดูแดชบอร์ด/รายการของได้ แต่เขียนอะไรไม่ได้
-const GUEST = { id: 0, username: 'guest', fullname: 'ผู้เยี่ยมชม', role: 'guest' };
+// ผู้เยี่ยมชม (ยังไม่ login) — จัดการคลังได้ แต่เข้าคำขอ/ผู้ใช้ไม่ได้
+// ใช้ id ของบัญชี guest จริงใน DB เพื่อให้ประวัติ (FK user_id) บันทึกได้
+let guestId = null;
+function guestUser() {
+  if (guestId == null) {
+    guestId = db.prepare("SELECT id FROM users WHERE username='guest'").get()?.id ?? 0;
+  }
+  return { id: guestId, username: 'guest', fullname: 'ผู้เยี่ยมชม', role: 'guest' };
+}
 
 function currentUser(req) {
-  if (!req.session || !req.session.uid) return GUEST;
+  if (!req.session || !req.session.uid) return guestUser();
   return db
     .prepare('SELECT id, username, fullname, role FROM users WHERE id = ? AND active = 1')
-    .get(req.session.uid) || GUEST;
+    .get(req.session.uid) || guestUser();
 }
 // เข้าถึงได้ทุกคน (รวม guest)
 function requireAuth(req, res, next) {
@@ -50,6 +57,12 @@ function requireAdmin(req, res, next) {
   if (req.user.role !== 'admin')
     return res.status(403).json({ error: 'ต้องเป็น admin เท่านั้น' });
   next();
+}
+// ⚠️ จัดการคลัง (ของ/หน่วย/ที่เก็บ) — เปิดให้ guest ทำได้เท่า admin ตามที่ตั้งค่าไว้
+// (คำขอ/ผู้ใช้ ยังต้อง login) — ถ้าจะปิดให้ guest แก้ไม่ได้ เปลี่ยนเป็น requireAdmin
+function requireManage(req, res, next) {
+  if (req.user.role === 'admin' || req.user.role === 'guest') return next();
+  return res.status(403).json({ error: 'ไม่มีสิทธิ์จัดการคลัง' });
 }
 
 // หมวดหมู่ → พฤติกรรม (tool = ยืม-คืน, consumable = เบิกหมด)
@@ -159,13 +172,13 @@ function decorateItem(i) {
   return { ...i, out_qty: out, total_qty: remaining + out };
 }
 
-// ใครยืมของชิ้นนี้อยู่บ้าง ณ ตอนนี้
+// หน่วยที่ไม่อยู่ในคลังของชิ้นนี้ ณ ตอนนี้ (ยืม / พัง / หาย) — ตรงกับ out_qty
 function borrowersOf(item) {
   if (item.tracked) {
     return db
-      .prepare("SELECT code, holder FROM units WHERE item_id=? AND active=1 AND status='borrowed' ORDER BY code")
+      .prepare("SELECT code, status, holder FROM units WHERE item_id=? AND active=1 AND status!='available' ORDER BY code")
       .all(item.id)
-      .map((u) => ({ label: u.code, person: u.holder || '—' }));
+      .map((u) => ({ label: u.code, status: u.status, person: u.holder || '' }));
   }
   // ของไม่ track รายตัว: ยืมค้าง = borrow − return ต่อคน
   return db
@@ -175,7 +188,7 @@ function borrowersOf(item) {
        GROUP BY person HAVING n > 0`
     )
     .all(item.id)
-    .map((r) => ({ label: `${r.n} ${item.unit}`, person: r.person }));
+    .map((r) => ({ label: `${r.n} ${item.unit}`, status: 'borrowed', person: r.person }));
 }
 
 app.get('/api/items', requireAuth, (req, res) => {
@@ -206,7 +219,7 @@ app.get('/api/items/:id', requireAuth, (req, res) => {
   res.json({ item, history });
 });
 
-app.post('/api/items', requireAuth, requireAdmin, (req, res) => {
+app.post('/api/items', requireAuth, requireManage, (req, res) => {
   const { name, category, type: rawType, unit, location, qty, min_qty, note, tracked, spec } = req.body || {};
   if (!name || !name.trim()) return res.status(400).json({ error: 'ต้องมีชื่อรายการ' });
   const { category: cat, type } = resolveCategory(category, rawType);
@@ -245,7 +258,7 @@ app.post('/api/items', requireAuth, requireAdmin, (req, res) => {
   res.json({ id });
 });
 
-app.put('/api/items/:id', requireAuth, requireAdmin, (req, res) => {
+app.put('/api/items/:id', requireAuth, requireManage, (req, res) => {
   const item = db.prepare('SELECT * FROM items WHERE id = ?').get(req.params.id);
   if (!item) return res.status(404).json({ error: 'ไม่พบรายการ' });
   const { name, category, type: rawType, unit, location, min_qty, note, spec } = req.body || {};
@@ -278,7 +291,7 @@ app.get('/api/locations', requireAuth, (req, res) => {
   res.json(db.prepare('SELECT * FROM locations WHERE active=1 ORDER BY name').all());
 });
 
-app.post('/api/locations', requireAuth, requireAdmin, (req, res) => {
+app.post('/api/locations', requireAuth, requireManage, (req, res) => {
   const name = (req.body?.name || '').trim();
   if (!name) return res.status(400).json({ error: 'ต้องมีชื่อตู้/ที่เก็บ' });
   try {
@@ -291,7 +304,7 @@ app.post('/api/locations', requireAuth, requireAdmin, (req, res) => {
   }
 });
 
-app.delete('/api/items/:id', requireAuth, requireAdmin, (req, res) => {
+app.delete('/api/items/:id', requireAuth, requireManage, (req, res) => {
   db.prepare('UPDATE items SET active = 0 WHERE id = ?').run(req.params.id);
   res.json({ ok: true });
 });
@@ -305,7 +318,7 @@ const KINDS = {
   adjust: 0, // ปรับยอด (ใช้ delta ตรงๆ)
 };
 
-app.post('/api/items/:id/move', requireAuth, requireAdmin, (req, res) => {
+app.post('/api/items/:id/move', requireAuth, requireManage, (req, res) => {
   const item = db.prepare('SELECT * FROM items WHERE id = ?').get(req.params.id);
   if (!item) return res.status(404).json({ error: 'ไม่พบรายการ' });
   if (item.tracked)
@@ -367,7 +380,7 @@ app.get('/api/items/:id/units', requireAuth, (req, res) => {
 });
 
 // เพิ่มหน่วย — เดี่ยว หรือ bulk generate (prefix + start + count + pad)
-app.post('/api/items/:id/units', requireAuth, requireAdmin, (req, res) => {
+app.post('/api/items/:id/units', requireAuth, requireManage, (req, res) => {
   const item = db.prepare('SELECT * FROM items WHERE id = ?').get(req.params.id);
   if (!item) return res.status(404).json({ error: 'ไม่พบรายการ' });
   if (!item.tracked) return res.status(400).json({ error: 'ของนี้ไม่ได้ track รายตัว' });
@@ -421,7 +434,7 @@ const UNIT_ACTIONS = {
   lost: { from: ['available', 'borrowed', 'repair'], to: 'lost' },
 };
 
-app.post('/api/units/:id/move', requireAuth, requireAdmin, (req, res) => {
+app.post('/api/units/:id/move', requireAuth, requireManage, (req, res) => {
   const unit = db.prepare('SELECT * FROM units WHERE id = ? AND active = 1').get(req.params.id);
   if (!unit) return res.status(404).json({ error: 'ไม่พบหน่วยนี้' });
   const item = db.prepare('SELECT * FROM items WHERE id = ?').get(unit.item_id);
@@ -445,7 +458,7 @@ app.post('/api/units/:id/move', requireAuth, requireAdmin, (req, res) => {
 });
 
 // เลิกใช้หน่วย (admin)
-app.delete('/api/units/:id', requireAuth, requireAdmin, (req, res) => {
+app.delete('/api/units/:id', requireAuth, requireManage, (req, res) => {
   const unit = db.prepare('SELECT * FROM units WHERE id = ?').get(req.params.id);
   if (!unit) return res.status(404).json({ error: 'ไม่พบหน่วยนี้' });
   db.tx(() => {

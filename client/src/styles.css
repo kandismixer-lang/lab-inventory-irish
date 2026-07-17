@@ -355,6 +355,32 @@ form textarea { resize: vertical; min-height: 90px; font-family: inherit; }
 .unit-chip.disabled:hover { border-color: var(--line-strong); color: var(--text); }
 .unit-chip input { width: auto; margin: 0; accent-color: var(--accent); }
 
+/* แถวตารางที่กดได้ */
+.row-click { cursor: pointer; }
+.row-click:hover > td { background: rgba(34,211,238,.07); }
+
+/* ปุ่มยืมของ — ลอยขวาล่าง สีแดง มีคลื่นกระเพื่อม */
+.borrow-fab {
+  position: fixed; right: 20px; bottom: 84px; z-index: 41;
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 14px 22px; border: none; border-radius: var(--pill);
+  background: linear-gradient(180deg, #f43f5e, #b91c1c); color: #fff;
+  font: inherit; font-weight: 700; cursor: pointer;
+  box-shadow: 0 8px 26px rgba(244,63,94,.42), 0 2px 8px rgba(0,0,0,.5);
+  animation: fadeInUp .3s ease both;
+  transition: filter .15s, box-shadow .15s;
+}
+.borrow-fab:hover { filter: brightness(1.12); box-shadow: 0 10px 34px rgba(244,63,94,.6), 0 2px 8px rgba(0,0,0,.5); }
+.borrow-fab:active { transform: translateY(1px); }
+/* คลื่นกระเพื่อมรอบปุ่ม */
+.fab-pulse { position: absolute; inset: 0; border-radius: var(--pill); pointer-events: none;
+  animation: fabPulse 2.2s ease-out infinite; }
+@keyframes fabPulse {
+  0%   { box-shadow: 0 0 0 0 rgba(244,63,94,.5); }
+  70%  { box-shadow: 0 0 0 16px rgba(244,63,94,0); }
+  100% { box-shadow: 0 0 0 0 rgba(244,63,94,0); }
+}
+
 /* ตะกร้า */
 .cart-bar { position: fixed; bottom: 20px; right: 20px; z-index: 40;
   display: inline-flex; align-items: center; gap: 8px; background: var(--primary); color: var(--on-primary);
