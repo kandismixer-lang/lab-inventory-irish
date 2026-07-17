@@ -25,6 +25,7 @@ function Root() {
   }, []);
 
   if (me === undefined) return null;
+  // ปิด login ชั่วคราว (server NO_AUTH=1 คืน admin ให้ทุกคน) — ถ้าเปิด auth กลับ Login จะโผล่เอง
   if (!me) return <Login onLogin={setMe} />;
   return <Shell me={me} onLogout={() => setMe(null)} />;
 }
@@ -117,7 +118,8 @@ function Shell({ me, onLogout }) {
           <div className="userbox">
             <span className="muted">{me.fullname || me.username} ({me.role})</span>
             <button className="btn small" onClick={() => setChangingPw(true)}>เปลี่ยนรหัส</button>
-            <button className="btn small" onClick={logout}>ออก</button>
+            {/* ปุ่มออกซ่อนไว้ตอนปิด login — เปิด auth กลับค่อยโชว์ */}
+            {import.meta.env.VITE_AUTH === '1' && <button className="btn small" onClick={logout}>ออก</button>}
           </div>
         </aside>
         <main>

@@ -29,9 +29,9 @@ export default function Dashboard() {
   return (
     <>
       <div className="stat-row">
-        <div className="card stat"><div className="num">{d.totals.items}</div><div className="lbl">ชนิดของทั้งหมด</div></div>
-        <div className="card stat"><div className="num">{d.totals.units}</div><div className="lbl">จำนวนรวมในคลัง</div></div>
-        <div className="card stat"><div className="num" style={{ color: 'var(--danger)' }}>{d.lowStock.length}</div><div className="lbl">ของใกล้หมด</div></div>
+        <div className="card stat"><div className="num col-total">{d.totals.total}</div><div className="lbl">จำนวนรวม</div></div>
+        <div className="card stat"><div className="num col-out">{d.totals.out}</div><div className="lbl">ถูกยืม / ถูกใช้</div></div>
+        <div className="card stat"><div className="num col-remain">{d.totals.remain}</div><div className="lbl">คงเหลือในคลัง</div></div>
       </div>
 
       {d.lowStock.length > 0 && (
@@ -67,8 +67,26 @@ export default function Dashboard() {
 
       <div className="section-title">🔧 เครื่องมือ (คงเหลือในคลัง = ไม่ถูกยืม)</div>
       <Table
-        headers={['ชื่อ', 'คงเหลือ', 'ที่เก็บ']}
-        rows={d.borrowedOut.map((i) => ({ key: i.id, cells: [i.name, `${i.qty} ${i.unit}`, i.location] }))}
+        headers={['ชื่อ', 'มีทั้งหมด', 'ถูกยืม', 'คงเหลือ']}
+        rows={d.borrowedOut.map((i) => ({
+          key: i.id,
+          cells: [
+            i.name,
+            <span className="col-total">{i.total_qty} {i.unit}</span>,
+            i.out_qty > 0 ? (
+              <div className="borrow-cell">
+                <span className="col-out">{i.out_qty} {i.unit}</span>
+                {(i.borrowers || []).map((b, n) => (
+                  <div key={n} className="borrow-line">
+                    <span className="borrow-code">{b.label}</span>
+                    <span className="hint">{b.person}</span>
+                  </div>
+                ))}
+              </div>
+            ) : <span className="muted">—</span>,
+            <span className="col-remain">{i.qty} {i.unit}</span>,
+          ],
+        }))}
       />
 
       <div className="section-title">🕑 ความเคลื่อนไหวล่าสุด</div>

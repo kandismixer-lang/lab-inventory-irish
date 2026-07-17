@@ -26,7 +26,17 @@ app.use(
 );
 
 // ---------- helpers ----------
+// ⚠️ NO_AUTH=1 (ค่าเริ่มต้นตอนนี้) = ปิดระบบ login ทุกคนที่เข้าเว็บเป็น admin
+// ตั้ง NO_AUTH=0 เพื่อเปิด login กลับ (บัญชีใน DB ยังอยู่ครบ ไม่ได้ลบ)
+const NO_AUTH = process.env.NO_AUTH !== '0';
+
 function currentUser(req) {
+  if (NO_AUTH) {
+    // ใช้ admin คนแรกในระบบเป็นตัวแทนทุก session
+    return db
+      .prepare("SELECT id, username, fullname, role FROM users WHERE role='admin' AND active=1 ORDER BY id LIMIT 1")
+      .get() || null;
+  }
   if (!req.session || !req.session.uid) return null;
   return db
     .prepare('SELECT id, username, fullname, role FROM users WHERE id = ?')
@@ -132,34 +142,57 @@ app.delete('/api/users/:id', requireAuth, requireAdmin, (req, res) => {
 });
 
 // ---------- items ----------
+// select + สูตรคำนวณกลาง — ใช้ทั้งหน้ารายการของและแดชบอร์ด (ตัวเลขตรงกันเสมอ)
+const ITEM_SELECT = `
+  SELECT i.*,
+    (SELECT COUNT(*) FROM units u WHERE u.item_id = i.id AND u.active = 1) AS total_units,
+    (SELECT COALESCE(SUM(CASE kind WHEN 'borrow' THEN qty WHEN 'return' THEN -qty ELSE 0 END),0)
+       FROM transactions t WHERE t.item_id = i.id) AS borrowed_net,
+    (SELECT COALESCE(SUM(qty),0) FROM transactions t WHERE t.item_id = i.id AND kind='issue') AS issued_total
+  FROM items i`;
+
+// คำนวณ มี / ถูกใช้-ยืม / คงเหลือ
+function decorateItem(i) {
+  const remaining = i.qty;
+  let out; // ถูกใช้หรือถูกยืมไป ณ ตอนนี้ (สำหรับสิ้นเปลือง = ยอดที่เบิกใช้ไปสะสม)
+  if (i.tracked) out = i.total_units - i.qty;                    // หน่วยที่ไม่ว่าง (ยืม/ซ่อม/หาย)
+  else if (i.type === 'tool') out = Math.max(0, i.borrowed_net); // ยืมค้างอยู่
+  else out = i.issued_total;                                     // วัสดุสิ้นเปลือง = เบิกไปแล้วรวม
+  return { ...i, out_qty: out, total_qty: remaining + out };
+}
+
+// ใครยืมของชิ้นนี้อยู่บ้าง ณ ตอนนี้
+function borrowersOf(item) {
+  if (item.tracked) {
+    return db
+      .prepare("SELECT code, holder FROM units WHERE item_id=? AND active=1 AND status='borrowed' ORDER BY code")
+      .all(item.id)
+      .map((u) => ({ label: u.code, person: u.holder || '—' }));
+  }
+  // ของไม่ track รายตัว: ยืมค้าง = borrow − return ต่อคน
+  return db
+    .prepare(
+      `SELECT person, SUM(CASE kind WHEN 'borrow' THEN qty ELSE -qty END) AS n
+       FROM transactions WHERE item_id=? AND kind IN ('borrow','return') AND person != ''
+       GROUP BY person HAVING n > 0`
+    )
+    .all(item.id)
+    .map((r) => ({ label: `${r.n} ${item.unit}`, person: r.person }));
+}
+
 app.get('/api/items', requireAuth, (req, res) => {
   const q = `%${(req.query.q || '').trim()}%`;
   const includeEmpty = req.query.includeEmpty === '1' ? 1 : 0;
   const rows = db
     .prepare(
-      `SELECT i.*,
-        (SELECT COUNT(*) FROM units u WHERE u.item_id = i.id AND u.active = 1) AS total_units,
-        (SELECT COALESCE(SUM(CASE kind WHEN 'borrow' THEN qty WHEN 'return' THEN -qty ELSE 0 END),0)
-           FROM transactions t WHERE t.item_id = i.id) AS borrowed_net,
-        (SELECT COALESCE(SUM(qty),0) FROM transactions t WHERE t.item_id = i.id AND kind='issue') AS issued_total
-       FROM items i
+      `${ITEM_SELECT}
        WHERE i.active = 1 AND (i.name LIKE ? OR i.location LIKE ?)
          -- ซ่อนของใช้แล้วทิ้งที่เบิกหมด (เหลือ 0) ออกจากรายการ (ข้อมูล/ประวัติยังอยู่)
          AND (? = 1 OR i.type != 'consumable' OR i.qty > 0)
        ORDER BY i.name`
     )
     .all(q, q, includeEmpty);
-
-  // คำนวณ มี / ถูกใช้-ยืม / คงเหลือ ให้ทุกรายการ
-  const items = rows.map((i) => {
-    const remaining = i.qty;
-    let out; // ถูกใช้หรือถูกยืมไป ณ ตอนนี้ (สำหรับสิ้นเปลือง = ยอดที่เบิกใช้ไปสะสม)
-    if (i.tracked) out = i.total_units - i.qty;            // หน่วยที่ไม่ว่าง (ยืม/ซ่อม/หาย)
-    else if (i.type === 'tool') out = Math.max(0, i.borrowed_net); // ยืมค้างอยู่
-    else out = i.issued_total;                            // วัสดุสิ้นเปลือง = เบิกไปแล้วรวม
-    return { ...i, out_qty: out, total_qty: remaining + out };
-  });
-  res.json(items);
+  res.json(rows.map(decorateItem));
 });
 
 app.get('/api/items/:id', requireAuth, (req, res) => {
@@ -651,6 +684,8 @@ app.post('/api/requests/:id/return', requireAuth, (req, res) => {
   if (req.user.role !== 'admin' && r.requester_id !== req.user.id)
     return res.status(403).json({ error: 'ไม่มีสิทธิ์' });
   const item = db.prepare('SELECT * FROM items WHERE id = ?').get(r.item_id);
+  const requester = db.prepare('SELECT * FROM users WHERE id = ?').get(r.requester_id);
+  const who = requester ? (requester.fullname || requester.username) : '';
   db.tx(() => {
     const ids = item.tracked ? reqUnitIds(r) : [];
     if (item.tracked && ids.length) {
@@ -658,16 +693,16 @@ app.post('/api/requests/:id/return', requireAuth, (req, res) => {
         db.prepare("UPDATE units SET status='available', holder='' WHERE id=?").run(uid);
         db.prepare(
           `INSERT INTO transactions (item_id, unit_id, user_id, kind, qty, delta, person, note)
-           VALUES (?,?,?, 'return', 1, 1, '', ?)`
-        ).run(item.id, uid, req.user.id, `คืนตามคำขอ #${r.id}`);
+           VALUES (?,?,?, 'return', 1, 1, ?, ?)`
+        ).run(item.id, uid, req.user.id, who, `คืนตามคำขอ #${r.id}`);
       }
       db.recalcTracked(item.id);
     } else if (item.type === 'tool') {
       db.prepare('UPDATE items SET qty = qty + ? WHERE id = ?').run(r.qty, item.id);
       db.prepare(
         `INSERT INTO transactions (item_id, user_id, kind, qty, delta, person, note)
-         VALUES (?,?, 'return', ?, ?, '', ?)`
-      ).run(item.id, req.user.id, r.qty, r.qty, `คืนตามคำขอ #${r.id}`);
+         VALUES (?,?, 'return', ?, ?, ?, ?)`
+      ).run(item.id, req.user.id, r.qty, r.qty, who, `คืนตามคำขอ #${r.id}`);
     }
     db.prepare("UPDATE requests SET status='returned', closed_at=datetime('now','localtime') WHERE id=?").run(r.id);
   });
@@ -681,9 +716,12 @@ app.get('/api/dashboard', requireAuth, (req, res) => {
       `SELECT * FROM items WHERE active=1 AND type='consumable' AND qty <= min_qty AND min_qty > 0 ORDER BY name`
     )
     .all();
+  // เครื่องมือ — ใช้สูตรเดียวกับหน้ารายการของ + แนบรายชื่อผู้ยืมรายตัว
   const borrowedOut = db
-    .prepare(`SELECT * FROM items WHERE active=1 AND type='tool' ORDER BY name`)
-    .all();
+    .prepare(`${ITEM_SELECT} WHERE i.active=1 AND i.type='tool' ORDER BY i.name`)
+    .all()
+    .map(decorateItem)
+    .map((i) => ({ ...i, borrowers: borrowersOf(i) }));
   // หน่วยรายตัวที่ถูกยืม/ส่งซ่อม/หาย อยู่ตอนนี้
   const unitsOut = db
     .prepare(
@@ -702,11 +740,14 @@ app.get('/api/dashboard', requireAuth, (req, res) => {
        ORDER BY t.id DESC LIMIT 30`
     )
     .all();
-  const totals = db
-    .prepare(
-      `SELECT COUNT(*) items, COALESCE(SUM(qty),0) units FROM items WHERE active=1`
-    )
-    .get();
+  // ยอดรวม — คิดจากรายการทั้งหมดด้วยสูตรเดียวกับหน้ารายการของ (ตัวเลข sync กัน)
+  const all = db.prepare(`${ITEM_SELECT} WHERE i.active=1`).all().map(decorateItem);
+  const totals = {
+    items: all.length,
+    total: all.reduce((s, i) => s + i.total_qty, 0),   // จำนวนรวม
+    out: all.reduce((s, i) => s + i.out_qty, 0),       // ถูกยืม/ถูกใช้
+    remain: all.reduce((s, i) => s + i.qty, 0),        // คงเหลือในคลัง
+  };
   res.json({ lowStock, borrowedOut, unitsOut, recent, totals });
 });
 
