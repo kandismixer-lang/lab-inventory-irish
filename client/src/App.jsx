@@ -52,8 +52,10 @@ function Login({ onLogin }) {
       </div>
 
       <div className="login-hero">
-        <div className="login-mark"><span className="brand-logo xl" aria-hidden="true" /></div>
-        <div className="login-name">IRiSH</div>
+        <div className="login-mark">
+          <span className="mark-ring" aria-hidden="true" />
+          <span className="brand-logo full" aria-hidden="true" />
+        </div>
         <div className="login-tagline">Intelligent Robot &amp; Industrial System Hub</div>
       </div>
 
