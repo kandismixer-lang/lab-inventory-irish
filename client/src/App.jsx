@@ -45,7 +45,7 @@ function Login({ onLogin }) {
   return (
     <div className="login-wrap">
       <form className="card login-card" onSubmit={submit}>
-        <h1>🧪 ระบบคลัง IRiSH LAB</h1>
+        <h1><span className="brand-logo lg" aria-hidden="true" /> ระบบคลัง IRiSH LAB</h1>
         <p className="muted">เข้าสู่ระบบเพื่อใช้งาน</p>
         <label>ชื่อผู้ใช้<input name="username" autoComplete="username" required /></label>
         <label>รหัสผ่าน<input name="password" type="password" autoComplete="current-password" required /></label>
@@ -87,7 +87,7 @@ function Shell({ me, onLogout }) {
   return (
     <CartProvider>
       <header className="topbar">
-        <div className="brand">🧪 คลัง IRiSH LAB</div>
+        <div className="brand"><span className="brand-logo" aria-hidden="true" /> คลัง IRiSH LAB</div>
         <nav className="tabs">
           {Object.entries(VIEWS).map(([k, v]) =>
             v.adminOnly && me.role !== 'admin' ? null : (

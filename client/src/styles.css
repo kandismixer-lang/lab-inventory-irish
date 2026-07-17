@@ -107,7 +107,12 @@ main > * { animation: fadeInUp .4s ease both; }
   border-bottom: 1px solid var(--line);
   padding: 12px 18px; flex-wrap: wrap; position: sticky; top: 0; z-index: 20;
 }
-.brand { font-weight: 500; font-family: var(--font-display); letter-spacing: -0.01em; font-size: 1.2rem; color: var(--text); }
+.brand { display: inline-flex; align-items: center; gap: 9px; font-weight: 500; font-family: var(--font-display); letter-spacing: -0.01em; font-size: 1.2rem; color: var(--text); }
+/* โลโก้ IRiSH — ครอปเฉพาะตราวงกลม + invert ให้ขาวบนพื้นมืด */
+.brand-logo { flex: none; display: inline-block; width: 30px; height: 30px; border-radius: 7px;
+  background: url(/logo.jpg) no-repeat; background-size: 68px auto; background-position: -3px -17px;
+  filter: invert(1); }
+.brand-logo.lg { width: 46px; height: 46px; border-radius: 10px; background-size: 104px auto; background-position: -5px -26px; vertical-align: middle; }
 .tabs { display: flex; gap: 4px; flex: 1; }
 .tab { position: relative; border: none; background: none; padding: 8px 12px; border-radius: var(--pill); cursor: pointer; color: var(--muted); font: inherit; font-weight: 500; transition: color .15s; }
 .tab:hover { color: var(--text); }
