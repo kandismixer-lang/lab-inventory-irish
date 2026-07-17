@@ -113,8 +113,15 @@ function Shell({ me, onMe }) {
   const [changingPw, setChangingPw] = useState(false);
   const [loggingIn, setLoggingIn] = useState(false);
   const [badge, setBadge] = useState(0);
+  const [focusItem, setFocusItem] = useState(null); // id ของของที่จะให้หน้ารายการเปิดรอ
   const isGuest = me.role === 'guest';
   const Comp = VIEWS[view].comp;
+
+  // เปลี่ยนหน้า + สั่งโฟกัสของ (จากแดชบอร์ด)
+  const go = (v, payload) => {
+    setView(v);
+    if (payload?.itemId) setFocusItem(payload.itemId);
+  };
 
   // ถ้าสิทธิ์เปลี่ยน (login/ออก) แล้วอยู่หน้าที่ดูไม่ได้ → เด้งกลับแดชบอร์ด
   useEffect(() => {
@@ -167,7 +174,7 @@ function Shell({ me, onMe }) {
           </div>
         </aside>
         <main>
-          <Comp me={me} go={setView} />
+          <Comp me={me} go={go} focusItem={focusItem} onFocused={() => setFocusItem(null)} />
         </main>
         {view !== 'items' && (
           <button className="borrow-fab" onClick={() => setView('items')}>

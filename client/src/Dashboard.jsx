@@ -53,7 +53,7 @@ export default function Dashboard({ go }) {
         headers={['ชื่อ', 'มีทั้งหมด', 'ถูกยืม/พัง', 'คงเหลือ']}
         rows={d.borrowedOut.map((i) => ({
           key: i.id,
-          onClick: () => go && go('items'),
+          onClick: () => go && go('items', { itemId: i.id }),
           cells: [
             i.name,
             <span className="col-total">{i.total_qty} {i.unit}</span>,

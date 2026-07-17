@@ -5,7 +5,7 @@ import { useCart } from './Cart.jsx';
 
 export const catLabel = (i) => i.category || TYPE_LABEL[i.type];
 
-export default function Items({ me }) {
+export default function Items({ me, focusItem, onFocused }) {
   // guest จัดการคลังได้เท่า admin (คำขอ/ผู้ใช้เท่านั้นที่ต้อง login)
   const isAdmin = me.role === 'admin' || me.role === 'guest';
   const [q, setQ] = useState('');
@@ -31,6 +31,20 @@ export default function Items({ me }) {
     clearTimeout(timer.current);
     timer.current = setTimeout(() => load(v), 250);
   };
+
+  // ถูกส่งมาจากแดชบอร์ด (กดของในตาราง) — เปิดของตัวนั้นรอให้เลย
+  useEffect(() => {
+    if (!focusItem || items.length === 0) return;
+    const it = items.find((x) => x.id === focusItem);
+    if (!it) return;
+    if (it.tracked) setExpanded(it.id);   // track รายตัว = กางรายการหน่วย
+    else if (isAdmin) setMoving(it);      // ไม่ track = เปิดฟอร์มยืม/คืน/รับเข้า
+    else setRequesting(it);               // staff = เปิดฟอร์มขอยืม
+    setTimeout(() => {
+      document.getElementById('item-' + it.id)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }, 50);
+    onFocused?.();
+  }, [focusItem, items]);
 
   const refresh = () => { setEditing(undefined); setMoving(null); load(); };
 
@@ -66,7 +80,7 @@ export default function Items({ me }) {
             const isOpen = expanded === i.id;
             return (
               <React.Fragment key={i.id}>
-                <tr className={isOpen ? 'expanded-parent' : ''}>
+                <tr id={'item-' + i.id} className={isOpen ? 'expanded-parent' : ''}>
                   <td>
                     <strong>{i.name}</strong>
                     {i.tracked ? <span className="hint">📇 track รายตัว</span> : null}
