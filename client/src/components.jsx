@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 
 // ---------- Toast ----------
 const ToastCtx = createContext(() => {});
@@ -62,7 +63,9 @@ function normalize(opts) { return typeof opts === 'string' ? { title: opts } : (
 export function Modal({ title, onClose, children }) {
   // ปิดเฉพาะตอน "กดเริ่ม" บนพื้นหลังจริง — กันปิดพลาดตอนลากเลือกข้อความในฟอร์มแล้วปล่อยเมาส์นอกกล่อง
   const downOnBackdrop = useRef(false);
-  return (
+  // render ผ่าน portal ไป body — หลุดจาก ancestor ที่มี transform (hover-lift)
+  // ไม่งั้น position:fixed จะยึดกับ card ที่ transform ทำให้ backdrop ไม่คลุมเต็มจอ + กระพริบ
+  return createPortal(
     <div
       className="modal"
       onMouseDown={(e) => { downOnBackdrop.current = e.target.classList.contains('modal'); }}
@@ -75,7 +78,8 @@ export function Modal({ title, onClose, children }) {
         </div>
         <div>{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
