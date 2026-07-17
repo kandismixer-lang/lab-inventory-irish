@@ -69,10 +69,7 @@ export default function Items({ me }) {
                   <td>
                     <strong>{i.name}</strong>
                     {i.tracked ? <span className="hint">📇 track รายตัว</span> : null}
-                    <div className="hint">
-                      📍 {i.location || '—'}{i.note ? ` · ${i.note}` : ''}
-                      <button type="button" className="link-detail" onClick={() => setDetail(i)}>รายละเอียด</button>
-                    </div>
+                    <button type="button" className="btn small info row-detail" onClick={() => setDetail(i)}>รายละเอียด</button>
                     {i.image ? <img className="item-thumb" src={i.image} alt={i.name} onClick={() => setDetail(i)} /> : null}
                   </td>
                   <td><span className={'badge ' + i.type}>{catLabel(i)}</span></td>
