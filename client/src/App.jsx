@@ -20,13 +20,20 @@ export default function App() {
 
 function Root() {
   const [me, setMe] = useState(undefined); // undefined=กำลังเช็ค, null=ยังไม่ login
+  const [guestName, setGuestName] = useState(() => localStorage.getItem('guestName') || '');
   useEffect(() => {
     api('/api/me').then(setMe).catch(() => setMe(null));
   }, []);
+  const saveGuestName = (n) => {
+    const v = (n || '').trim();
+    if (v) localStorage.setItem('guestName', v); else localStorage.removeItem('guestName');
+    setGuestName(v);
+  };
 
   if (me === undefined) return null;
-  // ไม่ login = guest (server คืน role 'guest') — ดูแดชบอร์ด/รายการของได้ ไม่เห็นคำขอ/ผู้ใช้
-  return <Shell me={me || { role: 'guest', username: 'guest' }} onMe={setMe} />;
+  // ไม่ login = guest — ตั้งชื่อเองได้ (เก็บใน browser) ดึงมาตอนยืม, ไม่ตั้ง = ผู้เยี่ยมชม
+  const guest = { role: 'guest', username: 'guest', fullname: guestName || 'ผู้เยี่ยมชม' };
+  return <Shell me={me || guest} onMe={setMe} guestName={guestName} onGuestName={saveGuestName} />;
 }
 
 // popup เข้าสู่ระบบ (เรียกจากปุ่มซ้ายล่าง)
@@ -108,7 +115,7 @@ const VIEWS = {
 const canSee = (v, me) =>
   !(v.adminOnly && me.role !== 'admin') && !(v.needLogin && me.role === 'guest');
 
-function Shell({ me, onMe }) {
+function Shell({ me, onMe, guestName, onGuestName }) {
   const [view, setView] = useState('dashboard');
   const [changingPw, setChangingPw] = useState(false);
   const [loggingIn, setLoggingIn] = useState(false);
@@ -163,7 +170,17 @@ function Shell({ me, onMe }) {
           </nav>
           <div className="userbox">
             {isGuest ? (
-              <button className="btn primary" onClick={() => setLoggingIn(true)}>เข้าสู่ระบบ</button>
+              <>
+                <label className="guest-name">
+                  <span className="hint">ชื่อของคุณ (ไม่บังคับ)</span>
+                  <input
+                    value={guestName}
+                    onChange={(e) => onGuestName(e.target.value)}
+                    placeholder="เช่น มิกซ์ — ไม่ตั้ง = ผู้เยี่ยมชม"
+                  />
+                </label>
+                <button className="btn small" onClick={() => setLoggingIn(true)}>เข้าสู่ระบบ (แอดมิน)</button>
+              </>
             ) : (
               <>
                 <span className="muted">{me.fullname || me.username} ({me.role})</span>

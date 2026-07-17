@@ -205,6 +205,12 @@ main > * { animation: fadeInUp .4s ease both; }
 .tab-label { flex: 1; }
 .userbox { display: flex; flex-direction: column; align-items: stretch; gap: 6px; padding-top: 12px; border-top: 1px solid var(--line); }
 .userbox .muted { padding: 0 6px 2px; }
+.guest-name { display: flex; flex-direction: column; gap: 4px; margin: 0 0 4px; }
+.guest-name .hint { padding: 0 4px; }
+.guest-name input { width: 100%; padding: 9px 12px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm);
+  background: var(--card-2); color: var(--text); font: inherit; }
+.guest-name input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(34,211,238,.18); }
+@media (max-width: 900px) { .guest-name { min-width: 200px; } }
 
 main { flex: 1; min-width: 0; max-width: 1120px; margin: 24px auto; padding: 0 24px 96px; }
 
