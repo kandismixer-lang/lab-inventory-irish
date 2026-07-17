@@ -78,6 +78,8 @@ function groupByOrder(rows) {
 // การ์ดออเดอร์ = สรุป 1 ใบ กดกางดูรายการข้างใน
 function OrderCard({ lines, me, onDone }) {
   const [open, setOpen] = useState(false);
+  const [rejecting, setRejecting] = useState(false);
+  const toast = useToast();
   const first = lines[0];
   const totalQty = lines.reduce((s, l) => s + l.qty, 0);
   // สรุปสถานะรวม
@@ -85,6 +87,20 @@ function OrderCard({ lines, me, onDone }) {
   lines.forEach((l) => { byStatus[l.status] = (byStatus[l.status] || 0) + 1; });
   const summary = Object.entries(byStatus)
     .map(([s, n]) => `${(REQ_STATUS[s] || { label: s }).label} ${n}`).join(' · ');
+  // รายการที่ยังปฏิเสธได้ (pending/approved)
+  const rejectable = lines.filter((l) => ['pending', 'approved'].includes(l.status));
+  const isAdmin = me.role === 'admin';
+
+  const rejectAll = async (reason) => {
+    try {
+      for (const l of rejectable) {
+        await api(`/api/requests/${l.id}/reject`, { method: 'POST', body: { reason } });
+      }
+      setRejecting(false);
+      onDone();
+    } catch (e) { toast(e.message); }
+  };
+
   return (
     <div className="order-card card">
       <div className="order-head" onClick={() => setOpen((v) => !v)}>
@@ -99,12 +115,24 @@ function OrderCard({ lines, me, onDone }) {
             <span className="muted">{summary}</span>
           </div>
         </div>
-        <button className="btn small info">{open ? 'ซ่อนรายการ ▲' : 'ดูรายการ ▼'}</button>
+        <div className="req-actions" onClick={(e) => e.stopPropagation()}>
+          {isAdmin && rejectable.length > 0 && (
+            <button className="btn small danger" onClick={() => setRejecting(true)}>ปฏิเสธทั้งออเดอร์ ({rejectable.length})</button>
+          )}
+          <button className="btn small info" onClick={() => setOpen((v) => !v)}>{open ? 'ซ่อนรายการ ▲' : 'ดูรายการ ▼'}</button>
+        </div>
       </div>
       {open && (
         <div className="order-lines">
           {lines.map((r) => <RequestCard key={r.id} r={r} me={me} onDone={onDone} />)}
         </div>
+      )}
+      {rejecting && (
+        <RejectModal
+          title={`ปฏิเสธทั้งออเดอร์ #${first.order_id} (${rejectable.length} รายการ)`}
+          onClose={() => setRejecting(false)}
+          onSubmit={(b) => rejectAll(b.reason)}
+        />
       )}
     </div>
   );
@@ -231,9 +259,9 @@ function ImgThumb({ src, label }) {
   );
 }
 
-function RejectModal({ onClose, onSubmit }) {
+function RejectModal({ onClose, onSubmit, title }) {
   return (
-    <Modal title="ปฏิเสธคำขอ" onClose={onClose}>
+    <Modal title={title || 'ปฏิเสธคำขอ'} onClose={onClose}>
       <form onSubmit={(e) => { e.preventDefault(); onSubmit({ reason: e.target.reason.value }); }}>
         <label>เหตุผล (ไม่บังคับ)<input name="reason" /></label>
         <button className="btn danger" type="submit" style={{ marginTop: 14, width: '100%' }}>ยืนยันปฏิเสธ</button>
