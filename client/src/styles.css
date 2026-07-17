@@ -103,15 +103,15 @@ main > * { animation: fadeInUp .4s ease both; }
 
 /* โลโก้เต็ม (ตรา + IRiSH + ชื่อเต็ม) ไม่มีกรอบ + วงแหวนเรืองแสงคาดที่ตรา */
 .login-hero { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; gap: 18px; animation: fadeInUp .6s ease both; }
-/* --lw = ความกว้างโลโก้; ค่าที่เหลือคิดจากสัดส่วนรูปต้นฉบับ (ตัดขอบขาวบน-ล่างออก) */
-.login-mark { --lw: clamp(260px, 74vw, 380px); position: relative; width: var(--lw); height: calc(var(--lw) * 0.42); }
-.brand-logo.full { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; border-radius: 0;
-  background-size: var(--lw) auto; background-position: 0 calc(var(--lw) * -0.264); }
-/* วงแหวน — แยกออกจาก element ที่ invert ไม่งั้นสีกลับด้าน */
-/* ตราอยู่กึ่งกลางที่ x=24.9% ของโลโก้, เส้นผ่านศูนย์กลาง 42% — วงแหวน 46% คาดพอดี */
+/* --lw = ความกว้างโลโก้; สูง = 44.2% ของกว้าง (สัดส่วนไฟล์ 927x410) */
+.login-mark { --lw: clamp(260px, 74vw, 380px); position: relative; width: var(--lw); height: calc(var(--lw) * 0.442); }
+.brand-logo.full { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%;
+  background-size: 100% auto; background-position: 0 0; }
+/* วงแหวน — แยกจาก element ที่ invert ไม่งั้นสีกลับด้าน
+   ตรา: center (22.1%, 50%), เส้นผ่านศูนย์กลาง 44.2% ของกว้าง — วงแหวน 48% คาดพอดี */
 .mark-ring { position: absolute; z-index: 0; border-radius: 50%;
-  width: calc(var(--lw) * 0.46); height: calc(var(--lw) * 0.46);
-  left: calc(var(--lw) * 0.019); top: calc(var(--lw) * -0.015); }
+  width: calc(var(--lw) * 0.48); height: calc(var(--lw) * 0.48);
+  left: calc(var(--lw) * -0.019); top: calc(var(--lw) * -0.019); }
 .mark-ring::before, .mark-ring::after { content: ""; position: absolute; inset: 0; border-radius: 50%; }
 .mark-ring::before {
   background: conic-gradient(from 0deg, transparent 0 58%, rgba(34,211,238,.9) 76%, rgba(139,120,255,.95) 92%, transparent 100%);
@@ -169,11 +169,12 @@ main > * { animation: fadeInUp .4s ease both; }
   padding: 12px 18px; flex-wrap: wrap; position: sticky; top: 0; z-index: 20;
 }
 .brand { display: inline-flex; align-items: center; gap: 9px; font-weight: 500; font-family: var(--font-display); letter-spacing: -0.01em; font-size: 1.2rem; color: var(--text); }
-/* โลโก้ IRiSH — invert (ลายดำเป็นขาว) + screen ทำให้พื้นขาวเดิม (ดำหลัง invert) โปร่งใส ไม่เหลือกล่องสี่เหลี่ยม */
+/* โลโก้ IRiSH — logo.png พื้นหลังโปร่งใสจริง (ลบพื้นขาวออกจากไฟล์แล้ว), invert ทำให้ลายเป็นขาวบนพื้นมืด
+   สัดส่วนไฟล์ 927x410 — ตราวงกลมเป็นจัตุรัสซ้าย กว้าง 44.2% ของรูป */
 .brand-logo { flex: none; display: inline-block; width: 30px; height: 30px;
-  background: url(/logo.jpg) no-repeat; background-size: 68px auto; background-position: -3px -17px;
-  filter: invert(1); mix-blend-mode: screen; }
-.brand-logo.lg { width: 46px; height: 46px; background-size: 104px auto; background-position: -5px -26px; vertical-align: middle; }
+  background: url(/logo.png) no-repeat 0 0; background-size: 68px auto; /* โชว์เฉพาะตรา */
+  filter: invert(1); }
+.brand-logo.lg { width: 46px; height: 46px; background-size: 104px auto; vertical-align: middle; }
 .tabs { display: flex; gap: 4px; flex: 1; }
 .tab { position: relative; border: none; background: none; padding: 8px 12px; border-radius: var(--pill); cursor: pointer; color: var(--muted); font: inherit; font-weight: 500; transition: color .15s; }
 .tab:hover { color: var(--text); }
