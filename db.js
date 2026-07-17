@@ -165,6 +165,7 @@ addColumn('items', 'tracked', 'INTEGER NOT NULL DEFAULT 0'); // 1 = track รา
 addColumn('transactions', 'unit_id', 'INTEGER');            // อ้างถึงหน่วยย่อย
 addColumn('items', 'category', "TEXT NOT NULL DEFAULT ''");  // หมวดหมู่ย่อย
 addColumn('items', 'image', "TEXT NOT NULL DEFAULT ''");     // รูปสินค้า (path /uploads/xxx)
+addColumn('items', 'spec', "TEXT NOT NULL DEFAULT ''");      // สเปค/รายละเอียด (ข้อความยาว)
 addColumn('users', 'active', 'INTEGER NOT NULL DEFAULT 1');  // soft-delete (0 = ลบแล้ว เก็บประวัติไว้)
 addColumn('requests', 'order_id', 'INTEGER');               // จัดกลุ่มคำขอเป็น 1 ออเดอร์ (ตะกร้า)
 

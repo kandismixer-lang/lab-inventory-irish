@@ -321,7 +321,25 @@ tr.expand-row > td { background: var(--bg-2); padding: 0; border-right: none; }
 .req-actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
 .req-imgs { display: flex; gap: 8px; }
 .unit-select { padding: 6px 10px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); font: inherit; font-size: 0.85rem; background: var(--card-2); color: var(--text); }
-.item-thumb { display: block; margin-top: 6px; width: 64px; height: 64px; object-fit: cover; border-radius: var(--radius-sm); border: 1px solid var(--line); }
+.item-thumb { display: block; margin-top: 6px; width: 64px; height: 64px; object-fit: cover; border-radius: var(--radius-sm); border: 1px solid var(--line); cursor: pointer; transition: border-color .15s, box-shadow .15s; }
+.item-thumb:hover { border-color: var(--accent); box-shadow: var(--glow); }
+
+/* ปุ่มลิงก์ "รายละเอียด" ข้างหมุด */
+.link-detail { margin-left: 8px; padding: 0; border: none; background: none; cursor: pointer;
+  font: inherit; font-size: 0.8rem; color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+.link-detail:hover { color: #67e8f9; }
+
+/* popup รายละเอียด */
+.detail-img { display: block; width: 100%; max-height: 300px; object-fit: contain; background: var(--card-2);
+  border: 1px solid var(--line); border-radius: var(--radius); }
+.detail-noimg { display: grid; place-items: center; height: 110px; color: var(--muted);
+  background: var(--card-2); border: 1px dashed var(--line-strong); border-radius: var(--radius); }
+.detail-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 12px; }
+.detail-head { margin: 16px 0 6px; font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--muted); }
+.detail-spec { white-space: pre-wrap; word-break: break-word; background: var(--card-2);
+  border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 12px 14px; font-size: 0.92rem; line-height: 1.6; }
+form textarea { resize: vertical; min-height: 90px; font-family: inherit; }
 .tab-count { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; margin-left: 6px; padding: 0 5px; border-radius: var(--pill); background: var(--danger-solid); color: #fff; font-size: 0.72rem; font-weight: 700; }
 .btn.small.active .tab-count { background: var(--on-primary); color: var(--accent); }
 .unit-pick { display: flex; flex-direction: column; gap: 6px; }

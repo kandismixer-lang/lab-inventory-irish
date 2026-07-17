@@ -176,7 +176,7 @@ app.get('/api/items/:id', requireAuth, (req, res) => {
 });
 
 app.post('/api/items', requireAuth, requireAdmin, (req, res) => {
-  const { name, category, type: rawType, unit, location, qty, min_qty, note, tracked } = req.body || {};
+  const { name, category, type: rawType, unit, location, qty, min_qty, note, tracked, spec } = req.body || {};
   if (!name || !name.trim()) return res.status(400).json({ error: 'ต้องมีชื่อรายการ' });
   const { category: cat, type } = resolveCategory(category, rawType);
   const isTracked = tracked ? 1 : 0;
@@ -185,8 +185,8 @@ app.post('/api/items', requireAuth, requireAdmin, (req, res) => {
   const id = db.tx(() => {
     const info = db
       .prepare(
-        `INSERT INTO items (name, type, category, unit, location, qty, min_qty, note, tracked)
-         VALUES (?,?,?,?,?,?,?,?,?)`
+        `INSERT INTO items (name, type, category, unit, location, qty, min_qty, note, tracked, spec)
+         VALUES (?,?,?,?,?,?,?,?,?,?)`
       )
       .run(
         name.trim(),
@@ -197,7 +197,8 @@ app.post('/api/items', requireAuth, requireAdmin, (req, res) => {
         startQty,
         Math.max(0, parseInt(min_qty, 10) || 0),
         (note || '').trim(),
-        isTracked
+        isTracked,
+        (spec || '').trim()
       );
     const newId = Number(info.lastInsertRowid);
     if (startQty > 0) {
@@ -216,10 +217,10 @@ app.post('/api/items', requireAuth, requireAdmin, (req, res) => {
 app.put('/api/items/:id', requireAuth, requireAdmin, (req, res) => {
   const item = db.prepare('SELECT * FROM items WHERE id = ?').get(req.params.id);
   if (!item) return res.status(404).json({ error: 'ไม่พบรายการ' });
-  const { name, category, type: rawType, unit, location, min_qty, note } = req.body || {};
+  const { name, category, type: rawType, unit, location, min_qty, note, spec } = req.body || {};
   const { category: cat, type } = resolveCategory(category, rawType || item.type);
   db.prepare(
-    `UPDATE items SET name=?, type=?, category=?, unit=?, location=?, min_qty=?, note=? WHERE id=?`
+    `UPDATE items SET name=?, type=?, category=?, unit=?, location=?, min_qty=?, note=?, spec=? WHERE id=?`
   ).run(
     (name || item.name).trim(),
     type,
@@ -228,6 +229,7 @@ app.put('/api/items/:id', requireAuth, requireAdmin, (req, res) => {
     (location ?? item.location).trim(),
     Math.max(0, parseInt(min_qty, 10) || 0),
     (note ?? item.note).trim(),
+    (spec ?? item.spec ?? '').trim(),
     item.id
   );
   // image: '' = สั่งลบรูปเดิม, data URL = รูปใหม่, ไม่ส่งมา = คงเดิม

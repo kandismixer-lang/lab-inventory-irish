@@ -14,6 +14,7 @@ export default function Items({ me }) {
   const [requesting, setRequesting] = useState(null); // item ที่ staff กำลังขอ
   const [expanded, setExpanded] = useState(null); // id ของ item ที่กางหน่วยย่อยอยู่
   const [showEmpty, setShowEmpty] = useState(false); // แสดงของใช้แล้วทิ้งที่เบิกหมด
+  const [detail, setDetail] = useState(null); // item ที่กำลังดูรายละเอียด
   const toast = useToast();
   const { addToCart } = useCart();
   const onAddToCart = (item, qty, note) => { addToCart(item, qty, note); setRequesting(null); };
@@ -68,8 +69,11 @@ export default function Items({ me }) {
                   <td>
                     <strong>{i.name}</strong>
                     {i.tracked ? <span className="hint">📇 track รายตัว</span> : null}
-                    <div className="hint">📍 {i.location || '—'}{i.note ? ` · ${i.note}` : ''}</div>
-                    {i.image ? <img className="item-thumb" src={i.image} alt={i.name} /> : null}
+                    <div className="hint">
+                      📍 {i.location || '—'}{i.note ? ` · ${i.note}` : ''}
+                      <button type="button" className="link-detail" onClick={() => setDetail(i)}>รายละเอียด</button>
+                    </div>
+                    {i.image ? <img className="item-thumb" src={i.image} alt={i.name} onClick={() => setDetail(i)} /> : null}
                   </td>
                   <td><span className={'badge ' + i.type}>{catLabel(i)}</span></td>
                   <td><span className="col-total">{i.total_qty} {i.unit}</span></td>
@@ -116,7 +120,28 @@ export default function Items({ me }) {
       )}
       {moving && <MoveForm item={moving} me={me} onClose={() => setMoving(null)} onDone={refresh} />}
       {requesting && <RequestForm item={requesting} onClose={() => setRequesting(null)} onAdd={onAddToCart} />}
+      {detail && <DetailModal item={detail} onClose={() => setDetail(null)} />}
     </>
+  );
+}
+
+// popup รายละเอียด — รูป + ชื่อ + สเปค
+function DetailModal({ item, onClose }) {
+  return (
+    <Modal title={item.name} onClose={onClose}>
+      {item.image
+        ? <img className="detail-img" src={item.image} alt={item.name} />
+        : <div className="detail-noimg">— ไม่มีรูป —</div>}
+      <div className="detail-meta">
+        <span className={'badge ' + item.type}>{catLabel(item)}</span>
+        <span className="hint">📍 {item.location || 'ไม่ระบุที่เก็บ'}</span>
+        <span className="col-remain">คงเหลือ {item.qty} {item.unit}</span>
+        {!!item.tracked && <span className="hint">📇 track รายตัว</span>}
+      </div>
+      <div className="detail-head">สเปค / รายละเอียด</div>
+      <div className="detail-spec">{(item.spec || '').trim() || '— ยังไม่ได้ใส่ข้อมูล —'}</div>
+      {item.note ? <div className="hint" style={{ marginTop: 10 }}>📝 {item.note}</div> : null}
+    </Modal>
   );
 }
 
@@ -317,6 +342,10 @@ function ItemForm({ item, me, onClose, onSaved }) {
           {!tracked && <label>จุดเตือนของใกล้หมด<input name="min_qty" type="number" min="0" defaultValue={item?.min_qty ?? 0} /></label>}
         </div>
         <label>หมายเหตุ<input name="note" defaultValue={item?.note || ''} /></label>
+        <label>สเปค / รายละเอียด (โชว์ในป๊อปอัป "รายละเอียด")
+          <textarea name="spec" rows="7" defaultValue={item?.spec || ''}
+            placeholder={'ใส่ได้อิสระ เช่น\nCPU: Broadcom BCM2712 quad-core\nRAM: 8GB LPDDR4X\nไฟเลี้ยง: 5V/5A USB-C\nหมายเหตุ: มีพัดลมติดมาด้วย'} />
+        </label>
         <label style={{ marginTop: 4 }}>รูปสินค้า (ไม่บังคับ)</label>
         <input ref={imgRef} type="file" accept="image/*" onChange={pickImg} style={{ display: 'none' }} />
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
