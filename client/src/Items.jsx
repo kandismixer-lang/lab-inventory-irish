@@ -512,7 +512,7 @@ function UnitsPanel({ item, me, onChanged }) {
                 {u.holder && <span className="holder">→ {u.holder}</span>}
                 <span className="acts">
                   {(UNIT_BTNS[u.status] || []).map(([a, label]) => (
-                    <button key={a} className="btn small" onClick={() => act(u, a)}>{label}</button>
+                    <button key={a} className={`btn small u-${a}`} onClick={() => act(u, a)}>{label}</button>
                   ))}
                   {me.role === 'admin' && <button className="btn small danger" onClick={() => del(u)}>ลบ</button>}
                 </span>
