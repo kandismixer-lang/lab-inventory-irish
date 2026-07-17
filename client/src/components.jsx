@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 
 // ---------- Toast ----------
@@ -63,6 +63,12 @@ function normalize(opts) { return typeof opts === 'string' ? { title: opts } : (
 export function Modal({ title, onClose, children }) {
   // ปิดเฉพาะตอน "กดเริ่ม" บนพื้นหลังจริง — กันปิดพลาดตอนลากเลือกข้อความในฟอร์มแล้วปล่อยเมาส์นอกกล่อง
   const downOnBackdrop = useRef(false);
+  // ล็อกสกอลพื้นหลังระหว่างเปิด modal — พื้นหลังนิ่ง รู้สึกเหมือนแยกหน้า
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, []);
   // render ผ่าน portal ไป body — หลุดจาก ancestor ที่มี transform (hover-lift)
   // ไม่งั้น position:fixed จะยึดกับ card ที่ transform ทำให้ backdrop ไม่คลุมเต็มจอ + กระพริบ
   return createPortal(

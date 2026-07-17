@@ -125,8 +125,8 @@ main { max-width: 1050px; margin: 24px auto; padding: 0 16px 96px; }
 
 /* stat cards */
 .stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px,1fr)); gap: 12px; margin-bottom: 18px; }
-.stat { text-align: center; transition: transform .18s ease, box-shadow .18s ease, border-color .18s; }
-.stat:hover { transform: translateY(-2px); box-shadow: var(--glow); border-color: var(--line-strong); }
+.stat { text-align: center; transition: box-shadow .18s ease, border-color .18s; }
+.stat:hover { box-shadow: var(--glow); border-color: var(--line-strong); }
 .stat .num { font-size: 2.1rem; font-weight: 500; font-family: var(--font-display); letter-spacing: -0.02em; color: var(--text); }
 .stat .lbl { color: var(--muted); font-size: 0.72rem; font-family: var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; }
 
@@ -207,8 +207,8 @@ tr.expand-row > td { background: var(--bg-2); padding: 0; border-right: none; }
 .tab-badge { display: inline-block; min-width: 18px; height: 18px; line-height: 18px; text-align: center; background: var(--danger-solid); color: #fff; border-radius: var(--pill); font-size: 0.72rem; margin-left: 5px; padding: 0 5px; }
 
 .req-list { display: flex; flex-direction: column; gap: 10px; }
-.req-bar { display: flex; align-items: center; gap: 16px; padding: 16px; flex-wrap: wrap; transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease; }
-.req-bar:hover { transform: translateY(-2px); box-shadow: var(--glow); border-color: var(--line-strong); }
+.req-bar { display: flex; align-items: center; gap: 16px; padding: 16px; flex-wrap: wrap; transition: box-shadow .18s ease, border-color .18s ease; }
+.req-bar:hover { box-shadow: var(--glow); border-color: var(--line-strong); }
 .req-info { flex: 1; min-width: 200px; display: flex; flex-direction: column; gap: 4px; }
 .req-title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .req-title strong { font-family: var(--font-display); font-weight: 500; letter-spacing: -0.01em; }
