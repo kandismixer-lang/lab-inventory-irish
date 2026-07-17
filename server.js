@@ -437,18 +437,16 @@ const REQ_SELECT = `
   LEFT JOIN users apr ON apr.id = r.approver_id
 `;
 
-// รับ data URL จาก client → เขียนเป็นไฟล์รูปใน UPLOAD_DIR → คืน path (/uploads/xxx.jpg)
-// รูปเก่าที่เก็บเป็น base64 ใน DB ยังแสดงได้ปกติ (backward compatible)
-function saveImage(dataUrl, baseName) {
+// เก็บรูปเป็น data URL ใน DB (ไป Turso ด้วย) — ไม่เก็บเป็นไฟล์บน disk เพราะ host แบบ ephemeral
+// ล้าง disk ทุก redeploy แล้วรูปจะหายทั้งที่ DB ยังจำ path ไว้ (ภาพแตก)
+// รูปเก่าที่เป็น path /uploads/... ยังเสิร์ฟได้ถ้าไฟล์ยังอยู่ (backward compatible)
+function saveImage(dataUrl /* , baseName */) {
   if (typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image/')) return null;
   const m = dataUrl.match(/^data:image\/([a-zA-Z0-9.+-]+);base64,(.+)$/);
   if (!m) return null;
-  const ext = m[1].toLowerCase() === 'jpeg' ? 'jpg' : m[1].toLowerCase();
-  const buf = Buffer.from(m[2], 'base64');
-  if (buf.length > 12 * 1024 * 1024) return null; // กันรูปใหญ่เกิน
-  const file = `${baseName}-${Date.now()}.${ext}`;
-  fs.writeFileSync(path.join(UPLOAD_DIR, file), buf);
-  return `/uploads/${file}`;
+  const bytes = Math.floor(m[2].length * 0.75); // ขนาดจริงหลังถอด base64
+  if (bytes > 4 * 1024 * 1024) return null;     // กันรูปใหญ่เกิน (client ย่อ ~1280px มาแล้ว)
+  return dataUrl;
 }
 
 // Staff/Admin สร้างคำขอ (เลือกแค่ "ชนิดของ")
