@@ -101,27 +101,29 @@ function Shell({ me, onLogout }) {
 
   return (
     <CartProvider>
-      <header className="topbar">
-        <div className="brand"><span className="brand-logo" aria-hidden="true" /> คลัง IRiSH LAB</div>
-        <nav className="tabs">
-          {Object.entries(VIEWS).map(([k, v]) =>
-            v.adminOnly && me.role !== 'admin' ? null : (
-              <button key={k} className={'tab' + (view === k ? ' active' : '')} onClick={() => setView(k)}>
-                {v.label}
-                {k === 'requests' && badge > 0 && <span className="tab-badge">{badge}</span>}
-              </button>
-            )
-          )}
-        </nav>
-        <div className="userbox">
-          <span className="muted">{me.fullname || me.username} ({me.role})</span>
-          <button className="btn small" onClick={() => setChangingPw(true)}>เปลี่ยนรหัส</button>
-          <button className="btn small" onClick={logout}>ออก</button>
-        </div>
-      </header>
-      <main>
-        <Comp me={me} />
-      </main>
+      <div className="shell">
+        <aside className="sidebar">
+          <div className="brand"><span className="brand-logo" aria-hidden="true" /> คลัง IRiSH LAB</div>
+          <nav className="tabs">
+            {Object.entries(VIEWS).map(([k, v]) =>
+              v.adminOnly && me.role !== 'admin' ? null : (
+                <button key={k} className={'tab' + (view === k ? ' active' : '')} onClick={() => setView(k)}>
+                  <span className="tab-label">{v.label}</span>
+                  {k === 'requests' && badge > 0 && <span className="tab-badge">{badge}</span>}
+                </button>
+              )
+            )}
+          </nav>
+          <div className="userbox">
+            <span className="muted">{me.fullname || me.username} ({me.role})</span>
+            <button className="btn small" onClick={() => setChangingPw(true)}>เปลี่ยนรหัส</button>
+            <button className="btn small" onClick={logout}>ออก</button>
+          </div>
+        </aside>
+        <main>
+          <Comp me={me} />
+        </main>
+      </div>
       {changingPw && <ChangePw onClose={() => setChangingPw(false)} />}
     </CartProvider>
   );
