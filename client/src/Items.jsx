@@ -354,7 +354,7 @@ function MoveForm({ item, me, onClose, onDone }) {
       <div className="muted" style={{ marginBottom: 6 }}>{item.name} — คงเหลือ <strong>{item.qty} {item.unit}</strong></div>
       <div className="movebtns">
         {kinds.map((k) => (
-          <button key={k} className={'btn ' + (k === kind ? 'primary' : '')} onClick={() => { setKind(k); setErr(''); }}>
+          <button key={k} className={`btn k-${k}` + (k === kind ? ' active' : '')} onClick={() => { setKind(k); setErr(''); }}>
             {KIND_LABEL[k]}{k === 'add' || k === 'return' ? ' (+)' : k === 'adjust' ? '' : ' (−)'}
           </button>
         ))}
@@ -370,7 +370,7 @@ function MoveForm({ item, me, onClose, onDone }) {
         )}
         <label>หมายเหตุ<input name="note" /></label>
         <div className="err">{err}</div>
-        <button className="btn primary" type="submit" style={{ marginTop: 12, width: '100%' }}>ยืนยัน — {KIND_LABEL[kind]}</button>
+        <button className={`btn k-${kind} active`} type="submit" style={{ marginTop: 12, width: '100%' }}>ยืนยัน — {KIND_LABEL[kind]}</button>
       </form>
     </Modal>
   );
