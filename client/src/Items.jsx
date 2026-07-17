@@ -189,13 +189,21 @@ function ItemForm({ item, me, onClose, onSaved }) {
   const [location, setLocation] = useState(item?.location || '');
   const type = CATEGORY_TYPE[category] || 'consumable';
   const [img, setImg] = useState('');            // รูปใหม่ (data URL) ถ้าเลือก
+  const [removeImg, setRemoveImg] = useState(false); // ติ๊กลบรูปเดิม
   const [imgBusy, setImgBusy] = useState(false);
   const imgRef = useRef();
   const pickImg = async (e) => {
     const f = e.target.files?.[0];
     if (!f) return;
     setImgBusy(true);
-    try { setImg(await fileToScaledDataURL(f)); } finally { setImgBusy(false); }
+    try { setImg(await fileToScaledDataURL(f)); setRemoveImg(false); } finally { setImgBusy(false); }
+  };
+  const shownImg = removeImg ? '' : (img || item?.image || '');
+  const delImg = async () => {
+    if (!(await confirm({ title: 'ลบรูปสินค้า?', message: 'รายการนี้จะไม่มีรูปแสดงในตาราง' }))) return;
+    setImg('');
+    setRemoveImg(true);
+    if (imgRef.current) imgRef.current.value = '';
   };
 
   // สร้างหน่วยอัตโนมัติตอนเพิ่มรายการใหม่ (track รายตัว)
@@ -233,6 +241,7 @@ function ItemForm({ item, me, onClose, onSaved }) {
     b.location = location;
     b.tracked = tracked ? 1 : 0;
     if (img) b.image = img;
+    else if (removeImg) b.image = ''; // '' = สั่งลบรูปเดิม
     try {
       if (item) {
         await api('/api/items/' + item.id, { method: 'PUT', body: b });
@@ -312,10 +321,13 @@ function ItemForm({ item, me, onClose, onSaved }) {
         <input ref={imgRef} type="file" accept="image/*" onChange={pickImg} style={{ display: 'none' }} />
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <button type="button" className="btn small info" onClick={() => imgRef.current.click()}>
-            📷 {img ? 'เปลี่ยนรูป' : (item?.image ? 'เปลี่ยนรูป' : 'เลือกรูป')}
+            📷 {shownImg ? 'เปลี่ยนรูป' : 'เลือกรูป'}
           </button>
+          {shownImg && <button type="button" className="btn small danger" onClick={delImg}>ลบรูป</button>}
           {imgBusy && <span className="muted">กำลังย่อรูป…</span>}
-          {(img || item?.image) && <img className="item-thumb" src={img || item.image} alt="preview" />}
+          {shownImg
+            ? <img className="item-thumb" src={shownImg} alt="preview" />
+            : (removeImg ? <span className="hint">จะลบรูปเมื่อกดบันทึก</span> : null)}
         </div>
         <div className="err">{err}</div>
         <button className="btn primary" type="submit" style={{ marginTop: 14, width: '100%' }}>

@@ -230,8 +230,13 @@ app.put('/api/items/:id', requireAuth, requireAdmin, (req, res) => {
     (note ?? item.note).trim(),
     item.id
   );
-  const imgPath = saveImage(req.body?.image, `item-${item.id}`);
-  if (imgPath) db.prepare('UPDATE items SET image=? WHERE id=?').run(imgPath, item.id);
+  // image: '' = สั่งลบรูปเดิม, data URL = รูปใหม่, ไม่ส่งมา = คงเดิม
+  if (req.body?.image === '') {
+    db.prepare("UPDATE items SET image='' WHERE id=?").run(item.id);
+  } else {
+    const imgPath = saveImage(req.body?.image, `item-${item.id}`);
+    if (imgPath) db.prepare('UPDATE items SET image=? WHERE id=?').run(imgPath, item.id);
+  }
   res.json({ ok: true });
 });
 
