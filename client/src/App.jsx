@@ -60,7 +60,7 @@ function Login({ onLogin }) {
       </div>
 
       <form className="card login-card" onSubmit={submit}>
-        <h1>ระบบคลัง IRiSH LAB</h1>
+        <h1>Inventory IRiSH Lab</h1>
         <p className="muted">เข้าสู่ระบบเพื่อใช้งาน</p>
         <label>ชื่อผู้ใช้<input name="username" autoComplete="username" required /></label>
         <label>รหัสผ่าน<input name="password" type="password" autoComplete="current-password" required /></label>
