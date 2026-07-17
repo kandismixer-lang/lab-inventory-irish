@@ -78,14 +78,21 @@ export default function Items({ me, focusItem, onFocused }) {
             const low = i.type === 'consumable' && i.min_qty > 0 && i.qty <= i.min_qty;
             const outLabel = i.type === 'consumable' ? 'ใช้ไป' : 'ยืม/ไม่อยู่';
             const isOpen = expanded === i.id;
+            // ของ track รายตัว: กดที่แถวไหนก็เปิด Stock Check (ปุ่มในแถวยัง stopPropagation ไว้)
+            const rowClickable = isAdmin && !!i.tracked;
             return (
               <React.Fragment key={i.id}>
-                <tr id={'item-' + i.id} className={isOpen ? 'expanded-parent' : ''}>
+                <tr
+                  id={'item-' + i.id}
+                  className={(isOpen ? 'expanded-parent' : '') + (rowClickable ? ' row-click' : '')}
+                  onClick={rowClickable ? () => setExpanded(isOpen ? null : i.id) : undefined}
+                  title={rowClickable ? 'กดที่แถวเพื่อเปิด Stock Check' : undefined}
+                >
                   <td>
                     <strong>{i.name}</strong>
                     {i.tracked ? <span className="hint">📇 track รายตัว</span> : null}
-                    <button type="button" className="btn small info row-detail" onClick={() => setDetail(i)}>รายละเอียด</button>
-                    {i.image ? <img className="item-thumb" src={i.image} alt={i.name} onClick={() => setDetail(i)} /> : null}
+                    <button type="button" className="btn small info row-detail" onClick={(e) => { e.stopPropagation(); setDetail(i); }}>รายละเอียด</button>
+                    {i.image ? <img className="item-thumb" src={i.image} alt={i.name} onClick={(e) => { e.stopPropagation(); setDetail(i); }} /> : null}
                   </td>
                   <td><span className={'badge ' + i.type}>{catLabel(i)}</span></td>
                   <td><span className="col-total">{i.total_qty} {i.unit}</span></td>
@@ -100,14 +107,14 @@ export default function Items({ me, focusItem, onFocused }) {
                       {isAdmin ? (
                         <>
                           {i.tracked
-                            ? <button className={'btn small info' + (isOpen ? ' active' : '')} onClick={() => setExpanded(isOpen ? null : i.id)}>
+                            ? <button className={'btn small info' + (isOpen ? ' active' : '')} onClick={(e) => { e.stopPropagation(); setExpanded(isOpen ? null : i.id); }}>
                                 Stock Check <span className="caret">{isOpen ? '▲' : '▼'}</span>
                               </button>
-                            : <button className="btn small info" onClick={() => setMoving(i)}>เบิก/ยืม/รับเข้า</button>}
-                          <button className="btn small edit" onClick={() => setEditing(i)}>แก้ไข</button>
+                            : <button className="btn small info" onClick={(e) => { e.stopPropagation(); setMoving(i); }}>เบิก/ยืม/รับเข้า</button>}
+                          <button className="btn small edit" onClick={(e) => { e.stopPropagation(); setEditing(i); }}>แก้ไข</button>
                         </>
                       ) : me.role === 'guest' ? null : (
-                        <button className="btn small primary" disabled={i.qty <= 0} onClick={() => setRequesting(i)}>
+                        <button className="btn small primary" disabled={i.qty <= 0} onClick={(e) => { e.stopPropagation(); setRequesting(i); }}>
                           {i.type === 'consumable' ? 'ขอเบิก' : 'ขอยืม'}
                         </button>
                       )}
