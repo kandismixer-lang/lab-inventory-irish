@@ -63,7 +63,7 @@ export default function Dashboard({ go }) {
                 {(i.borrowers || []).map((b, n) => (
                   <div key={n} className="borrow-line">
                     <span className="borrow-code">{b.label}</span>
-                    <span className={'hint' + (b.status !== 'borrowed' ? ' col-out' : '')}>
+                    <span className={'bstat bstat-' + b.status}>
                       {b.status === 'borrowed'
                         ? `${b.person || '—'}-ยืม`
                         : STATUS_LABEL[b.status]}

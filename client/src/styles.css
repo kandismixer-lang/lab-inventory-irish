@@ -332,6 +332,11 @@ tr.expand-row > td { background: var(--bg-2); padding: 0; border-right: none; }
 .borrow-cell { display: flex; flex-direction: column; gap: 3px; }
 .borrow-line { display: flex; align-items: baseline; gap: 6px; }
 .borrow-code { font-family: var(--font-mono); font-size: 0.78rem; color: var(--accent); }
+/* สีตามสถานะ: ยืม=เหลือง · พัง=ส้ม · หาย=แดง */
+.bstat { font-size: 0.82rem; font-weight: 600; }
+.bstat-borrowed { color: #facc15; }
+.bstat-repair   { color: #fb923c; }
+.bstat-lost     { color: #f87171; }
 
 /* popup รายละเอียด */
 .detail-img { display: block; width: 100%; max-height: 300px; object-fit: contain; background: var(--card-2);
