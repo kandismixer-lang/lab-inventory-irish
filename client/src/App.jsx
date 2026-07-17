@@ -44,8 +44,21 @@ function Login({ onLogin }) {
   };
   return (
     <div className="login-wrap">
+      <div className="login-fx" aria-hidden="true">
+        <span className="fx-grid" />
+        <span className="fx-glow fx-glow-a" />
+        <span className="fx-glow fx-glow-b" />
+        <span className="fx-stars" />
+      </div>
+
+      <div className="login-hero">
+        <div className="login-mark"><span className="brand-logo xl" aria-hidden="true" /></div>
+        <div className="login-name">IRiSH</div>
+        <div className="login-tagline">Intelligent Robot &amp; Industrial System Hub</div>
+      </div>
+
       <form className="card login-card" onSubmit={submit}>
-        <h1><span className="brand-logo lg" aria-hidden="true" /> ระบบคลัง IRiSH LAB</h1>
+        <h1>ระบบคลัง IRiSH LAB</h1>
         <p className="muted">เข้าสู่ระบบเพื่อใช้งาน</p>
         <label>ชื่อผู้ใช้<input name="username" autoComplete="username" required /></label>
         <label>รหัสผ่าน<input name="password" type="password" autoComplete="current-password" required /></label>
