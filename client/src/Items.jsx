@@ -392,10 +392,12 @@ function ItemForm({ item, me, onClose, onSaved }) {
 function MoveForm({ item, me, onClose, onDone }) {
   const toast = useToast();
   const isTool = item.type === 'tool';
-  const [kind, setKind] = useState('add');
+  // tool = ตั้งต้นที่ "ยืม" (first choice), consumable = "เบิก"
+  const [kind, setKind] = useState(isTool ? 'borrow' : 'issue');
   const [err, setErr] = useState('');
 
-  const kinds = ['add', ...(isTool ? ['borrow', 'return'] : ['issue']), ...(me.role === 'admin' ? ['adjust'] : [])];
+  // ยืม/เบิก มาก่อน แล้วค่อย คืน/รับเข้า/ปรับยอด
+  const kinds = [...(isTool ? ['borrow', 'return'] : ['issue']), 'add', ...(me.role === 'admin' ? ['adjust'] : [])];
   const needPerson = kind === 'issue' || kind === 'borrow' || kind === 'return';
 
   const submit = async (e) => {
