@@ -101,7 +101,7 @@ export default function Items({ me, focusItem, onFocused }) {
                         <>
                           {i.tracked
                             ? <button className={'btn small info' + (isOpen ? ' active' : '')} onClick={() => setExpanded(isOpen ? null : i.id)}>
-                                จัดการหน่วย <span className="caret">{isOpen ? '▲' : '▼'}</span>
+                                Stock Check <span className="caret">{isOpen ? '▲' : '▼'}</span>
                               </button>
                             : <button className="btn small info" onClick={() => setMoving(i)}>เบิก/ยืม/รับเข้า</button>}
                           <button className="btn small edit" onClick={() => setEditing(i)}>แก้ไข</button>
@@ -334,7 +334,7 @@ function ItemForm({ item, me, onClose, onSaved }) {
             <span>Track รายตัว — มีรหัสประจำแต่ละชิ้น (เช่น RPI-01…RPI-20)</span>
           </label>
         )}
-        {tracked && item && <div className="hint">ไปกด "จัดการหน่วย" เพื่อเพิ่ม/แก้รหัสหน่วย</div>}
+        {tracked && item && <div className="hint">ไปกด "Stock Check" เพื่อเพิ่ม/แก้รหัสหน่วย</div>}
         {tracked && !item && (
           <div style={{ marginTop: 8, padding: '10px 12px', background: '#f1f5ff', borderRadius: 8 }}>
             <div className="hint" style={{ marginTop: 0 }}>สร้างหน่วยอัตโนมัติตอนบันทึก (เว้นจำนวนว่าง = ไปสร้างเองทีหลัง)</div>
