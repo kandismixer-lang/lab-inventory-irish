@@ -416,8 +416,8 @@ function MoveForm({ item, me, onClose, onDone }) {
 
 // ปุ่มการกระทำต่อหน่วยย่อย ตามสถานะปัจจุบัน
 const UNIT_BTNS = {
-  available: [['borrow', 'ยืม'], ['repair', 'ส่งซ่อม'], ['lost', 'แจ้งหาย']],
-  borrowed: [['return', 'คืน'], ['repair', 'ส่งซ่อม'], ['lost', 'แจ้งหาย']],
+  available: [['borrow', 'ยืม'], ['repair', 'แจ้งพัง'], ['lost', 'แจ้งหาย']],
+  borrowed: [['return', 'คืน'], ['repair', 'แจ้งพัง'], ['lost', 'แจ้งหาย']],
   repair: [['ready', 'ซ่อมเสร็จ'], ['lost', 'แจ้งหาย']],
   lost: [['ready', 'กู้คืน']],
 };
@@ -468,7 +468,7 @@ function UnitsPanel({ item, me, onChanged }) {
     <div className="units-panel">
       <div className="muted" style={{ marginBottom: 8 }}>
         ทั้งหมด {units.length} หน่วย · ว่าง {counts.available || 0} · ยืม {counts.borrowed || 0}
-        {counts.repair ? ` · ซ่อม ${counts.repair}` : ''}{counts.lost ? ` · หาย ${counts.lost}` : ''}
+        {counts.repair ? ` · พัง ${counts.repair}` : ''}{counts.lost ? ` · หาย ${counts.lost}` : ''}
       </div>
       <div className="subtabs">
         <button className={'btn small' + (tab === 'list' ? ' active' : '')} onClick={() => setTab('list')}>รายการหน่วย</button>

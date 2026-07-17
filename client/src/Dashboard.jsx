@@ -49,7 +49,7 @@ export default function Dashboard() {
 
       {d.unitsOut && d.unitsOut.length > 0 && (
         <>
-          <div className="section-title">📇 หน่วยที่ไม่อยู่ในคลัง (ถูกยืม/ซ่อม/หาย)</div>
+          <div className="section-title">📇 หน่วยที่ไม่อยู่ในคลัง (ถูกยืม/พัง/หาย)</div>
           <Table
             headers={['รหัส', 'ของ', 'สถานะ', 'อยู่กับ']}
             rows={d.unitsOut.map((u, i) => ({
