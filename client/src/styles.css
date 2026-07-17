@@ -212,7 +212,8 @@ main { flex: 1; min-width: 0; max-width: 1120px; margin: 24px auto; padding: 0 2
 .stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px,1fr)); gap: 12px; margin-bottom: 18px; }
 .stat { text-align: center; transition: box-shadow .18s ease, border-color .18s; }
 .stat:hover { box-shadow: var(--glow); border-color: var(--line-strong); }
-.stat .num { font-size: 2.1rem; font-weight: 500; font-family: var(--font-display); letter-spacing: -0.02em; color: var(--text); }
+.stat .num { font-size: 2.1rem; font-weight: 500; font-family: var(--font-display); letter-spacing: -0.02em; }
+.stat .num:not([class*="col-"]) { color: var(--text); }
 .stat .lbl { color: var(--muted); font-size: 0.72rem; font-family: var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; }
 
 .section-title { margin: 24px 0 10px; font-size: 1.2rem; font-family: var(--font-display); font-weight: 500; letter-spacing: -0.01em; }

@@ -91,7 +91,7 @@ export default function Items({ me }) {
                             : <button className="btn small info" onClick={() => setMoving(i)}>เบิก/ยืม/รับเข้า</button>}
                           <button className="btn small edit" onClick={() => setEditing(i)}>แก้ไข</button>
                         </>
-                      ) : (
+                      ) : me.role === 'guest' ? null : (
                         <button className="btn small primary" disabled={i.qty <= 0} onClick={() => setRequesting(i)}>
                           {i.type === 'consumable' ? 'ขอเบิก' : 'ขอยืม'}
                         </button>

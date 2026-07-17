@@ -25,11 +25,36 @@ function Root() {
   }, []);
 
   if (me === undefined) return null;
-  // ปิด login ชั่วคราว (server NO_AUTH=1 คืน admin ให้ทุกคน) — ถ้าเปิด auth กลับ Login จะโผล่เอง
-  if (!me) return <Login onLogin={setMe} />;
-  return <Shell me={me} onLogout={() => setMe(null)} />;
+  // ไม่ login = guest (server คืน role 'guest') — ดูแดชบอร์ด/รายการของได้ ไม่เห็นคำขอ/ผู้ใช้
+  return <Shell me={me || { role: 'guest', username: 'guest' }} onMe={setMe} />;
 }
 
+// popup เข้าสู่ระบบ (เรียกจากปุ่มซ้ายล่าง)
+function LoginModal({ onClose, onLogin }) {
+  const [err, setErr] = useState('');
+  const submit = async (e) => {
+    e.preventDefault();
+    const f = e.target;
+    try {
+      onLogin(await api('/api/login', {
+        method: 'POST',
+        body: { username: f.username.value, password: f.password.value },
+      }));
+    } catch (er) { setErr(er.message); }
+  };
+  return (
+    <Modal title="เข้าสู่ระบบ" onClose={onClose}>
+      <form onSubmit={submit}>
+        <label>ชื่อผู้ใช้<input name="username" autoComplete="username" autoFocus required /></label>
+        <label>รหัสผ่าน<input name="password" type="password" autoComplete="current-password" required /></label>
+        <div className="err">{err}</div>
+        <button className="btn primary" type="submit" style={{ marginTop: 12, width: '100%' }}>เข้าสู่ระบบ</button>
+      </form>
+    </Modal>
+  );
+}
+
+// หน้า splash เต็มจอ (สำรองไว้ ถ้าจะกลับไปบังคับ login ก่อนเข้า)
 function Login({ onLogin }) {
   const [err, setErr] = useState('');
   const submit = async (e) => {
@@ -75,29 +100,43 @@ function Login({ onLogin }) {
 const VIEWS = {
   dashboard: { label: 'แดชบอร์ด', comp: Dashboard },
   items: { label: 'รายการของ', comp: Items },
-  requests: { label: 'คำขอ', comp: Requests },
+  requests: { label: 'คำขอ', comp: Requests, needLogin: true },
   log: { label: 'ประวัติทั้งหมด', comp: Log, adminOnly: true },
   users: { label: 'ผู้ใช้', comp: Users, adminOnly: true },
 };
+// เมนูนี้เห็นได้ไหม
+const canSee = (v, me) =>
+  !(v.adminOnly && me.role !== 'admin') && !(v.needLogin && me.role === 'guest');
 
-function Shell({ me, onLogout }) {
+function Shell({ me, onMe }) {
   const [view, setView] = useState('dashboard');
   const [changingPw, setChangingPw] = useState(false);
+  const [loggingIn, setLoggingIn] = useState(false);
   const [badge, setBadge] = useState(0);
+  const isGuest = me.role === 'guest';
   const Comp = VIEWS[view].comp;
 
-  const loadBadge = () => api('/api/requests/counts')
-    .then((c) => setBadge(me.role === 'admin' ? (c.pending || 0) + (c.toHand || 0) : (c.toConfirm || 0)))
-    .catch(() => {});
+  // ถ้าสิทธิ์เปลี่ยน (login/ออก) แล้วอยู่หน้าที่ดูไม่ได้ → เด้งกลับแดชบอร์ด
+  useEffect(() => {
+    if (!canSee(VIEWS[view], me)) setView('dashboard');
+  }, [me.role]);
+
+  const loadBadge = () => {
+    if (isGuest) { setBadge(0); return; }
+    api('/api/requests/counts')
+      .then((c) => setBadge(me.role === 'admin' ? (c.pending || 0) + (c.toHand || 0) : (c.toConfirm || 0)))
+      .catch(() => {});
+  };
   useEffect(() => {
     loadBadge();
     const t = setInterval(loadBadge, 20000); // เช็คคำขอใหม่ทุก 20 วิ
     return () => clearInterval(t);
-  }, [view]);
+  }, [view, me.role]);
 
   const logout = async () => {
     await api('/api/logout', { method: 'POST' });
-    onLogout();
+    onMe({ role: 'guest', username: 'guest' });
+    setView('dashboard');
   };
 
   return (
@@ -107,7 +146,7 @@ function Shell({ me, onLogout }) {
           <div className="brand"><span className="brand-logo" aria-hidden="true" /> คลัง IRiSH LAB</div>
           <nav className="tabs">
             {Object.entries(VIEWS).map(([k, v]) =>
-              v.adminOnly && me.role !== 'admin' ? null : (
+              !canSee(v, me) ? null : (
                 <button key={k} className={'tab' + (view === k ? ' active' : '')} onClick={() => setView(k)}>
                   <span className="tab-label">{v.label}</span>
                   {k === 'requests' && badge > 0 && <span className="tab-badge">{badge}</span>}
@@ -116,10 +155,15 @@ function Shell({ me, onLogout }) {
             )}
           </nav>
           <div className="userbox">
-            <span className="muted">{me.fullname || me.username} ({me.role})</span>
-            <button className="btn small" onClick={() => setChangingPw(true)}>เปลี่ยนรหัส</button>
-            {/* ปุ่มออกซ่อนไว้ตอนปิด login — เปิด auth กลับค่อยโชว์ */}
-            {import.meta.env.VITE_AUTH === '1' && <button className="btn small" onClick={logout}>ออก</button>}
+            {isGuest ? (
+              <button className="btn primary" onClick={() => setLoggingIn(true)}>เข้าสู่ระบบ</button>
+            ) : (
+              <>
+                <span className="muted">{me.fullname || me.username} ({me.role})</span>
+                <button className="btn small" onClick={() => setChangingPw(true)}>เปลี่ยนรหัส</button>
+                <button className="btn small" onClick={logout}>ออก</button>
+              </>
+            )}
           </div>
         </aside>
         <main>
@@ -127,6 +171,7 @@ function Shell({ me, onLogout }) {
         </main>
       </div>
       {changingPw && <ChangePw onClose={() => setChangingPw(false)} />}
+      {loggingIn && <LoginModal onClose={() => setLoggingIn(false)} onLogin={(u) => { onMe(u); setLoggingIn(false); }} />}
     </CartProvider>
   );
 }

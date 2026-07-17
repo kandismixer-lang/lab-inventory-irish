@@ -26,26 +26,24 @@ app.use(
 );
 
 // ---------- helpers ----------
-// ⚠️ NO_AUTH=1 (ค่าเริ่มต้นตอนนี้) = ปิดระบบ login ทุกคนที่เข้าเว็บเป็น admin
-// ตั้ง NO_AUTH=0 เพื่อเปิด login กลับ (บัญชีใน DB ยังอยู่ครบ ไม่ได้ลบ)
-const NO_AUTH = process.env.NO_AUTH !== '0';
+// ผู้เยี่ยมชม (ยังไม่ login) — ดูแดชบอร์ด/รายการของได้ แต่เขียนอะไรไม่ได้
+const GUEST = { id: 0, username: 'guest', fullname: 'ผู้เยี่ยมชม', role: 'guest' };
 
 function currentUser(req) {
-  if (NO_AUTH) {
-    // ใช้ admin คนแรกในระบบเป็นตัวแทนทุก session
-    return db
-      .prepare("SELECT id, username, fullname, role FROM users WHERE role='admin' AND active=1 ORDER BY id LIMIT 1")
-      .get() || null;
-  }
-  if (!req.session || !req.session.uid) return null;
+  if (!req.session || !req.session.uid) return GUEST;
   return db
-    .prepare('SELECT id, username, fullname, role FROM users WHERE id = ?')
-    .get(req.session.uid);
+    .prepare('SELECT id, username, fullname, role FROM users WHERE id = ? AND active = 1')
+    .get(req.session.uid) || GUEST;
 }
+// เข้าถึงได้ทุกคน (รวม guest)
 function requireAuth(req, res, next) {
-  const u = currentUser(req);
-  if (!u) return res.status(401).json({ error: 'ยังไม่ได้เข้าสู่ระบบ' });
-  req.user = u;
+  req.user = currentUser(req);
+  next();
+}
+// ต้อง login จริง (guest ห้าม)
+function requireUser(req, res, next) {
+  if (req.user.role === 'guest')
+    return res.status(401).json({ error: 'ต้องเข้าสู่ระบบก่อน' });
   next();
 }
 function requireAdmin(req, res, next) {
@@ -93,7 +91,7 @@ app.get('/api/me', (req, res) => {
   res.json(u);
 });
 
-app.post('/api/change-password', requireAuth, (req, res) => {
+app.post('/api/change-password', requireAuth, requireUser, (req, res) => {
   const { oldPassword, newPassword } = req.body || {};
   if (!newPassword || newPassword.length < 6)
     return res.status(400).json({ error: 'รหัสผ่านใหม่ต้องอย่างน้อย 6 ตัว' });
@@ -485,7 +483,7 @@ function saveImage(dataUrl /* , baseName */) {
 }
 
 // Staff/Admin สร้างคำขอ (เลือกแค่ "ชนิดของ")
-app.post('/api/requests', requireAuth, (req, res) => {
+app.post('/api/requests', requireAuth, requireUser, (req, res) => {
   const { item_id, qty, note } = req.body || {};
   const item = db.prepare('SELECT * FROM items WHERE id = ? AND active = 1').get(item_id);
   if (!item) return res.status(404).json({ error: 'ไม่พบรายการของ' });
@@ -501,7 +499,7 @@ app.post('/api/requests', requireAuth, (req, res) => {
 });
 
 // สร้างออเดอร์ = หลายรายการใน 1 ใบ (ตะกร้า) — แต่ละบรรทัดเป็น request แยก (reuse workflow เดิม)
-app.post('/api/orders', requireAuth, (req, res) => {
+app.post('/api/orders', requireAuth, requireUser, (req, res) => {
   const { note, items } = req.body || {};
   if (!Array.isArray(items) || items.length === 0)
     return res.status(400).json({ error: 'ตะกร้าว่าง' });
@@ -655,7 +653,7 @@ app.post('/api/requests/:id/handover', requireAuth, requireAdmin, (req, res) => 
 });
 
 // Staff: ยืนยันรับ (เจ้าของคำขอเท่านั้น + แนบรูปได้)
-app.post('/api/requests/:id/receive', requireAuth, (req, res) => {
+app.post('/api/requests/:id/receive', requireAuth, requireUser, (req, res) => {
   const r = getReq(req.params.id);
   if (!r || r.status !== 'handed') return res.status(400).json({ error: 'คำขอนี้ยืนยันรับไม่ได้' });
   if (r.requester_id !== req.user.id && req.user.role !== 'admin')
@@ -668,7 +666,7 @@ app.post('/api/requests/:id/receive', requireAuth, (req, res) => {
 });
 
 // ยกเลิกคำขอ (ผู้ขอ ตอนยัง pending)
-app.post('/api/requests/:id/cancel', requireAuth, (req, res) => {
+app.post('/api/requests/:id/cancel', requireAuth, requireUser, (req, res) => {
   const r = getReq(req.params.id);
   if (!r || r.status !== 'pending') return res.status(400).json({ error: 'ยกเลิกไม่ได้' });
   if (r.requester_id !== req.user.id && req.user.role !== 'admin')
@@ -678,7 +676,7 @@ app.post('/api/requests/:id/cancel', requireAuth, (req, res) => {
 });
 
 // คืนของ (ปิดคำขอที่ received) — admin หรือผู้ขอ
-app.post('/api/requests/:id/return', requireAuth, (req, res) => {
+app.post('/api/requests/:id/return', requireAuth, requireUser, (req, res) => {
   const r = getReq(req.params.id);
   if (!r || r.status !== 'received') return res.status(400).json({ error: 'คืนไม่ได้' });
   if (req.user.role !== 'admin' && r.requester_id !== req.user.id)
