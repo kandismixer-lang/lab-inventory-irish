@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { api, TYPE_LABEL, KIND_LABEL, STATUS_LABEL, CATEGORY_GROUPS, CATEGORY_TYPE, fileToScaledDataURL } from './api.js';
 import { Table, Modal, useToast, useConfirm, usePrompt } from './components.jsx';
 import { useCart } from './Cart.jsx';
@@ -459,25 +459,56 @@ function UnitsPanel({ item, me, onChanged }) {
           </div>
         )
       ) : (
-        <AddUnitsForm unit={item.unit} onBulk={addUnits} />
+        <AddUnitsForm unit={item.unit} units={units} onBulk={addUnits} />
       )}
     </div>
   );
 }
 
-function AddUnitsForm({ unit, onBulk }) {
-  const [mode, setMode] = useState('bulk');
-  const [prefix, setPrefix] = useState('');
-  const [start, setStart] = useState(1);
-  const [count, setCount] = useState(10);
-  const [pad, setPad] = useState(2);
-
-  const preview = () => {
-    const p = Math.max(0, parseInt(pad, 10) || 0);
-    const s = parseInt(start, 10) || 0;
-    const n = Math.min(parseInt(count, 10) || 0, 3);
-    return Array.from({ length: n }, (_, i) => `${prefix}${String(s + i).padStart(p, '0')}`).join(', ');
+// อ่านรหัสหน่วยที่มีอยู่ -> เดา prefix + เลขถัดไป + จำนวนหลัก (เพื่อรันเลขต่อให้อัตโนมัติ)
+function deriveScheme(units) {
+  const parsed = units
+    .map((u) => /^(.*?)(\d+)$/.exec(u.code))
+    .filter(Boolean)
+    .map((m) => ({ prefix: m[1], num: parseInt(m[2], 10), pad: m[2].length }));
+  if (!parsed.length) return null;
+  // ใช้ prefix ที่พบบ่อยสุด
+  const freq = {};
+  parsed.forEach((p) => { freq[p.prefix] = (freq[p.prefix] || 0) + 1; });
+  const prefix = Object.keys(freq).sort((a, b) => freq[b] - freq[a])[0];
+  const same = parsed.filter((p) => p.prefix === prefix);
+  return {
+    prefix,
+    next: Math.max(...same.map((p) => p.num)) + 1,
+    pad: Math.max(...same.map((p) => p.pad)),
   };
+}
+
+function AddUnitsForm({ unit, units, onBulk }) {
+  const scheme = useMemo(() => deriveScheme(units), [units]);
+  const [mode, setMode] = useState('bulk');
+  const [custom, setCustom] = useState(false);
+  const [count, setCount] = useState(1);
+  // null = ใช้ค่าอัตโนมัติจากรหัสเดิม
+  const [pfx, setPfx] = useState(null);
+  const [stt, setStt] = useState(null);
+  const [pd, setPd] = useState(null);
+  const [code, setCode] = useState(null);
+
+  const prefix = pfx ?? scheme?.prefix ?? '';
+  const start = stt ?? scheme?.next ?? 1;
+  const pad = pd ?? scheme?.pad ?? 2;
+  const mk = (n) => `${prefix}${String(n).padStart(Math.max(0, parseInt(pad, 10) || 0), '0')}`;
+  const autoCode = scheme ? mk(scheme.next) : '';
+  const singleCode = code ?? autoCode;
+  const showFields = custom || !scheme; // ยังไม่มีรหัสเดิม = ต้องกรอกเอง
+
+  const n = parseInt(count, 10) || 0;
+  const s = parseInt(start, 10) || 0;
+  const preview = n > 0
+    ? (n <= 3 ? Array.from({ length: n }, (_, i) => mk(s + i)).join(', ')
+      : `${mk(s)}, ${mk(s + 1)} … ${mk(s + n - 1)}`)
+    : '';
 
   return (
     <>
@@ -485,21 +516,43 @@ function AddUnitsForm({ unit, onBulk }) {
         <button className={'btn small' + (mode === 'bulk' ? ' active' : '')} onClick={() => setMode('bulk')}>สร้างหลายชิ้น</button>
         <button className={'btn small' + (mode === 'single' ? ' active' : '')} onClick={() => setMode('single')}>ทีละชิ้น</button>
       </div>
+
+      {scheme && (
+        <div className="hint" style={{ marginBottom: 8 }}>
+          รหัสล่าสุดที่มี: <b>{mk(scheme.next - 1)}</b> — ระบบจะรันต่อให้อัตโนมัติ
+        </div>
+      )}
+
       {mode === 'bulk' ? (
         <form onSubmit={(e) => { e.preventDefault(); onBulk({ mode: 'bulk', prefix, start, count, pad }); }}>
-          <label>Prefix (คำนำหน้ารหัส)<input value={prefix} onChange={(e) => setPrefix(e.target.value)} placeholder="เช่น RPI-" /></label>
-          <div className="form-row">
-            <label>เลขเริ่ม<input type="number" value={start} onChange={(e) => setStart(e.target.value)} /></label>
-            <label>จำนวน<input type="number" min="1" max="500" value={count} onChange={(e) => setCount(e.target.value)} /></label>
-            <label>เติม 0 (หลัก)<input type="number" min="0" value={pad} onChange={(e) => setPad(e.target.value)} /></label>
-          </div>
-          <div className="hint">ตัวอย่างรหัสที่จะสร้าง: {preview() || '—'} …</div>
-          <button className="btn primary" type="submit" style={{ marginTop: 12, width: '100%' }}>สร้าง {count} หน่วย</button>
+          <label>จำนวนที่เพิ่มมา ({unit})
+            <input type="number" min="1" max="500" value={count} onChange={(e) => setCount(e.target.value)} autoFocus />
+          </label>
+          {showFields && (
+            <>
+              <label>Prefix (คำนำหน้ารหัส)<input value={prefix} onChange={(e) => setPfx(e.target.value)} placeholder="เช่น RPI-" /></label>
+              <div className="form-row">
+                <label>เลขเริ่ม<input type="number" value={start} onChange={(e) => setStt(e.target.value)} /></label>
+                <label>เติม 0 (หลัก)<input type="number" min="0" value={pad} onChange={(e) => setPd(e.target.value)} /></label>
+              </div>
+            </>
+          )}
+          <div className="hint">จะสร้าง: <b>{preview || '—'}</b></div>
+          {scheme && (
+            <label className="check-inline" style={{ marginTop: 8 }}>
+              <input type="checkbox" checked={custom} onChange={(e) => setCustom(e.target.checked)} />
+              กำหนด prefix / เลขเริ่มเอง
+            </label>
+          )}
+          <button className="btn primary" type="submit" style={{ marginTop: 12, width: '100%' }}>สร้าง {n} หน่วย</button>
         </form>
       ) : (
-        <form onSubmit={(e) => { e.preventDefault(); onBulk({ mode: 'single', code: e.target.code.value }); }}>
-          <label>รหัสประจำตัว<input name="code" required placeholder="เช่น RPI-21" /></label>
-          <button className="btn primary" type="submit" style={{ marginTop: 12, width: '100%' }}>เพิ่ม 1 หน่วย</button>
+        <form onSubmit={(e) => { e.preventDefault(); onBulk({ mode: 'single', code: singleCode }); }}>
+          <label>รหัสประจำตัว
+            <input value={singleCode} onChange={(e) => setCode(e.target.value)} required placeholder="เช่น RPI-21" />
+          </label>
+          <div className="hint">{scheme ? 'เติมให้อัตโนมัติจากรหัสล่าสุด — แก้ได้' : 'ยังไม่มีรหัสเดิม พิมพ์รหัสแรกเอง'}</div>
+          <button className="btn primary" type="submit" style={{ marginTop: 12, width: '100%' }}>เพิ่ม 1 หน่วย — {singleCode || '?'}</button>
         </form>
       )}
     </>
