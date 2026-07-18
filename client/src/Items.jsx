@@ -6,8 +6,8 @@ import { useCart } from './Cart.jsx';
 export const catLabel = (i) => i.category || TYPE_LABEL[i.type];
 
 export default function Items({ me, focusItem, onFocused }) {
-  // guest จัดการคลังได้เท่า admin (คำขอ/ผู้ใช้เท่านั้นที่ต้อง login)
-  const isAdmin = me.role === 'admin' || me.role === 'guest';
+  // จัดการคลังได้เฉพาะ admin — คนอื่นกดได้แค่ "ขอยืม/ขอเบิก" (ลงตะกร้า) แล้วรออนุมัติ
+  const isAdmin = me.role === 'admin';
   const [q, setQ] = useState('');
   const [items, setItems] = useState([]);
   const [editing, setEditing] = useState(undefined); // undefined=ปิด, null=เพิ่มใหม่, obj=แก้ไข
@@ -113,7 +113,7 @@ export default function Items({ me, focusItem, onFocused }) {
                             : <button className="btn small info" onClick={(e) => { e.stopPropagation(); setMoving(i); }}>เบิก/ยืม/รับเข้า</button>}
                           <button className="btn small edit" onClick={(e) => { e.stopPropagation(); setEditing(i); }}>แก้ไข</button>
                         </>
-                      ) : me.role === 'guest' ? null : (
+                      ) : (
                         <button className="btn small primary" disabled={i.qty <= 0} onClick={(e) => { e.stopPropagation(); setRequesting(i); }}>
                           {i.type === 'consumable' ? 'ขอเบิก' : 'ขอยืม'}
                         </button>

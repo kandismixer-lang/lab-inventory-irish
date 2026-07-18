@@ -4,14 +4,14 @@ import { Modal, useToast } from './components.jsx';
 
 const ADMIN_TABS = [
   ['pending', 'รออนุมัติ', 'pending'],
-  ['approved', 'รอส่งมอบ', 'toHand'],
-  ['handed', 'รอผู้ยืมยืนยัน', 'handed'],
   ['received', 'ถูกยืมอยู่'],
+  ['returned', 'คืนแล้ว'],
   ['', 'ทั้งหมด'],
 ];
 const STAFF_TABS = [
   ['', 'ทั้งหมด'],
-  ['active', 'กำลังดำเนินการ'],
+  ['pending', 'รออนุมัติ'],
+  ['received', 'ถูกยืมอยู่'],
 ];
 
 export default function Requests({ me }) {
@@ -173,7 +173,7 @@ function RequestCard({ r, me, onDone }) {
           <span className={'badge ' + st.cls}>{st.label}</span>
         </div>
         <div className="req-sub">
-          <span>👤 {r.requester_fullname || r.requester_name}</span>
+          <span>👤 {r.person || r.requester_fullname || r.requester_name}</span>
           <span className="hint">🕑 {r.created_at}</span>
           {r.approver_name && <span className="hint">✔ โดย {r.approver_name}</span>}
           {r.note && <span className="muted">📝 {r.note}</span>}
@@ -218,26 +218,15 @@ function RequestCard({ r, me, onDone }) {
             <button className="btn small danger" onClick={() => setModal('reject')}>ปฏิเสธ</button>
           </>
         )}
-        {isAdmin && r.status === 'approved' && (
-          <>
-            <button className="btn small info" onClick={() => setModal('handover')}>ส่งมอบ + รูป</button>
-            <button className="btn small danger" onClick={() => setModal('reject')}>ปฏิเสธ</button>
-          </>
-        )}
         {mine && r.status === 'pending' && (
           <button className="btn small" onClick={() => call('cancel')}>ยกเลิก</button>
         )}
-        {mine && r.status === 'handed' && (
-          <button className="btn small primary" onClick={() => setModal('receive')}>ยืนยันรับ + รูป</button>
-        )}
-        {r.status === 'received' && (mine || isAdmin) && (
-          <button className="btn small" onClick={() => call('return')}>คืนของ</button>
+        {isAdmin && r.status === 'received' && (
+          <button className="btn small u-return" onClick={() => call('return')}>✓ รับของคืนแล้ว</button>
         )}
       </div>
 
       {modal === 'reject' && <RejectModal onClose={() => setModal(null)} onSubmit={(b) => call('reject', b)} />}
-      {modal === 'handover' && <ImageModal title="ส่งมอบของ" note="ถ่าย/แนบรูปตอนส่งมอบ (ไม่บังคับ)" onClose={() => setModal(null)} onSubmit={(img) => call('handover', { image: img })} />}
-      {modal === 'receive' && <ImageModal title="ยืนยันรับของ" note="ถ่าย/แนบรูปตอนรับ (ไม่บังคับ)" onClose={() => setModal(null)} onSubmit={(img) => call('receive', { image: img })} />}
     </div>
   );
 }

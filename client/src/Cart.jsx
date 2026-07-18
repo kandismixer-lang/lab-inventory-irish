@@ -8,7 +8,7 @@ const CartCtx = createContext({ cart: [], addToCart: () => {} });
 export const useCart = () => useContext(CartCtx);
 
 // เก็บตะกร้าไว้ระดับ global (คงข้ามการเปลี่ยนแท็บ) + แถบลอย + modal
-export function CartProvider({ children }) {
+export function CartProvider({ children, person }) {
   const [cart, setCart] = useState([]);
   const [open, setOpen] = useState(false);
   const toast = useToast();
@@ -27,7 +27,7 @@ export function CartProvider({ children }) {
     <CartCtx.Provider value={{ cart, addToCart }}>
       {children}
       <CartBar cart={cart} onOpen={() => setOpen(true)} />
-      {open && <CartModal cart={cart} setCart={setCart} onClose={() => setOpen(false)} />}
+      {open && <CartModal cart={cart} setCart={setCart} person={person} onClose={() => setOpen(false)} />}
     </CartCtx.Provider>
   );
 }
@@ -42,7 +42,7 @@ function CartBar({ cart, onOpen }) {
   );
 }
 
-function CartModal({ cart, setCart, onClose }) {
+function CartModal({ cart, setCart, person, onClose }) {
   const toast = useToast();
   const confirm = useConfirm();
   const [note, setNote] = useState('');
@@ -63,10 +63,10 @@ function CartModal({ cart, setCart, onClose }) {
     if (cart.length === 0) return;
     setBusy(true); setErr('');
     try {
-      const r = await api('/api/orders', { method: 'POST', body: { note, items: cart.map((c) => ({ item_id: c.item.id, qty: c.qty, note: c.note })) } });
+      const r = await api('/api/orders', { method: 'POST', body: { note, person, items: cart.map((c) => ({ item_id: c.item.id, qty: c.qty, note: c.note })) } });
       setCart([]);
       onClose();
-      toast(`ส่งออเดอร์แล้ว ${r.lines} รายการ`);
+      toast(`ส่งคำขอแล้ว ${r.lines} รายการ — รอแอดมินอนุมัติ`);
     } catch (e) { setErr(e.message); } finally { setBusy(false); }
   };
 

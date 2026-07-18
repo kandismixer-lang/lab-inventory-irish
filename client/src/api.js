@@ -27,9 +27,9 @@ CATEGORY_GROUPS.forEach((g) => g.cats.forEach((c) => { CATEGORY_TYPE[c] = g.type
 // สถานะคำขอ (workflow)
 export const REQ_STATUS = {
   pending:   { label: 'กำลังขออนุมัติ', cls: 'st-pending' },
-  approved:  { label: 'อนุมัติแล้ว · รอส่งมอบ', cls: 'st-approved' },
-  handed:    { label: 'ส่งมอบแล้ว · รอยืนยันรับ', cls: 'st-handed' },
-  received:  { label: 'รับแล้ว (ถูกยืม)', cls: 'st-received' },
+  approved:  { label: 'อนุมัติแล้ว', cls: 'st-approved' },
+  handed:    { label: 'ส่งมอบแล้ว', cls: 'st-handed' },
+  received:  { label: 'อนุมัติแล้ว · ถูกยืมอยู่', cls: 'st-received' },
   returned:  { label: 'คืนแล้ว', cls: 'st-returned' },
   rejected:  { label: 'ถูกปฏิเสธ', cls: 'st-rejected' },
   cancelled: { label: 'ยกเลิก', cls: 'st-cancelled' },

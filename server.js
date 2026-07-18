@@ -222,7 +222,7 @@ app.get('/api/items/:id', requireAuth, (req, res) => {
   res.json({ item, history });
 });
 
-app.post('/api/items', requireAuth, requireManage, (req, res) => {
+app.post('/api/items', requireAuth, requireAdmin, (req, res) => {
   const { name, category, type: rawType, unit, location, qty, min_qty, note, tracked, spec } = req.body || {};
   if (!name || !name.trim()) return res.status(400).json({ error: 'ต้องมีชื่อรายการ' });
   const { category: cat, type } = resolveCategory(category, rawType);
@@ -261,7 +261,7 @@ app.post('/api/items', requireAuth, requireManage, (req, res) => {
   res.json({ id });
 });
 
-app.put('/api/items/:id', requireAuth, requireManage, (req, res) => {
+app.put('/api/items/:id', requireAuth, requireAdmin, (req, res) => {
   const item = db.prepare('SELECT * FROM items WHERE id = ?').get(req.params.id);
   if (!item) return res.status(404).json({ error: 'ไม่พบรายการ' });
   const { name, category, type: rawType, unit, location, min_qty, note, spec, tracked } = req.body || {};
@@ -299,7 +299,7 @@ app.get('/api/locations', requireAuth, (req, res) => {
   res.json(db.prepare('SELECT * FROM locations WHERE active=1 ORDER BY name').all());
 });
 
-app.post('/api/locations', requireAuth, requireManage, (req, res) => {
+app.post('/api/locations', requireAuth, requireAdmin, (req, res) => {
   const name = (req.body?.name || '').trim();
   if (!name) return res.status(400).json({ error: 'ต้องมีชื่อตู้/ที่เก็บ' });
   try {
@@ -312,7 +312,7 @@ app.post('/api/locations', requireAuth, requireManage, (req, res) => {
   }
 });
 
-app.delete('/api/items/:id', requireAuth, requireManage, (req, res) => {
+app.delete('/api/items/:id', requireAuth, requireAdmin, (req, res) => {
   db.prepare('UPDATE items SET active = 0 WHERE id = ?').run(req.params.id);
   res.json({ ok: true });
 });
@@ -326,7 +326,7 @@ const KINDS = {
   adjust: 0, // ปรับยอด (ใช้ delta ตรงๆ)
 };
 
-app.post('/api/items/:id/move', requireAuth, requireManage, (req, res) => {
+app.post('/api/items/:id/move', requireAuth, requireAdmin, (req, res) => {
   const item = db.prepare('SELECT * FROM items WHERE id = ?').get(req.params.id);
   if (!item) return res.status(404).json({ error: 'ไม่พบรายการ' });
   if (item.tracked)
@@ -388,7 +388,7 @@ app.get('/api/items/:id/units', requireAuth, (req, res) => {
 });
 
 // เพิ่มหน่วย — เดี่ยว หรือ bulk generate (prefix + start + count + pad)
-app.post('/api/items/:id/units', requireAuth, requireManage, (req, res) => {
+app.post('/api/items/:id/units', requireAuth, requireAdmin, (req, res) => {
   const item = db.prepare('SELECT * FROM items WHERE id = ?').get(req.params.id);
   if (!item) return res.status(404).json({ error: 'ไม่พบรายการ' });
   if (!item.tracked) return res.status(400).json({ error: 'ของนี้ไม่ได้ track รายตัว' });
@@ -442,7 +442,7 @@ const UNIT_ACTIONS = {
   lost: { from: ['available', 'borrowed', 'repair'], to: 'lost' },
 };
 
-app.post('/api/units/:id/move', requireAuth, requireManage, (req, res) => {
+app.post('/api/units/:id/move', requireAuth, requireAdmin, (req, res) => {
   const unit = db.prepare('SELECT * FROM units WHERE id = ? AND active = 1').get(req.params.id);
   if (!unit) return res.status(404).json({ error: 'ไม่พบหน่วยนี้' });
   const item = db.prepare('SELECT * FROM items WHERE id = ?').get(unit.item_id);
@@ -466,7 +466,7 @@ app.post('/api/units/:id/move', requireAuth, requireManage, (req, res) => {
 });
 
 // เลิกใช้หน่วย (admin)
-app.delete('/api/units/:id', requireAuth, requireManage, (req, res) => {
+app.delete('/api/units/:id', requireAuth, requireAdmin, (req, res) => {
   const unit = db.prepare('SELECT * FROM units WHERE id = ?').get(req.params.id);
   if (!unit) return res.status(404).json({ error: 'ไม่พบหน่วยนี้' });
   db.tx(() => {
@@ -504,7 +504,7 @@ function saveImage(dataUrl /* , baseName */) {
 }
 
 // Staff/Admin สร้างคำขอ (เลือกแค่ "ชนิดของ")
-app.post('/api/requests', requireAuth, requireUser, (req, res) => {
+app.post('/api/requests', requireAuth, (req, res) => {
   const { item_id, qty, note } = req.body || {};
   const item = db.prepare('SELECT * FROM items WHERE id = ? AND active = 1').get(item_id);
   if (!item) return res.status(404).json({ error: 'ไม่พบรายการของ' });
@@ -520,8 +520,9 @@ app.post('/api/requests', requireAuth, requireUser, (req, res) => {
 });
 
 // สร้างออเดอร์ = หลายรายการใน 1 ใบ (ตะกร้า) — แต่ละบรรทัดเป็น request แยก (reuse workflow เดิม)
-app.post('/api/orders', requireAuth, requireUser, (req, res) => {
-  const { note, items } = req.body || {};
+app.post('/api/orders', requireAuth, (req, res) => {
+  const { note, items, person } = req.body || {};
+  const who = (person || '').trim() || req.user.fullname || req.user.username;
   if (!Array.isArray(items) || items.length === 0)
     return res.status(400).json({ error: 'ตะกร้าว่าง' });
   // ตรวจของก่อนทั้งหมด
@@ -533,13 +534,14 @@ app.post('/api/orders', requireAuth, requireUser, (req, res) => {
     lines.push({ item, qty: n, note: (it.note || '').trim(), kind: item.type === 'consumable' ? 'issue' : 'borrow' });
   }
   const orderId = db.tx(() => {
-    const oi = db.prepare('INSERT INTO orders (requester_id, note) VALUES (?,?)').run(req.user.id, (note || '').trim());
+    const oi = db.prepare('INSERT INTO orders (requester_id, note, person) VALUES (?,?,?)')
+      .run(req.user.id, (note || '').trim(), who);
     const oid = Number(oi.lastInsertRowid);
     const ins = db.prepare(
-      `INSERT INTO requests (item_id, requester_id, kind, qty, note, status, order_id)
-       VALUES (?,?,?,?,?, 'pending', ?)`
+      `INSERT INTO requests (item_id, requester_id, kind, qty, note, status, order_id, person)
+       VALUES (?,?,?,?,?, 'pending', ?, ?)`
     );
-    lines.forEach((l) => ins.run(l.item.id, req.user.id, l.kind, l.qty, l.note, oid));
+    lines.forEach((l) => ins.run(l.item.id, req.user.id, l.kind, l.qty, l.note, oid, who));
     return oid;
   });
   res.json({ id: orderId, lines: lines.length });
@@ -580,6 +582,13 @@ app.get('/api/requests/counts', requireAuth, (req, res) => {
 function getReq(id) {
   return db.prepare('SELECT * FROM requests WHERE id = ?').get(id);
 }
+// ชื่อผู้ขอ — ใช้ชื่อที่พิมพ์เอง (guest) ถ้ามี ไม่งั้นใช้ชื่อบัญชี
+function reqPerson(r) {
+  if (r.person && r.person.trim()) return r.person.trim();
+  const u = db.prepare('SELECT fullname, username FROM users WHERE id=?').get(r.requester_id);
+  return u ? (u.fullname || u.username) : '';
+}
+
 // หน่วยที่จองไว้ให้คำขอ (fallback unit_id เดี่ยวสำหรับข้อมูลเก่า)
 function reqUnitIds(r) {
   const ids = db.prepare('SELECT unit_id FROM request_units WHERE request_id = ?').all(r.id).map((x) => x.unit_id);
@@ -587,36 +596,66 @@ function reqUnitIds(r) {
   return r.unit_id ? [r.unit_id] : [];
 }
 
-// Admin: อนุมัติ (เลือกหน่วยถ้า track รายตัว — ได้หลายหน่วยตามจำนวนที่ขอ)
+// Admin: อนุมัติ = ตัดของออกจากคลังให้เลย (จบในขั้นตอนเดียว ไม่มีส่งมอบ/ยืนยันรับ)
+// track รายตัว: ต้องเลือกหน่วยจริงให้ครบตามจำนวนที่ขอ
 app.post('/api/requests/:id/approve', requireAuth, requireAdmin, (req, res) => {
   const r = getReq(req.params.id);
   if (!r || r.status !== 'pending') return res.status(400).json({ error: 'คำขอนี้อนุมัติไม่ได้' });
   const item = db.prepare('SELECT * FROM items WHERE id = ?').get(r.item_id);
+  const who = reqPerson(r);
+
+  // เตรียม/ตรวจหน่วยที่เลือก (เฉพาะของ track รายตัว)
+  let ids = [];
   if (item.tracked) {
-    // รับ unit_ids (array) — รองรับ unit_id เดี่ยวเพื่อความเข้ากันได้เก่า
-    let ids = req.body?.unit_ids;
-    if (!Array.isArray(ids)) ids = req.body?.unit_id != null ? [req.body.unit_id] : [];
-    ids = [...new Set(ids.map((x) => parseInt(x, 10)).filter((x) => x))];
+    let raw = req.body?.unit_ids;
+    if (!Array.isArray(raw)) raw = req.body?.unit_id != null ? [req.body.unit_id] : [];
+    ids = [...new Set(raw.map((x) => parseInt(x, 10)).filter((x) => x))];
     if (ids.length !== r.qty)
       return res.status(400).json({ error: `ต้องเลือกหน่วยว่างให้ครบ ${r.qty} ชิ้น` });
     for (const id of ids) {
       const unit = db.prepare("SELECT * FROM units WHERE id = ? AND item_id = ? AND active=1 AND status='available'").get(id, item.id);
       if (!unit) return res.status(400).json({ error: 'มีหน่วยที่เลือกไม่ว่างแล้ว' });
     }
-    db.tx(() => {
-      db.prepare('DELETE FROM request_units WHERE request_id = ?').run(r.id);
-      const ins = db.prepare('INSERT INTO request_units (request_id, unit_id) VALUES (?,?)');
-      ids.forEach((id) => ins.run(r.id, id));
-      db.prepare(
-        "UPDATE requests SET status='approved', approver_id=?, unit_id=?, approved_at=datetime('now','localtime') WHERE id=?"
-      ).run(req.user.id, ids[0], r.id);
-    });
-    return res.json({ ok: true });
+  } else if (item.qty < r.qty) {
+    return res.status(400).json({ error: `คงเหลือไม่พอ (มี ${item.qty})` });
   }
-  db.prepare(
-    "UPDATE requests SET status='approved', approver_id=?, approved_at=datetime('now','localtime') WHERE id=?"
-  ).run(req.user.id, r.id);
-  res.json({ ok: true });
+
+  try {
+    db.tx(() => {
+      if (item.tracked) {
+        db.prepare('DELETE FROM request_units WHERE request_id = ?').run(r.id);
+        const insRU = db.prepare('INSERT INTO request_units (request_id, unit_id) VALUES (?,?)');
+        for (const id of ids) {
+          insRU.run(r.id, id);
+          const unit = db.prepare('SELECT * FROM units WHERE id=?').get(id);
+          db.prepare("UPDATE units SET status='borrowed', holder=? WHERE id=?").run(who, id);
+          db.prepare(
+            `INSERT INTO transactions (item_id, unit_id, user_id, kind, qty, delta, person, note)
+             VALUES (?,?,?, 'borrow', 1, -1, ?, ?)`
+          ).run(item.id, id, req.user.id, who, `อนุมัติคำขอ #${r.id}: ${unit.code}`);
+        }
+        db.recalcTracked(item.id);
+      } else {
+        const delta = -r.qty;
+        db.prepare('UPDATE items SET qty = qty + ? WHERE id = ?').run(delta, item.id);
+        db.prepare(
+          `INSERT INTO transactions (item_id, user_id, kind, qty, delta, person, note)
+           VALUES (?,?,?,?,?,?,?)`
+        ).run(item.id, req.user.id, r.kind, r.qty, delta, who, `อนุมัติคำขอ #${r.id}`);
+      }
+      // อนุมัติแล้วถือว่าอยู่กับผู้ขอเลย (ของเบิกหมด = ปิดจบ)
+      const finalStatus = item.type === 'consumable' ? 'returned' : 'received';
+      db.prepare(
+        `UPDATE requests SET status=?, approver_id=?, unit_id=?,
+           approved_at=datetime('now','localtime'), received_at=datetime('now','localtime'),
+           closed_at=CASE WHEN ?='returned' THEN datetime('now','localtime') ELSE NULL END
+         WHERE id=?`
+      ).run(finalStatus, req.user.id, ids[0] ?? null, finalStatus, r.id);
+    });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
 });
 
 // Admin: ปฏิเสธ
@@ -687,7 +726,7 @@ app.post('/api/requests/:id/receive', requireAuth, requireUser, (req, res) => {
 });
 
 // ยกเลิกคำขอ (ผู้ขอ ตอนยัง pending)
-app.post('/api/requests/:id/cancel', requireAuth, requireUser, (req, res) => {
+app.post('/api/requests/:id/cancel', requireAuth, (req, res) => {
   const r = getReq(req.params.id);
   if (!r || r.status !== 'pending') return res.status(400).json({ error: 'ยกเลิกไม่ได้' });
   if (r.requester_id !== req.user.id && req.user.role !== 'admin')
@@ -697,14 +736,13 @@ app.post('/api/requests/:id/cancel', requireAuth, requireUser, (req, res) => {
 });
 
 // คืนของ (ปิดคำขอที่ received) — admin หรือผู้ขอ
-app.post('/api/requests/:id/return', requireAuth, requireUser, (req, res) => {
+app.post('/api/requests/:id/return', requireAuth, requireAdmin, (req, res) => {
   const r = getReq(req.params.id);
   if (!r || r.status !== 'received') return res.status(400).json({ error: 'คืนไม่ได้' });
   if (req.user.role !== 'admin' && r.requester_id !== req.user.id)
     return res.status(403).json({ error: 'ไม่มีสิทธิ์' });
   const item = db.prepare('SELECT * FROM items WHERE id = ?').get(r.item_id);
-  const requester = db.prepare('SELECT * FROM users WHERE id = ?').get(r.requester_id);
-  const who = requester ? (requester.fullname || requester.username) : '';
+  const who = reqPerson(r);
   db.tx(() => {
     const ids = item.tracked ? reqUnitIds(r) : [];
     if (item.tracked && ids.length) {

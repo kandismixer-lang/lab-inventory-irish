@@ -128,7 +128,7 @@ const VIEWS = {
   dashboard: { label: 'แดชบอร์ด', comp: Dashboard },
   items: { label: 'รายการของ', comp: Items },
   log: { label: 'ประวัติทั้งหมด', comp: Log },
-  requests: { label: 'คำขอ', comp: Requests, needLogin: true },
+  requests: { label: 'คำขอ', comp: Requests },
   users: { label: 'ผู้ใช้', comp: Users, adminOnly: true },
 };
 // เมนูนี้เห็นได้ไหม
@@ -156,9 +156,8 @@ function Shell({ me, onMe, guestName, onGuestName }) {
   }, [me.role]);
 
   const loadBadge = () => {
-    if (isGuest) { setBadge(0); return; }
     api('/api/requests/counts')
-      .then((c) => setBadge(me.role === 'admin' ? (c.pending || 0) + (c.toHand || 0) : (c.toConfirm || 0)))
+      .then((c) => setBadge(me.role === 'admin' ? (c.pending || 0) : 0))
       .catch(() => {});
   };
   useEffect(() => {
@@ -174,7 +173,7 @@ function Shell({ me, onMe, guestName, onGuestName }) {
   };
 
   return (
-    <CartProvider>
+    <CartProvider person={me.fullname || me.username}>
       <div className="shell">
         <aside className="sidebar">
           <div className="brand"><span className="brand-logo" aria-hidden="true" /> คลัง IRiSH LAB</div>
