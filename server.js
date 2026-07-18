@@ -261,8 +261,13 @@ app.post('/api/items', requireAuth, requireManage, (req, res) => {
 app.put('/api/items/:id', requireAuth, requireManage, (req, res) => {
   const item = db.prepare('SELECT * FROM items WHERE id = ?').get(req.params.id);
   if (!item) return res.status(404).json({ error: 'ไม่พบรายการ' });
-  const { name, category, type: rawType, unit, location, min_qty, note, spec } = req.body || {};
+  const { name, category, type: rawType, unit, location, min_qty, note, spec, tracked } = req.body || {};
   const { category: cat, type } = resolveCategory(category, rawType || item.type);
+  // เปิด track รายตัวให้ของเดิมได้ (0 -> 1) — qty จะมาจากจำนวนหน่วยที่สร้าง จึงรีเซ็ตเป็น 0
+  // ปิด track (1 -> 0) ไม่รองรับ เพราะมีหน่วย/ประวัติผูกอยู่
+  if (!item.tracked && tracked && type === 'tool') {
+    db.prepare('UPDATE items SET tracked=1, qty=0 WHERE id=?').run(item.id);
+  }
   db.prepare(
     `UPDATE items SET name=?, type=?, category=?, unit=?, location=?, min_qty=?, note=?, spec=? WHERE id=?`
   ).run(

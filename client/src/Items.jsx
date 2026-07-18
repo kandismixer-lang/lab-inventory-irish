@@ -252,7 +252,8 @@ function ItemForm({ item, me, onClose, onSaved }) {
 
   // สร้างหน่วยอัตโนมัติตอนเพิ่มรายการใหม่ (track รายตัว)
   const [uprefix, setUprefix] = useState('');
-  const [ucount, setUcount] = useState('');
+  // เปิด track ให้ของเดิม: ตั้งจำนวนเริ่มต้นเท่าที่มีอยู่ (จะได้สร้างรหัสครบ)
+  const [ucount, setUcount] = useState(item && !item.tracked ? String(item.qty || '') : '');
   const [ustart, setUstart] = useState('1');
   const [upad, setUpad] = useState('2');
   const uN = parseInt(ucount, 10) || 0;
@@ -289,6 +290,13 @@ function ItemForm({ item, me, onClose, onSaved }) {
     try {
       if (item) {
         await api('/api/items/' + item.id, { method: 'PUT', body: b });
+        // เพิ่งเปิด track รายตัวให้ของเดิม + ระบุจำนวน = สร้างหน่วยให้เลย
+        if (tracked && !item.tracked && uN > 0) {
+          await api('/api/items/' + item.id + '/units', {
+            method: 'POST',
+            body: { mode: 'bulk', prefix: uprefix.trim(), start: uStartNum, count: uN, pad: parseInt(upad, 10) || 0 },
+          });
+        }
       } else {
         const created = await api('/api/items', { method: 'POST', body: b });
         // สร้างหน่วยอัตโนมัติถ้า track รายตัว + ระบุจำนวน
@@ -341,10 +349,14 @@ function ItemForm({ item, me, onClose, onSaved }) {
             <span>Track รายตัว — มีรหัสประจำแต่ละชิ้น (เช่น RPI-01…RPI-20)</span>
           </label>
         )}
-        {tracked && item && <div className="hint">ไปกด "Stock Check" เพื่อเพิ่ม/แก้รหัสหน่วย</div>}
-        {tracked && !item && (
+        {tracked && !!item?.tracked && <div className="hint">ไปกด "Stock Check" เพื่อเพิ่ม/แก้รหัสหน่วย</div>}
+        {tracked && !item?.tracked && (
           <div style={{ marginTop: 8, padding: '10px 12px', background: '#f1f5ff', borderRadius: 8 }}>
-            <div className="hint" style={{ marginTop: 0 }}>สร้างหน่วยอัตโนมัติตอนบันทึก (เว้นจำนวนว่าง = ไปสร้างเองทีหลัง)</div>
+            <div className="hint" style={{ marginTop: 0 }}>
+              {item
+                ? `เปิด track รายตัว — ของเดิม ${item.qty} ${item.unit} จะถูกแทนด้วยรหัสรายชิ้น (คงเหลือนับจากจำนวนหน่วยที่สร้าง)`
+                : 'สร้างหน่วยอัตโนมัติตอนบันทึก (เว้นจำนวนว่าง = ไปสร้างเองทีหลัง)'}
+            </div>
             <div className="form-row">
               <label>Prefix รหัส<input value={uprefix} onChange={(e) => setUprefix(e.target.value)} placeholder="เช่น RPI-" /></label>
               <label>จำนวน<input type="number" min="0" max="500" value={ucount} onChange={(e) => setUcount(e.target.value)} placeholder="เช่น 20" /></label>
