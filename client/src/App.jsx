@@ -31,9 +31,10 @@ function Root() {
   };
 
   if (me === undefined) return null;
-  // ไม่ login = guest — ตั้งชื่อเองได้ (เก็บใน browser) ดึงมาตอนยืม, ไม่ตั้ง = ผู้เยี่ยมชม
+  // server คืน guest (role 'guest') แบบ 200 ด้วย — ถือว่ายังไม่ login จริง ให้ใช้ชื่อจาก browser
+  const loggedIn = me && me.role !== 'guest';
   const guest = { role: 'guest', username: 'guest', fullname: guestName || 'ผู้เยี่ยมชม' };
-  return <Shell me={me || guest} onMe={setMe} guestName={guestName} onGuestName={saveGuestName} />;
+  return <Shell me={loggedIn ? me : guest} onMe={setMe} guestName={guestName} onGuestName={saveGuestName} />;
 }
 
 // popup เข้าสู่ระบบ (เรียกจากปุ่มซ้ายล่าง)
