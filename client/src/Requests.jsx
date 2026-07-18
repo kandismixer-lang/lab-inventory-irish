@@ -4,14 +4,14 @@ import { Modal, useToast } from './components.jsx';
 
 const ADMIN_TABS = [
   ['pending', 'รออนุมัติ', 'pending'],
-  ['received', 'ถูกยืมอยู่'],
+  ['received', 'ถูกยืมอยู่', 'borrowedOrders'],
   ['returned', 'คืนแล้ว'],
   ['', 'ทั้งหมด'],
 ];
 const STAFF_TABS = [
   ['', 'ทั้งหมด'],
   ['pending', 'รออนุมัติ'],
-  ['received', 'ถูกยืมอยู่'],
+  ['received', 'ถูกยืมอยู่', 'borrowedOrders'],
 ];
 
 export default function Requests({ me }) {

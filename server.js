@@ -566,16 +566,24 @@ app.get('/api/requests', requireAuth, (req, res) => {
 
 // จำนวนที่รอ admin ดำเนินการ (สำหรับ badge)
 app.get('/api/requests/counts', requireAuth, (req, res) => {
+  // จำนวน "ออเดอร์" ที่ยังถูกยืมอยู่ (นับเป็นใบ ไม่ใช่รายบรรทัด)
+  const borrowedOrders = db
+    .prepare(
+      `SELECT COUNT(*) n FROM (
+         SELECT COALESCE(order_id, -id) AS k FROM requests WHERE status='received' GROUP BY k
+       )`
+    )
+    .get().n;
   if (req.user.role === 'admin') {
     const pending = db.prepare("SELECT COUNT(*) n FROM requests WHERE status='pending'").get().n;
     const toHand = db.prepare("SELECT COUNT(*) n FROM requests WHERE status='approved'").get().n;
     const handed = db.prepare("SELECT COUNT(*) n FROM requests WHERE status='handed'").get().n;
-    res.json({ pending, toHand, handed });
+    res.json({ pending, toHand, handed, borrowedOrders });
   } else {
     const toConfirm = db
       .prepare("SELECT COUNT(*) n FROM requests WHERE status='handed' AND requester_id=?")
       .get(req.user.id).n;
-    res.json({ toConfirm });
+    res.json({ toConfirm, borrowedOrders });
   }
 });
 
@@ -788,13 +796,15 @@ app.get('/api/dashboard', requireAuth, (req, res) => {
        ORDER BY i.name, u.code`
     )
     .all();
+  // ความเคลื่อนไหวล่าสุด — เฉพาะ 2 วันล่าสุด (วันนี้ + เมื่อวาน) ของเก่ากว่านั้นดูได้ที่หน้าประวัติ
   const recent = db
     .prepare(
       `SELECT t.*, i.name AS item_name, i.unit, u.username AS by_user
        FROM transactions t
        JOIN items i ON i.id = t.item_id
        JOIN users u ON u.id = t.user_id
-       ORDER BY t.id DESC LIMIT 30`
+       WHERE date(t.created_at) >= date('now','localtime','-1 day')
+       ORDER BY t.id DESC LIMIT 100`
     )
     .all();
   // ยอดรวม — คิดจากรายการทั้งหมดด้วยสูตรเดียวกับหน้ารายการของ (ตัวเลข sync กัน)
