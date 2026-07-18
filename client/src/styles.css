@@ -31,7 +31,8 @@
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
-html, body { max-width: 100%; overflow-x: hidden; } /* กันหน้าเลื่อนแนวนอนบนมือถือ */
+/* กันหน้าล้นแนวนอน — ห้ามใช้ overflow-x:hidden ที่ html/body เพราะทำให้ sticky ของ sidebar พัง */
+html, body { max-width: 100%; }
 body {
   margin: 0;
   font-family: var(--font-body);
@@ -173,8 +174,9 @@ main > * { animation: fadeInUp .4s ease both; }
 /* ---------- sidebar (เมนูด้านข้าง) ---------- */
 .shell { display: flex; align-items: flex-start; min-height: 100vh; }
 .sidebar {
-  position: sticky; top: 0; z-index: 20; flex: none;
-  width: 236px; height: 100vh; display: flex; flex-direction: column; gap: 20px;
+  position: sticky; top: 0; z-index: 20; flex: none; align-self: flex-start;
+  width: 236px; height: 100vh; max-height: 100vh; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 20px;
   padding: 20px 14px;
   background: rgba(10,10,18,.72); backdrop-filter: saturate(1.5) blur(12px);
   border-right: 1px solid var(--line);
