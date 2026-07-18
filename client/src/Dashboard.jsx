@@ -57,21 +57,9 @@ export default function Dashboard({ go }) {
           cells: [
             i.name,
             <span className="col-total">{i.total_qty} {i.unit}</span>,
-            i.out_qty > 0 ? (
-              <div className="borrow-cell">
-                <span className="col-out">{i.out_qty} {i.unit}</span>
-                {(i.borrowers || []).map((b, n) => (
-                  <div key={n} className="borrow-line">
-                    <span className="borrow-code">{b.label}</span>
-                    <span className={'bstat bstat-' + b.status}>
-                      {b.status === 'borrowed'
-                        ? `${b.person || '—'}-ยืม`
-                        : STATUS_LABEL[b.status]}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            ) : <span className="muted">—</span>,
+            i.out_qty > 0
+              ? <span className="col-out">{i.out_qty} {i.unit}</span>
+              : <span className="muted">—</span>,
             <span className="col-remain">{i.qty} {i.unit}</span>,
           ],
         }))}
