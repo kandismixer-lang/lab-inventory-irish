@@ -30,11 +30,30 @@ function Root() {
     setGuestName(v);
   };
 
-  if (me === undefined) return null;
+  if (me === undefined) return <Booting />;
   // server คืน guest (role 'guest') แบบ 200 ด้วย — ถือว่ายังไม่ login จริง ให้ใช้ชื่อจาก browser
   const loggedIn = me && me.role !== 'guest';
   const guest = { role: 'guest', username: 'guest', fullname: guestName || 'ผู้เยี่ยมชม' };
   return <Shell me={loggedIn ? me : guest} onMe={setMe} guestName={guestName} onGuestName={saveGuestName} />;
+}
+
+// หน้ารอตอนเปิดแอป — server free tier หลับ ต้องปลุก 30-50 วิ
+function Booting() {
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setSlow(true), 4000);
+    return () => clearTimeout(t);
+  }, []);
+  return (
+    <div className="boot-wrap">
+      <span className="brand-logo lg" aria-hidden="true" />
+      <div className="boot-bar"><span /></div>
+      <div className="muted">กำลังเชื่อมต่อระบบคลัง IRiSH…</div>
+      {slow && <div className="hint" style={{ maxWidth: 320, textAlign: 'center' }}>
+        เซิร์ฟเวอร์กำลังตื่นจากโหมดพัก (ครั้งแรกอาจใช้เวลา 30-50 วินาที)
+      </div>}
+    </div>
+  );
 }
 
 // popup เข้าสู่ระบบ (เรียกจากปุ่มซ้ายล่าง)
