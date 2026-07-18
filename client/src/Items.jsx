@@ -67,12 +67,12 @@ export default function Items({ me, focusItem, onFocused }) {
       <table>
         <thead>
           <tr>
-            {['รายการ', 'ประเภท', 'มีทั้งหมด', 'ถูกใช้/ยืม', 'คงเหลือ', ''].map((h, i) => <th key={i}>{h}</th>)}
+            {['รายการ', 'ประเภท', 'มีทั้งหมด', 'ถูกใช้/ยืม', 'คงเหลือ'].map((h, i) => <th key={i}>{h}</th>)}
           </tr>
         </thead>
         <tbody>
           {items.length === 0 && (
-            <tr><td colSpan={6} className="muted">— ไม่มีข้อมูล —</td></tr>
+            <tr><td colSpan={5} className="muted">— ไม่มีข้อมูล —</td></tr>
           )}
           {items.map((i) => {
             const low = i.type === 'consumable' && i.min_qty > 0 && i.qty <= i.min_qty;
@@ -91,19 +91,10 @@ export default function Items({ me, focusItem, onFocused }) {
                   <td>
                     <strong>{i.name}</strong>
                     {i.tracked ? <span className="hint">📇 track รายตัว</span> : null}
-                    <button type="button" className="btn small info row-detail" onClick={(e) => { e.stopPropagation(); setDetail(i); }}>รายละเอียด</button>
                     {i.image ? <img className="item-thumb" src={i.image} alt={i.name} onClick={(e) => { e.stopPropagation(); setDetail(i); }} /> : null}
-                  </td>
-                  <td><span className={'badge ' + i.type}>{catLabel(i)}</span></td>
-                  <td><span className="col-total">{i.total_qty} {i.unit}</span></td>
-                  <td>
-                    <span className={i.out_qty > 0 ? 'col-out' : 'muted'}>
-                      {i.out_qty > 0 ? `${outLabel} ${i.out_qty}` : '—'}
-                    </span>
-                  </td>
-                  <td><span className={low ? 'badge low' : 'col-remain'}>{i.qty} {i.unit}</span></td>
-                  <td>
+                    {/* ปุ่มทั้งหมดรวมอยู่ในช่องรายการ — ประหยัดคอลัมน์บนมือถือ */}
                     <div className="row-actions">
+                      <button type="button" className="btn small info" onClick={(e) => { e.stopPropagation(); setDetail(i); }}>รายละเอียด</button>
                       {isAdmin ? (
                         <>
                           {i.tracked
@@ -115,7 +106,6 @@ export default function Items({ me, focusItem, onFocused }) {
                         </>
                       ) : (
                         <>
-                          {/* user: ดูได้ว่าตัวไหนถูกยืม/พัง/หาย (ไม่เห็นตัวว่าง ไม่มีปุ่มจัดการ) */}
                           {!!i.tracked && i.out_qty > 0 && (
                             <button className={'btn small info' + (isOpen ? ' active' : '')} onClick={(e) => { e.stopPropagation(); setExpanded(isOpen ? null : i.id); }}>
                               ดูตัวที่ถูกยืม <span className="caret">{isOpen ? '▲' : '▼'}</span>
@@ -128,10 +118,18 @@ export default function Items({ me, focusItem, onFocused }) {
                       )}
                     </div>
                   </td>
+                  <td><span className={'badge ' + i.type}>{catLabel(i)}</span></td>
+                  <td><span className="col-total">{i.total_qty} {i.unit}</span></td>
+                  <td>
+                    <span className={i.out_qty > 0 ? 'col-out' : 'muted'}>
+                      {i.out_qty > 0 ? `${outLabel} ${i.out_qty}` : '—'}
+                    </span>
+                  </td>
+                  <td><span className={low ? 'badge low' : 'col-remain'}>{i.qty} {i.unit}</span></td>
                 </tr>
                 {isOpen && !!i.tracked && (
                   <tr className="expand-row">
-                    <td colSpan={6}>
+                    <td colSpan={5}>
                       <UnitsPanel item={i} me={me} onChanged={load} />
                     </td>
                   </tr>

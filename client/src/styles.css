@@ -300,7 +300,8 @@ tr.expand-row > td { background: var(--bg-2); padding: 0; border-right: none; }
 .check-inline input { width: auto; margin: 0; accent-color: var(--accent); }
 
 .qty-strong { font-weight: 700; }
-.row-actions { display: flex; gap: 6px; justify-content: flex-end; }
+/* ปุ่มอยู่ในช่อง "รายการ" — ชิดซ้าย ตัดบรรทัดได้ (ประหยัดคอลัมน์บนมือถือ) */
+.row-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; white-space: normal; }
 
 /* modal */
 .modal { position: fixed; inset: 0; background: rgba(0,0,0,.6); backdrop-filter: blur(2px); display: grid; place-items: center; padding: 16px; z-index: 50; }
@@ -354,8 +355,6 @@ tr.expand-row > td { background: var(--bg-2); padding: 0; border-right: none; }
 .item-thumb { display: block; margin-top: 6px; width: 64px; height: 64px; object-fit: cover; border-radius: var(--radius-sm); border: 1px solid var(--line); cursor: pointer; transition: border-color .15s, box-shadow .15s; }
 .item-thumb:hover { border-color: var(--accent); box-shadow: var(--glow); }
 
-/* ปุ่ม "รายละเอียด" ในแถวรายการ */
-.row-detail { margin-top: 6px; }
 
 /* ช่อง "ถูกยืม" บนแดชบอร์ด — โชว์ว่าใครยืมตัวไหน */
 .borrow-cell { display: flex; flex-direction: column; gap: 3px; }
