@@ -67,12 +67,12 @@ export default function Items({ me, focusItem, onFocused }) {
       <table>
         <thead>
           <tr>
-            {['รายการ', 'ประเภท', 'มีทั้งหมด', 'ถูกใช้/ยืม', 'คงเหลือ'].map((h, i) => <th key={i}>{h}</th>)}
+            {['รายการ', 'มีทั้งหมด', 'ถูกใช้/ยืม', 'คงเหลือ'].map((h, i) => <th key={i}>{h}</th>)}
           </tr>
         </thead>
         <tbody>
           {items.length === 0 && (
-            <tr><td colSpan={5} className="muted">— ไม่มีข้อมูล —</td></tr>
+            <tr><td colSpan={4} className="muted">— ไม่มีข้อมูล —</td></tr>
           )}
           {items.map((i) => {
             const low = i.type === 'consumable' && i.min_qty > 0 && i.qty <= i.min_qty;
@@ -90,6 +90,7 @@ export default function Items({ me, focusItem, onFocused }) {
                 >
                   <td>
                     <strong>{i.name}</strong>
+                    <span className={'badge ' + i.type} style={{ marginLeft: 8 }}>{catLabel(i)}</span>
                     {i.tracked ? <span className="hint">📇 track รายตัว</span> : null}
                     {i.image ? <img className="item-thumb" src={i.image} alt={i.name} onClick={(e) => { e.stopPropagation(); setDetail(i); }} /> : null}
                     {/* ปุ่มทั้งหมดรวมอยู่ในช่องรายการ — ประหยัดคอลัมน์บนมือถือ */}
@@ -118,7 +119,6 @@ export default function Items({ me, focusItem, onFocused }) {
                       )}
                     </div>
                   </td>
-                  <td><span className={'badge ' + i.type}>{catLabel(i)}</span></td>
                   <td><span className="col-total">{i.total_qty} {i.unit}</span></td>
                   <td>
                     <span className={i.out_qty > 0 ? 'col-out' : 'muted'}>
@@ -129,7 +129,7 @@ export default function Items({ me, focusItem, onFocused }) {
                 </tr>
                 {isOpen && !!i.tracked && (
                   <tr className="expand-row">
-                    <td colSpan={5}>
+                    <td colSpan={4}>
                       <UnitsPanel item={i} me={me} onChanged={load} />
                     </td>
                   </tr>
