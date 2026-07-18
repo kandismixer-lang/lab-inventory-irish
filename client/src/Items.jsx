@@ -78,8 +78,8 @@ export default function Items({ me, focusItem, onFocused }) {
             const low = i.type === 'consumable' && i.min_qty > 0 && i.qty <= i.min_qty;
             const outLabel = i.type === 'consumable' ? 'ใช้ไป' : 'ถูกยืม';
             const isOpen = expanded === i.id;
-            // ของ track รายตัว: กดที่แถวไหนก็เปิด Stock Check (ปุ่มในแถวยัง stopPropagation ไว้)
-            const rowClickable = isAdmin && !!i.tracked;
+            // ของ track รายตัว: กดที่แถวไหนก็กางดูหน่วย (user เปิดได้เฉพาะตอนมีตัวถูกยืม)
+            const rowClickable = !!i.tracked && (isAdmin || i.out_qty > 0);
             return (
               <React.Fragment key={i.id}>
                 <tr
@@ -114,9 +114,17 @@ export default function Items({ me, focusItem, onFocused }) {
                           <button className="btn small edit" onClick={(e) => { e.stopPropagation(); setEditing(i); }}>แก้ไข</button>
                         </>
                       ) : (
-                        <button className="btn small primary" disabled={i.qty <= 0} onClick={(e) => { e.stopPropagation(); setRequesting(i); }}>
-                          {i.type === 'consumable' ? 'ขอเบิก' : 'ขอยืม'}
-                        </button>
+                        <>
+                          {/* user: ดูได้ว่าตัวไหนถูกยืม/พัง/หาย (ไม่เห็นตัวว่าง ไม่มีปุ่มจัดการ) */}
+                          {!!i.tracked && i.out_qty > 0 && (
+                            <button className={'btn small info' + (isOpen ? ' active' : '')} onClick={(e) => { e.stopPropagation(); setExpanded(isOpen ? null : i.id); }}>
+                              ดูตัวที่ถูกยืม <span className="caret">{isOpen ? '▲' : '▼'}</span>
+                            </button>
+                          )}
+                          <button className="btn small primary" disabled={i.qty <= 0} onClick={(e) => { e.stopPropagation(); setRequesting(i); }}>
+                            {i.type === 'consumable' ? 'ขอเบิก' : 'ขอยืม'}
+                          </button>
+                        </>
                       )}
                     </div>
                   </td>
@@ -459,6 +467,7 @@ const UNIT_BTNS = {
 };
 
 function UnitsPanel({ item, me, onChanged }) {
+  const isAdmin = me.role === 'admin'; // user เห็นได้แค่ว่าตัวไหนถูกยืม/พัง/หาย — ไม่มีปุ่มจัดการ
   const toast = useToast();
   const confirm = useConfirm();
   const promptDlg = usePrompt();
@@ -499,6 +508,8 @@ function UnitsPanel({ item, me, onChanged }) {
   };
 
   const counts = units.reduce((a, u) => ((a[u.status] = (a[u.status] || 0) + 1), a), {});
+  // user เห็นเฉพาะหน่วยที่ไม่ว่าง (ถูกยืม/พัง/หาย) — ตัวว่างไม่ต้องโชว์
+  const shownUnits = isAdmin ? units : units.filter((u) => u.status !== 'available');
 
   return (
     <div className="units-panel">
@@ -506,28 +517,32 @@ function UnitsPanel({ item, me, onChanged }) {
         ทั้งหมด {units.length} หน่วย · ว่าง {counts.available || 0} · ยืม {counts.borrowed || 0}
         {counts.repair ? ` · พัง ${counts.repair}` : ''}{counts.lost ? ` · หาย ${counts.lost}` : ''}
       </div>
-      <div className="subtabs">
-        <button className={'btn small' + (tab === 'list' ? ' active' : '')} onClick={() => setTab('list')}>รายการหน่วย</button>
-        <button className={'btn small' + (tab === 'add' ? ' active' : '')} onClick={() => setTab('add')}>+ สร้างหน่วย</button>
-      </div>
+      {isAdmin && (
+        <div className="subtabs">
+          <button className={'btn small' + (tab === 'list' ? ' active' : '')} onClick={() => setTab('list')}>รายการหน่วย</button>
+          <button className={'btn small' + (tab === 'add' ? ' active' : '')} onClick={() => setTab('add')}>+ สร้างหน่วย</button>
+        </div>
+      )}
       <div className="err">{err}</div>
 
-      {tab === 'list' ? (
-        units.length === 0 ? (
-          <p className="muted">ยังไม่มีหน่วย — กด "+ สร้างหน่วย" เพื่อเพิ่ม</p>
+      {tab === 'list' || !isAdmin ? (
+        shownUnits.length === 0 ? (
+          <p className="muted">{isAdmin ? 'ยังไม่มีหน่วย — กด "+ สร้างหน่วย" เพื่อเพิ่ม' : '— ตอนนี้ไม่มีตัวไหนถูกยืม/พัง/หาย —'}</p>
         ) : (
           <div className="unit-list">
-            {units.map((u) => (
+            {shownUnits.map((u) => (
               <div className="unit-row" key={u.id}>
                 <span className="code">{u.code}</span>
                 <span className={'badge st-' + u.status}>{STATUS_LABEL[u.status]}</span>
                 {u.holder && <span className="holder">→ {u.holder}</span>}
-                <span className="acts">
-                  {(UNIT_BTNS[u.status] || []).map(([a, label]) => (
-                    <button key={a} className={`btn small u-${a}`} onClick={() => act(u, a)}>{label}</button>
-                  ))}
-                  {me.role === 'admin' && <button className="btn small danger" onClick={() => del(u)}>ลบ</button>}
-                </span>
+                {isAdmin && (
+                  <span className="acts">
+                    {(UNIT_BTNS[u.status] || []).map(([a, label]) => (
+                      <button key={a} className={`btn small u-${a}`} onClick={() => act(u, a)}>{label}</button>
+                    ))}
+                    <button className="btn small danger" onClick={() => del(u)}>ลบ</button>
+                  </span>
+                )}
               </div>
             ))}
           </div>
