@@ -157,26 +157,29 @@ app.delete('/api/users/:id', requireAuth, requireAdmin, (req, res) => {
 const ITEM_SELECT = `
   SELECT i.*,
     (SELECT COUNT(*) FROM units u WHERE u.item_id = i.id AND u.active = 1) AS total_units,
+    (SELECT COUNT(*) FROM units u WHERE u.item_id = i.id AND u.active = 1 AND u.status = 'borrowed') AS units_borrowed,
+    (SELECT COUNT(*) FROM units u WHERE u.item_id = i.id AND u.active = 1 AND u.status IN ('repair','lost')) AS units_dead,
     (SELECT COALESCE(SUM(CASE kind WHEN 'borrow' THEN qty WHEN 'return' THEN -qty ELSE 0 END),0)
        FROM transactions t WHERE t.item_id = i.id) AS borrowed_net,
     (SELECT COALESCE(SUM(qty),0) FROM transactions t WHERE t.item_id = i.id AND kind='issue') AS issued_total
   FROM items i`;
 
-// คำนวณ มี / ถูกใช้-ยืม / คงเหลือ
+// คำนวณ มี / ถูกยืม / คงเหลือ
+// ของ track รายตัว: หน่วยที่ "พัง/หาย" ถือว่าตัดออกจากคลังแล้ว ไม่นับใน "มีทั้งหมด"
 function decorateItem(i) {
   const remaining = i.qty;
-  let out; // ถูกใช้หรือถูกยืมไป ณ ตอนนี้ (สำหรับสิ้นเปลือง = ยอดที่เบิกใช้ไปสะสม)
-  if (i.tracked) out = i.total_units - i.qty;                    // หน่วยที่ไม่ว่าง (ยืม/ซ่อม/หาย)
+  let out; // ถูกยืมออกไป ณ ตอนนี้ (สำหรับสิ้นเปลือง = ยอดที่เบิกใช้ไปสะสม)
+  if (i.tracked) out = i.units_borrowed;                         // เฉพาะที่ถูกยืม (ไม่รวมพัง/หาย)
   else if (i.type === 'tool') out = Math.max(0, i.borrowed_net); // ยืมค้างอยู่
   else out = i.issued_total;                                     // วัสดุสิ้นเปลือง = เบิกไปแล้วรวม
   return { ...i, out_qty: out, total_qty: remaining + out };
 }
 
-// หน่วยที่ไม่อยู่ในคลังของชิ้นนี้ ณ ตอนนี้ (ยืม / พัง / หาย) — ตรงกับ out_qty
+// ใครยืมของชิ้นนี้อยู่ ณ ตอนนี้ — ตรงกับ out_qty (พัง/หาย ตัดออกจากคลังแล้ว ไม่แสดงที่นี่)
 function borrowersOf(item) {
   if (item.tracked) {
     return db
-      .prepare("SELECT code, status, holder FROM units WHERE item_id=? AND active=1 AND status!='available' ORDER BY code")
+      .prepare("SELECT code, status, holder FROM units WHERE item_id=? AND active=1 AND status='borrowed' ORDER BY code")
       .all(item.id)
       .map((u) => ({ label: u.code, status: u.status, person: u.holder || '' }));
   }
@@ -738,12 +741,12 @@ app.get('/api/dashboard', requireAuth, (req, res) => {
     .all()
     .map(decorateItem)
     .map((i) => ({ ...i, borrowers: borrowersOf(i) }));
-  // หน่วยรายตัวที่ถูกยืม/ส่งซ่อม/หาย อยู่ตอนนี้
+  // หน่วยที่ตัดออกจากคลังแล้ว (พัง/หาย) — ของที่ถูกยืมไม่นับ เพราะยังอยู่ในระบบ
   const unitsOut = db
     .prepare(
       `SELECT u.code, u.status, u.holder, i.name AS item_name
        FROM units u JOIN items i ON i.id = u.item_id
-       WHERE u.active = 1 AND u.status != 'available'
+       WHERE u.active = 1 AND u.status IN ('repair','lost')
        ORDER BY i.name, u.code`
     )
     .all();

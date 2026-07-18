@@ -50,7 +50,7 @@ export default function Dashboard({ go }) {
       <div className="section-title">🔧 เครื่องมือ (คงเหลือในคลัง = ไม่ถูกยืม)</div>
       <div className="hint" style={{ marginBottom: 6 }}>กดที่แถวเพื่อไปหน้ารายการของ (ยืม/จัดการ)</div>
       <Table
-        headers={['ชื่อ', 'มีทั้งหมด', 'ถูกยืม/พัง', 'คงเหลือ']}
+        headers={['ชื่อ', 'มีทั้งหมด', 'ถูกยืม', 'คงเหลือ']}
         rows={d.borrowedOut.map((i) => ({
           key: i.id,
           onClick: () => go && go('items', { itemId: i.id }),
@@ -79,9 +79,10 @@ export default function Dashboard({ go }) {
 
       {d.unitsOut && d.unitsOut.length > 0 && (
         <>
-          <div className="section-title">📇 หน่วยที่ไม่อยู่ในคลัง (ถูกยืม/พัง/หาย)</div>
+          <div className="section-title">🗑️ หน่วยที่ตัดออกจากคลัง (พัง/หาย)</div>
+          <div className="hint" style={{ marginBottom: 6 }}>ไม่นับรวมใน "มีทั้งหมด" แล้ว — ซ่อมเสร็จ/กู้คืนได้ที่ Stock Check</div>
           <Table
-            headers={['รหัส', 'ของ', 'สถานะ', 'อยู่กับ']}
+            headers={['รหัส', 'ของ', 'สถานะ', 'หมายเหตุ']}
             rows={d.unitsOut.map((u, i) => ({
               key: i,
               cells: [

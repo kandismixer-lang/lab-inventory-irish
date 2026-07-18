@@ -31,6 +31,7 @@
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
+html, body { max-width: 100%; overflow-x: hidden; } /* กันหน้าเลื่อนแนวนอนบนมือถือ */
 body {
   margin: 0;
   font-family: var(--font-body);
@@ -452,7 +453,10 @@ form textarea { resize: vertical; min-height: 90px; font-family: inherit; }
 /* มือถือ */
 /* จอแคบ — sidebar พับเป็นแถบบน */
 @media (max-width: 900px) {
-  .shell { flex-direction: column; }
+  .shell { flex-direction: column; width: 100%; max-width: 100%; }
+  /* กันหน้าล้มแนวนอน: ตารางกว้างให้เลื่อนในกล่องตัวเอง ไม่ดันทั้งหน้า */
+  main { width: 100%; max-width: 100%; min-width: 0; overflow-x: hidden; }
+  table { display: block; width: 100%; max-width: 100%; overflow-x: auto; white-space: nowrap; -webkit-overflow-scrolling: touch; }
   .sidebar { width: 100%; height: auto; flex-direction: row; align-items: center; flex-wrap: wrap;
     gap: 10px; padding: 10px 12px; border-right: none; border-bottom: 1px solid var(--line); }
   .tabs { flex-direction: row; order: 3; width: 100%; overflow-x: auto; gap: 4px; }
@@ -469,7 +473,6 @@ form textarea { resize: vertical; min-height: 90px; font-family: inherit; }
   .toolbar { flex-direction: column; }
   .toolbar .btn { width: 100%; }
   .req-list { grid-template-columns: 1fr; }
-  table { display: block; overflow-x: auto; white-space: nowrap; }
   .modal-box { width: 100%; }
   .row-actions { flex-wrap: wrap; }
   .cart-bar { left: 16px; right: 16px; justify-content: center; }

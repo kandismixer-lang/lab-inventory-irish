@@ -76,7 +76,7 @@ export default function Items({ me, focusItem, onFocused }) {
           )}
           {items.map((i) => {
             const low = i.type === 'consumable' && i.min_qty > 0 && i.qty <= i.min_qty;
-            const outLabel = i.type === 'consumable' ? 'ใช้ไป' : 'ยืม/ไม่อยู่';
+            const outLabel = i.type === 'consumable' ? 'ใช้ไป' : 'ถูกยืม';
             const isOpen = expanded === i.id;
             // ของ track รายตัว: กดที่แถวไหนก็เปิด Stock Check (ปุ่มในแถวยัง stopPropagation ไว้)
             const rowClickable = isAdmin && !!i.tracked;
