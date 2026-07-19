@@ -813,10 +813,11 @@ app.get('/api/dashboard', requireAuth, (req, res) => {
   // ความเคลื่อนไหวล่าสุด — เฉพาะ 2 วันล่าสุด (วันนี้ + เมื่อวาน) ของเก่ากว่านั้นดูได้ที่หน้าประวัติ
   const recent = db
     .prepare(
-      `SELECT t.*, i.name AS item_name, i.unit, u.username AS by_user
+      `SELECT t.*, i.name AS item_name, i.unit, u.username AS by_user, un.code AS unit_code
        FROM transactions t
        JOIN items i ON i.id = t.item_id
        JOIN users u ON u.id = t.user_id
+       LEFT JOIN units un ON un.id = t.unit_id
        WHERE date(t.created_at) >= date('now','localtime','-1 day')
        ORDER BY t.id DESC LIMIT 100`
     )
@@ -836,10 +837,11 @@ app.get('/api/dashboard', requireAuth, (req, res) => {
 app.get('/api/transactions', requireAuth, (req, res) => {
   const rows = db
     .prepare(
-      `SELECT t.*, i.name AS item_name, i.unit, u.username AS by_user
+      `SELECT t.*, i.name AS item_name, i.unit, u.username AS by_user, un.code AS unit_code
        FROM transactions t
        JOIN items i ON i.id = t.item_id
        JOIN users u ON u.id = t.user_id
+       LEFT JOIN units un ON un.id = t.unit_id
        ORDER BY t.id DESC LIMIT 300`
     )
     .all();

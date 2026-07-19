@@ -3,22 +3,50 @@ import { api, KIND_LABEL } from './api.js';
 import { Table } from './components.jsx';
 import { BrokenTable } from './Broken.jsx';
 
-export function TxTable({ rows }) {
+// note เก่าบางแถวเก็บรหัสหน่วยไว้ — แยกออกมาเป็นคอลัมน์รหัส เหลือข้อความจริงไว้ในหมายเหตุ
+const CODE_RE = /^[A-Za-z][A-Za-z0-9]*[-_]?\d+$/;
+function splitNote(t) {
+  const note = (t.note || '').trim();
+  if (t.unit_code) return { code: t.unit_code, note: note === t.unit_code ? '' : note };
+  const parts = note.split(/\s*,\s*/).filter(Boolean);
+  const codes = parts.filter((p) => CODE_RE.test(p));
+  return { code: codes.join(', '), note: parts.filter((p) => !CODE_RE.test(p)).join(', ') };
+}
+
+export function TxTable({ rows, pageSize = 0 }) {
+  const [page, setPage] = useState(1);
+  const pages = pageSize ? Math.max(1, Math.ceil(rows.length / pageSize)) : 1;
+  const p = Math.min(page, pages);
+  const shown = pageSize ? rows.slice((p - 1) * pageSize, p * pageSize) : rows;
+
   return (
-    <Table
-      headers={['วันเวลา', 'รายการ', 'ประเภท', 'จำนวน', 'โดย/ผู้เกี่ยวข้อง', 'หมายเหตุ']}
-      rows={rows.map((t) => ({
-        key: t.id,
-        cells: [
-          t.created_at,
-          t.item_name,
-          <span className={'badge ' + t.kind}>{KIND_LABEL[t.kind] || t.kind}</span>,
-          <span>{t.delta >= 0 ? '+' : ''}{t.delta} {t.unit || ''}</span>,
-          <span>{t.person || '-'}<div className="hint">บันทึกโดย {t.by_user}</div></span>,
-          t.note || '',
-        ],
-      }))}
-    />
+    <>
+      <Table
+        headers={['วันเวลา', 'รายการ', 'ประเภท', 'จำนวน', 'โดย/ผู้เกี่ยวข้อง', 'รหัส', 'หมายเหตุ']}
+        rows={shown.map((t) => {
+          const s = splitNote(t);
+          return {
+            key: t.id,
+            cells: [
+              t.created_at,
+              t.item_name,
+              <span className={'badge ' + t.kind}>{KIND_LABEL[t.kind] || t.kind}</span>,
+              <span>{t.delta >= 0 ? '+' : ''}{t.delta} {t.unit || ''}</span>,
+              <span>{t.person || '-'}<div className="hint">บันทึกโดย {t.by_user}</div></span>,
+              s.code ? <span className="code-chip">{s.code}</span> : <span className="muted">—</span>,
+              s.note || <span className="muted">—</span>,
+            ],
+          };
+        })}
+      />
+      {pages > 1 && (
+        <div className="pager">
+          <button className="btn small" disabled={p <= 1} onClick={() => setPage(p - 1)}>‹ ก่อนหน้า</button>
+          <span className="muted">หน้า <b>{p}</b> / {pages} · {rows.length} รายการ</span>
+          <button className="btn small" disabled={p >= pages} onClick={() => setPage(p + 1)}>ถัดไป ›</button>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -75,7 +103,7 @@ export default function Dashboard({ go }) {
       )}
 
       <div className="section-title">🕑 ความเคลื่อนไหวล่าสุด</div>
-      <TxTable rows={d.recent} />
+      <TxTable rows={d.recent.slice(0, 15)} />
     </>
   );
 }

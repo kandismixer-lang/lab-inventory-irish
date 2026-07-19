@@ -285,6 +285,9 @@ tbody tr:hover > td { background: var(--wash-blue); }
 .code-chips { display: flex; flex-wrap: wrap; gap: 5px; }
 .code-chip { font-family: var(--font-mono); font-size: .8rem; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--line-strong); background: rgba(255,255,255,.05); color: var(--accent); }
 .code-chip.cc-repair { color: #fb923c; border-color: rgba(251,146,60,.45); background: rgba(251,146,60,.12); }
+.pager { display: flex; align-items: center; justify-content: center; gap: 14px; margin: 14px 0 4px; font-size: .9rem; flex-wrap: wrap; }
+.pager .btn:disabled { opacity: .4; cursor: default; }
+.pager b { color: var(--text); }
 .code-chip { display: inline-flex; align-items: center; gap: 7px; padding: 3px 4px 3px 10px; }
 .code-chip:not(:has(.chip-fix)) { padding: 2px 9px; }
 .chip-fix { font: inherit; font-size: .72rem; font-family: var(--font-sans, inherit); cursor: pointer;

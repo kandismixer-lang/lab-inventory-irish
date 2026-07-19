@@ -8,8 +8,8 @@ export default function Log() {
   if (!rows) return <p className="muted">กำลังโหลด...</p>;
   return (
     <>
-      <div className="section-title">ประวัติการเคลื่อนไหวทั้งหมด (300 รายการล่าสุด)</div>
-      <TxTable rows={rows} />
+      <div className="section-title">ประวัติการเคลื่อนไหวทั้งหมด (300 รายการล่าสุด · หน้าละ 30)</div>
+      <TxTable rows={rows} pageSize={30} />
     </>
   );
 }
