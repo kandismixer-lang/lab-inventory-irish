@@ -126,12 +126,12 @@ function Login({ onLogin }) {
 }
 
 const VIEWS = {
-  dashboard: { label: 'แดชบอร์ด', comp: Dashboard },
-  items: { label: 'รายการของ', comp: Items },
-  broken: { label: 'ของพัง/หาย', comp: Broken },
-  log: { label: 'ประวัติทั้งหมด', comp: Log },
-  requests: { label: 'คำขอ', comp: Requests },
-  users: { label: 'ผู้ใช้', comp: Users, adminOnly: true },
+  dashboard: { label: 'Dashboard', comp: Dashboard },
+  items: { label: 'Stock', comp: Items },
+  requests: { label: 'Requests', comp: Requests },
+  broken: { label: 'Damaged', comp: Broken },
+  log: { label: 'History', comp: Log },
+  users: { label: 'Users', comp: Users, adminOnly: true },
 };
 // เมนูนี้เห็นได้ไหม
 const canSee = (v, me) =>
@@ -200,7 +200,7 @@ function Shell({ me, onMe, guestName, onGuestName }) {
                     placeholder="เช่น มิกซ์ — ไม่ตั้ง = ผู้เยี่ยมชม"
                   />
                 </label>
-                <button className="btn small" onClick={() => setLoggingIn(true)}>เข้าสู่ระบบ (แอดมิน)</button>
+                <button className="btn small" onClick={() => setLoggingIn(true)}>🔑 Admin</button>
               </>
             ) : (
               <>

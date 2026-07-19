@@ -270,6 +270,7 @@ tbody tr:hover > td { background: var(--wash-blue); }
 .modal-box:has(.stock-summary) { width: 1040px; }
 .stock-summary { display: flex; flex-wrap: wrap; gap: 14px; font-size: .9rem; color: var(--muted); margin-bottom: 10px; }
 .stock-summary b { color: var(--fg); }
+.stock-summary .stock-req { margin-left: auto; }
 .stock-search {
   width: 100%; margin: 4px 0 12px; padding: 11px 16px;
   border: 1px solid var(--line-strong); border-radius: 999px;
@@ -284,6 +285,12 @@ tbody tr:hover > td { background: var(--wash-blue); }
 .code-chips { display: flex; flex-wrap: wrap; gap: 5px; }
 .code-chip { font-family: var(--font-mono); font-size: .8rem; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--line-strong); background: rgba(255,255,255,.05); color: var(--accent); }
 .code-chip.cc-repair { color: #fb923c; border-color: rgba(251,146,60,.45); background: rgba(251,146,60,.12); }
+.code-chip { display: inline-flex; align-items: center; gap: 7px; padding: 3px 4px 3px 10px; }
+.code-chip:not(:has(.chip-fix)) { padding: 2px 9px; }
+.chip-fix { font: inherit; font-size: .72rem; font-family: var(--font-sans, inherit); cursor: pointer;
+  border: none; border-radius: 999px; padding: 3px 9px; white-space: nowrap;
+  background: rgba(74,222,128,.14); color: #4ade80; transition: background .15s, color .15s; }
+.chip-fix:hover { background: #4ade80; color: #06120a; }
 .code-chip.cc-lost { color: #f87171; border-color: rgba(248,113,113,.45); background: rgba(248,113,113,.12); }
 .stock-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
 .stock-col { border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden; display: flex; flex-direction: column; }
@@ -496,10 +503,18 @@ form textarea { resize: vertical; min-height: 90px; font-family: inherit; }
     border-radius: 2px; transform: translateY(0) scaleX(0); }
   .tab:hover::before, .tab.active::before { transform: translateY(0) scaleX(1); }
   .userbox { flex-direction: row; align-items: center; margin-left: auto; padding-top: 0; border-top: none; }
+  .userbox .btn { white-space: nowrap; flex: none; }
   main { margin: 14px auto; }
 }
 @media (max-width: 640px) {
   .brand { width: 100%; font-size: 1rem; }
+  /* เมนูบนมือถือ: เม็ดเล็กลง พอดีบรรทัดเดียว ไม่ตัดคำ */
+  .tabs { gap: 6px; padding-bottom: 2px; scrollbar-width: none; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab { padding: 7px 14px; font-size: .9rem; }
+  .guest-name { flex: 1 1 180px; min-width: 0; }
+  .userbox { gap: 6px; }
+  .userbox .btn { padding: 9px 14px; font-size: .9rem; }
   main { padding: 0 12px 96px; }
   .toolbar { flex-direction: column; }
   .toolbar .btn { width: 100%; }

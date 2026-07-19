@@ -153,7 +153,13 @@ export default function Items({ me, focusItem, onFocused }) {
       {requesting && <RequestForm item={requesting} onClose={() => setRequesting(null)} onAdd={onAddToCart} onNow={onBorrowNow} />}
       {detail && <DetailModal item={detail} onClose={() => setDetail(null)} />}
       {expandedItem && (
-        <UnitsPanel item={expandedItem} me={me} onChanged={load} onClose={() => setExpanded(null)} />
+        <UnitsPanel
+          item={expandedItem}
+          me={me}
+          onChanged={load}
+          onClose={() => setExpanded(null)}
+          onRequest={() => { setRequesting(expandedItem); setExpanded(null); }}
+        />
       )}
     </>
   );
@@ -489,7 +495,7 @@ const UNIT_BTNS = {
   lost: [['ready', 'กู้คืน']],
 };
 
-function UnitsPanel({ item, me, onChanged, onClose }) {
+function UnitsPanel({ item, me, onChanged, onClose, onRequest }) {
   const isAdmin = me.role === 'admin'; // user เห็นได้แค่ว่าตัวไหนถูกยืม/พัง/หาย — ไม่มีปุ่มจัดการ
   const toast = useToast();
   const confirm = useConfirm();
@@ -553,6 +559,11 @@ function UnitsPanel({ item, me, onChanged, onClose }) {
         <span className="bstat-borrowed">ยืม <b>{counts.borrowed || 0}</b></span>
         {counts.repair ? <span className="bstat-repair">พัง <b>{counts.repair}</b></span> : null}
         {counts.lost ? <span className="bstat-lost">หาย <b>{counts.lost}</b></span> : null}
+        {onRequest && item.qty > 0 && (
+          <button className="btn small u-borrow stock-req" onClick={onRequest}>
+            🛒 {item.type === 'consumable' ? 'ขอเบิก' : 'ขอยืม'}ของนี้
+          </button>
+        )}
       </div>
 
       {isAdmin && (
