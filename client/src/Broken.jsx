@@ -63,7 +63,6 @@ export default function Broken({ me }) {
       (!f || u.status === f) &&
       (!kw || u.item_name.toLowerCase().includes(kw) || u.code.toLowerCase().includes(kw))
   );
-  const g = group(filtered);
   const n = (s) => rows.filter((u) => u.status === s).length;
 
   return (
@@ -90,23 +89,37 @@ export default function Broken({ me }) {
           value={q} onChange={(e) => setQ(e.target.value)} />
       )}
 
-      <Table
-        headers={[
-          'รายการ',
-          <span className="bstat-repair">พัง</span>,
-          <span className="bstat-lost">หาย</span>,
-          'รวม',
-        ]}
-        rows={g.map((u) => ({
+      <BrokenTable rows={filtered} onFix={isAdmin ? fix : null} />
+    </>
+  );
+}
+
+// ตารางของพัง/หาย — ใช้ร่วมกับแดชบอร์ด
+export function BrokenTable({ rows, onFix }) {
+  const g = group(rows);
+  return (
+    <Table
+      headers={[
+        'รายการ',
+        <span className="bstat-repair">พัง</span>,
+        <span className="bstat-lost">หาย</span>,
+        'รวม',
+        'หมายเหตุ',
+      ]}
+      rows={g.map((u) => {
+        const all = [...u.repair, ...u.lost];
+        const notes = [...new Set(all.map((x) => x.holder).filter(Boolean))];
+        return {
           key: u.item_id,
           cells: [
             <span><strong>{u.item_name}</strong>{u.category && <div className="hint">{u.category}</div>}</span>,
-            <Codes list={u.repair} cls="cc-repair" label="ซ่อมเสร็จ" onFix={isAdmin ? (x) => fix(x, 'ซ่อมเสร็จ') : null} />,
-            <Codes list={u.lost} cls="cc-lost" label="กู้คืน" onFix={isAdmin ? (x) => fix(x, 'กู้คืน') : null} />,
-            <span className="col-out"><b>{u.repair.length + u.lost.length}</b> {u.unit || ''}</span>,
+            <Codes list={u.repair} cls="cc-repair" label="ซ่อมเสร็จ" onFix={onFix ? (x) => onFix(x, 'ซ่อมเสร็จ') : null} />,
+            <Codes list={u.lost} cls="cc-lost" label="กู้คืน" onFix={onFix ? (x) => onFix(x, 'กู้คืน') : null} />,
+            <span className="col-out"><b>{all.length}</b> {u.unit || ''}</span>,
+            notes.length ? <span className="muted">{notes.join(', ')}</span> : <span className="muted">-</span>,
           ],
-        }))}
-      />
-    </>
+        };
+      })}
+    />
   );
 }

@@ -804,7 +804,7 @@ app.get('/api/dashboard', requireAuth, (req, res) => {
   // หน่วยที่ตัดออกจากคลังแล้ว (พัง/หาย) — ของที่ถูกยืมไม่นับ เพราะยังอยู่ในระบบ
   const unitsOut = db
     .prepare(
-      `SELECT u.code, u.status, u.holder, i.name AS item_name
+      `SELECT u.id, u.code, u.status, u.holder, u.item_id, i.name AS item_name, i.unit, i.category
        FROM units u JOIN items i ON i.id = u.item_id
        WHERE u.active = 1 AND u.status IN ('repair','lost')
        ORDER BY i.name, u.code`

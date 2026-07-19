@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { api, KIND_LABEL, STATUS_LABEL } from './api.js';
+import { api, KIND_LABEL } from './api.js';
 import { Table } from './components.jsx';
+import { BrokenTable } from './Broken.jsx';
 
 export function TxTable({ rows }) {
   return (
@@ -69,18 +70,7 @@ export default function Dashboard({ go }) {
         <>
           <div className="section-title">🗑️ หน่วยที่ตัดออกจากคลัง (พัง/หาย)</div>
           <div className="hint" style={{ marginBottom: 6 }}>ไม่นับรวมใน "มีทั้งหมด" แล้ว — ซ่อมเสร็จ/กู้คืนได้ที่ Stock Check</div>
-          <Table
-            headers={['รหัส', 'ของ', 'สถานะ', 'หมายเหตุ']}
-            rows={d.unitsOut.map((u, i) => ({
-              key: i,
-              cells: [
-                <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent)' }}>{u.code}</span>,
-                u.item_name,
-                <span className={'badge st-' + u.status}>{STATUS_LABEL[u.status]}</span>,
-                u.holder || '-',
-              ],
-            }))}
-          />
+          <BrokenTable rows={d.unitsOut} />
         </>
       )}
 
