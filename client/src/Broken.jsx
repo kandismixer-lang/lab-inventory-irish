@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { api, STATUS_LABEL } from './api.js';
+import { api } from './api.js';
 import { Table } from './components.jsx';
 
 const FILTERS = [
@@ -8,15 +8,23 @@ const FILTERS = [
   ['lost', 'หาย'],
 ];
 
-// รวมหน่วยของ item เดียวกัน + สถานะเดียวกัน ให้อยู่แถวเดียว
+// 1 item = 1 แถว, แยกรหัสเป็นคอลัมน์ พัง / หาย
 function group(rows) {
   const map = new Map();
   for (const u of rows) {
-    const key = u.item_id + '|' + u.status;
-    if (!map.has(key)) map.set(key, { ...u, codes: [] });
-    map.get(key).codes.push(u.code);
+    if (!map.has(u.item_id)) map.set(u.item_id, { ...u, repair: [], lost: [] });
+    map.get(u.item_id)[u.status].push(u.code);
   }
   return [...map.values()];
+}
+
+function Codes({ list, cls }) {
+  if (list.length === 0) return <span className="muted">—</span>;
+  return (
+    <span className="code-chips">
+      {list.map((c) => <span className={'code-chip ' + cls} key={c}>{c}</span>)}
+    </span>
+  );
 }
 
 export default function Broken() {
@@ -61,16 +69,19 @@ export default function Broken() {
       )}
 
       <Table
-        headers={['รายการ', 'สถานะ', 'จำนวน', 'รหัส']}
+        headers={[
+          'รายการ',
+          <span className="bstat-repair">พัง</span>,
+          <span className="bstat-lost">หาย</span>,
+          'รวม',
+        ]}
         rows={g.map((u) => ({
-          key: u.item_id + u.status,
+          key: u.item_id,
           cells: [
             <span><strong>{u.item_name}</strong>{u.category && <div className="hint">{u.category}</div>}</span>,
-            <span className={'badge st-' + u.status}>{STATUS_LABEL[u.status]}</span>,
-            <span className="col-out"><b>{u.codes.length}</b> {u.unit || ''}</span>,
-            <span className="code-chips">
-              {u.codes.map((c) => <span className="code-chip" key={c}>{c}</span>)}
-            </span>,
+            <Codes list={u.repair} cls="cc-repair" />,
+            <Codes list={u.lost} cls="cc-lost" />,
+            <span className="col-out"><b>{u.repair.length + u.lost.length}</b> {u.unit || ''}</span>,
           ],
         }))}
       />

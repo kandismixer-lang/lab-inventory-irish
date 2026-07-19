@@ -283,6 +283,8 @@ tbody tr:hover > td { background: var(--wash-blue); }
 /* ---- ตารางของพัง/หาย ---- */
 .code-chips { display: flex; flex-wrap: wrap; gap: 5px; }
 .code-chip { font-family: var(--font-mono); font-size: .8rem; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--line-strong); background: rgba(255,255,255,.05); color: var(--accent); }
+.code-chip.cc-repair { color: #fb923c; border-color: rgba(251,146,60,.45); background: rgba(251,146,60,.12); }
+.code-chip.cc-lost { color: #f87171; border-color: rgba(248,113,113,.45); background: rgba(248,113,113,.12); }
 .stock-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
 .stock-col { border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden; display: flex; flex-direction: column; }
 .stock-col > header { display: flex; align-items: center; gap: 8px; padding: 8px 10px; font-weight: 600; font-size: .88rem; border-bottom: 1px solid var(--line); background: rgba(255,255,255,.03); }
