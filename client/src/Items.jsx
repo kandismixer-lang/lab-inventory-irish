@@ -13,10 +13,11 @@ export default function Items({ me, focusItem, onFocused }) {
   const [editing, setEditing] = useState(undefined); // undefined=ปิด, null=เพิ่มใหม่, obj=แก้ไข
   const [moving, setMoving] = useState(null);
   const [requesting, setRequesting] = useState(null); // item ที่ staff กำลังขอ
-  const [expanded, setExpanded] = useState(null); // id ของ item ที่กางหน่วยย่อยอยู่
+  const [expanded, setExpanded] = useState(null); // id ของ item ที่เปิด Stock Check (popup)
   const [showEmpty, setShowEmpty] = useState(false); // แสดงของใช้แล้วทิ้งที่เบิกหมด
   const [detail, setDetail] = useState(null); // item ที่กำลังดูรายละเอียด
   const toast = useToast();
+  const expandedItem = items.find((x) => x.id === expanded) || null;
   const { addToCart } = useCart();
   const onAddToCart = (item, qty, note) => { addToCart(item, qty, note); setRequesting(null); };
   // ยืมเลย — ส่งคำขอรายการเดียวทันที ไม่ผ่านตะกร้า
@@ -139,13 +140,6 @@ export default function Items({ me, focusItem, onFocused }) {
                   </td>
                   <td><span className={low ? 'badge low' : 'col-remain'}>{i.qty} {i.unit}</span></td>
                 </tr>
-                {isOpen && !!i.tracked && (
-                  <tr className="expand-row">
-                    <td colSpan={4}>
-                      <UnitsPanel item={i} me={me} onChanged={load} />
-                    </td>
-                  </tr>
-                )}
               </React.Fragment>
             );
           })}
@@ -158,6 +152,9 @@ export default function Items({ me, focusItem, onFocused }) {
       {moving && <MoveForm item={moving} me={me} onClose={() => setMoving(null)} onDone={refresh} />}
       {requesting && <RequestForm item={requesting} onClose={() => setRequesting(null)} onAdd={onAddToCart} onNow={onBorrowNow} />}
       {detail && <DetailModal item={detail} onClose={() => setDetail(null)} />}
+      {expandedItem && (
+        <UnitsPanel item={expandedItem} me={me} onChanged={load} onClose={() => setExpanded(null)} />
+      )}
     </>
   );
 }
@@ -492,12 +489,13 @@ const UNIT_BTNS = {
   lost: [['ready', 'กู้คืน']],
 };
 
-function UnitsPanel({ item, me, onChanged }) {
+function UnitsPanel({ item, me, onChanged, onClose }) {
   const isAdmin = me.role === 'admin'; // user เห็นได้แค่ว่าตัวไหนถูกยืม/พัง/หาย — ไม่มีปุ่มจัดการ
   const toast = useToast();
   const confirm = useConfirm();
   const promptDlg = usePrompt();
   const [tab, setTab] = useState('list'); // list | add
+  const [q, setQ] = useState('');
   const [units, setUnits] = useState([]);
   const [err, setErr] = useState('');
 
@@ -534,15 +532,29 @@ function UnitsPanel({ item, me, onChanged }) {
   };
 
   const counts = units.reduce((a, u) => ((a[u.status] = (a[u.status] || 0) + 1), a), {});
-  // user เห็นเฉพาะหน่วยที่ไม่ว่าง (ถูกยืม/พัง/หาย) — ตัวว่างไม่ต้องโชว์
-  const shownUnits = isAdmin ? units : units.filter((u) => u.status !== 'available');
+  // ค้นหา (ของเยอะ 20-30+ ชิ้น หาไว)
+  const kw = q.trim().toLowerCase();
+  const match = (u) => !kw || u.code.toLowerCase().includes(kw) || (u.holder || '').toLowerCase().includes(kw);
+  const avail = units.filter((u) => u.status === 'available' && match(u));
+  const borrowed = units.filter((u) => u.status === 'borrowed' && match(u));
+  const dead = units.filter((u) => (u.status === 'repair' || u.status === 'lost') && match(u));
+  // user ไม่เห็นคอลัมน์ "ว่าง"
+  const cols = [
+    ...(isAdmin ? [{ key: 'a', title: 'ว่าง', cls: 'ok', list: avail, empty: 'ไม่มีตัวว่าง' }] : []),
+    { key: 'b', title: 'ถูกยืม', cls: 'warn', list: borrowed, empty: 'ไม่มีตัวถูกยืม' },
+    { key: 'd', title: 'พัง / หาย', cls: 'bad', list: dead, empty: 'ไม่มี' },
+  ];
 
   return (
-    <div className="units-panel">
-      <div className="muted" style={{ marginBottom: 8 }}>
-        ทั้งหมด {units.length} หน่วย · ว่าง {counts.available || 0} · ยืม {counts.borrowed || 0}
-        {counts.repair ? ` · พัง ${counts.repair}` : ''}{counts.lost ? ` · หาย ${counts.lost}` : ''}
+    <Modal title={`Stock Check — ${item.name}`} onClose={onClose}>
+      <div className="stock-summary">
+        <span>ทั้งหมด <b>{units.length}</b></span>
+        <span className="col-remain">ว่าง <b>{counts.available || 0}</b></span>
+        <span className="bstat-borrowed">ยืม <b>{counts.borrowed || 0}</b></span>
+        {counts.repair ? <span className="bstat-repair">พัง <b>{counts.repair}</b></span> : null}
+        {counts.lost ? <span className="bstat-lost">หาย <b>{counts.lost}</b></span> : null}
       </div>
+
       {isAdmin && (
         <div className="subtabs">
           <button className={'btn small' + (tab === 'list' ? ' active' : '')} onClick={() => setTab('list')}>รายการหน่วย</button>
@@ -552,31 +564,46 @@ function UnitsPanel({ item, me, onChanged }) {
       <div className="err">{err}</div>
 
       {tab === 'list' || !isAdmin ? (
-        shownUnits.length === 0 ? (
-          <p className="muted">{isAdmin ? 'ยังไม่มีหน่วย — กด "+ สร้างหน่วย" เพื่อเพิ่ม' : '— ตอนนี้ไม่มีตัวไหนถูกยืม/พัง/หาย —'}</p>
+        units.length === 0 ? (
+          <p className="muted">{isAdmin ? 'ยังไม่มีหน่วย — กด "+ สร้างหน่วย" เพื่อเพิ่ม' : '— ยังไม่มีหน่วย —'}</p>
         ) : (
-          <div className="unit-list">
-            {shownUnits.map((u) => (
-              <div className="unit-row" key={u.id}>
-                <span className="code">{u.code}</span>
-                <span className={'badge st-' + u.status}>{STATUS_LABEL[u.status]}</span>
-                {u.holder && <span className="holder">→ {u.holder}</span>}
-                {isAdmin && (
-                  <span className="acts">
-                    {(UNIT_BTNS[u.status] || []).map(([a, label]) => (
-                      <button key={a} className={`btn small u-${a}`} onClick={() => act(u, a)}>{label}</button>
+          <>
+            {units.length > 10 && (
+              <input type="search" className="stock-search" placeholder="ค้นหารหัส / ชื่อคนยืม…"
+                value={q} onChange={(e) => setQ(e.target.value)} />
+            )}
+            <div className="stock-cols">
+              {cols.map((c) => (
+                <section className={'stock-col sc-' + c.cls} key={c.key}>
+                  <header>{c.title} <span className="n">{c.list.length}</span></header>
+                  <div className="stock-list">
+                    {c.list.length === 0 ? <p className="muted" style={{ padding: '8px 10px', margin: 0 }}>— {c.empty} —</p> : c.list.map((u) => (
+                      <div className="unit-row" key={u.id}>
+                        <span className="code">{u.code}</span>
+                        {u.status !== 'available' && u.status !== 'borrowed' && (
+                          <span className={'badge st-' + u.status}>{STATUS_LABEL[u.status]}</span>
+                        )}
+                        {u.holder && <span className="holder">→ {u.holder}</span>}
+                        {isAdmin && (
+                          <span className="acts">
+                            {(UNIT_BTNS[u.status] || []).map(([a, label]) => (
+                              <button key={a} className={`btn small u-${a}`} onClick={() => act(u, a)}>{label}</button>
+                            ))}
+                            <button className="btn small danger" onClick={() => del(u)}>ลบ</button>
+                          </span>
+                        )}
+                      </div>
                     ))}
-                    <button className="btn small danger" onClick={() => del(u)}>ลบ</button>
-                  </span>
-                )}
-              </div>
-            ))}
-          </div>
+                  </div>
+                </section>
+              ))}
+            </div>
+          </>
         )
       ) : (
         <AddUnitsForm unit={item.unit} units={units} onBulk={addUnits} />
       )}
-    </div>
+    </Modal>
   );
 }
 
