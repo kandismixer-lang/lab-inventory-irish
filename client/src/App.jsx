@@ -5,6 +5,7 @@ import { CartProvider } from './Cart.jsx';
 import Dashboard from './Dashboard.jsx';
 import Items from './Items.jsx';
 import Log from './Log.jsx';
+import Broken from './Broken.jsx';
 import Users from './Users.jsx';
 import Requests from './Requests.jsx';
 
@@ -127,6 +128,7 @@ function Login({ onLogin }) {
 const VIEWS = {
   dashboard: { label: 'แดชบอร์ด', comp: Dashboard },
   items: { label: 'รายการของ', comp: Items },
+  broken: { label: 'ของพัง/หาย', comp: Broken },
   log: { label: 'ประวัติทั้งหมด', comp: Log },
   requests: { label: 'คำขอ', comp: Requests },
   users: { label: 'ผู้ใช้', comp: Users, adminOnly: true },

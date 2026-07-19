@@ -774,6 +774,20 @@ app.post('/api/requests/:id/return', requireAuth, requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
+// หน่วยที่พัง/หาย ทั้งหมด (หน้าเมนู "ของพัง/หาย")
+app.get('/api/broken', requireAuth, (req, res) => {
+  res.json(
+    db
+      .prepare(
+        `SELECT u.id, u.code, u.status, u.holder, u.item_id, i.name AS item_name, i.unit, i.category
+         FROM units u JOIN items i ON i.id = u.item_id
+         WHERE u.active = 1 AND u.status IN ('repair','lost')
+         ORDER BY i.name, u.status, u.code`
+      )
+      .all()
+  );
+});
+
 // ---------- dashboard / reports ----------
 app.get('/api/dashboard', requireAuth, (req, res) => {
   const lowStock = db
