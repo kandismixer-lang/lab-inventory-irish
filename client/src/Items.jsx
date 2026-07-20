@@ -65,20 +65,20 @@ export default function Items({ me, focusItem, onFocused }) {
 
   return (
     <>
-      <div className="toolbar">
-        <input type="search" placeholder="ค้นหาชื่อ / ที่เก็บ..." value={q} onChange={(e) => onSearch(e.target.value)} />
-        {isAdmin && (
+      {isAdmin && (
+        <div className="toolbar">
           <label className="check-inline" title="ของใช้แล้วทิ้งที่เหลือ 0 จะถูกซ่อนไว้">
             <input type="checkbox" checked={showEmpty} onChange={(e) => setShowEmpty(e.target.checked)} />
             แสดงของที่เบิกหมด
           </label>
-        )}
-        {isAdmin && <button className="btn primary" onClick={() => setEditing(null)}>+ เพิ่มรายการใหม่</button>}
-      </div>
+          <button className="btn primary" onClick={() => setEditing(null)}>+ เพิ่มรายการใหม่</button>
+        </div>
+      )}
 
       <Summary items={items} cat={cat} onPick={setCat} />
 
       <div className="section-title">รายการทั้งหมด</div>
+      <input type="search" className="stock-search" placeholder="ค้นหาชื่อ / ที่เก็บ..." value={q} onChange={(e) => onSearch(e.target.value)} />
       <CategoryBar items={items} cat={cat} onPick={setCat} />
       <table>
         <thead>
