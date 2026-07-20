@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { api } from './api.js';
 import { ToastProvider, DialogProvider, Modal, useToast } from './components.jsx';
 import { CartProvider } from './Cart.jsx';
+import Chat from './Chat.jsx';
 import Dashboard from './Dashboard.jsx';
 import Items from './Items.jsx';
 import Log from './Log.jsx';
@@ -221,6 +222,7 @@ function Shell({ me, onMe, guestName, onGuestName }) {
           </button>
         )}
       </div>
+      <Chat />
       {changingPw && <ChangePw onClose={() => setChangingPw(false)} />}
       {loggingIn && <LoginModal onClose={() => setLoggingIn(false)} onLogin={(u) => { onMe(u); setLoggingIn(false); }} />}
     </CartProvider>
