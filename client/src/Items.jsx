@@ -21,13 +21,13 @@ export default function Items({ me, focusItem, onFocused }) {
   const shown = cat ? items.filter((i) => catLabel(i) === cat) : items;
   const expandedItem = items.find((x) => x.id === expanded) || null;
   const { addToCart } = useCart();
-  const onAddToCart = (item, qty, note) => { addToCart(item, qty, note); setRequesting(null); };
+  const onAddToCart = (item, qty, note, person) => { addToCart(item, qty, note, person); setRequesting(null); };
   // ยืมเลย — ส่งคำขอรายการเดียวทันที ไม่ผ่านตะกร้า
-  const onBorrowNow = async (item, qty, note) => {
+  const onBorrowNow = async (item, qty, note, person) => {
     try {
       await api('/api/orders', {
         method: 'POST',
-        body: { person: me.fullname || me.username, items: [{ item_id: item.id, qty, note }] },
+        body: { person: person || me.fullname || me.username, items: [{ item_id: item.id, qty, note }] },
       });
       setRequesting(null);
       toast('ส่งคำขอแล้ว — รอแอดมินอนุมัติ');
@@ -153,7 +153,7 @@ export default function Items({ me, focusItem, onFocused }) {
         <ItemForm item={editing} me={me} onClose={() => setEditing(undefined)} onSaved={refresh} />
       )}
       {moving && <MoveForm item={moving} me={me} onClose={() => setMoving(null)} onDone={refresh} />}
-      {requesting && <RequestForm item={requesting} onClose={() => setRequesting(null)} onAdd={onAddToCart} onNow={onBorrowNow} />}
+      {requesting && <RequestForm item={requesting} defaultPerson={me.fullname || me.username} onClose={() => setRequesting(null)} onAdd={onAddToCart} onNow={onBorrowNow} />}
       {detail && <DetailModal item={detail} onClose={() => setDetail(null)} />}
       {expandedItem && (
         <UnitsPanel
@@ -189,24 +189,24 @@ function DetailModal({ item, onClose }) {
 }
 
 // Staff ขอยืม/ขอเบิก — เลือกจำนวน แล้วเพิ่มลงตะกร้า (ส่งเป็น 1 ออเดอร์ทีเดียว)
-export function RequestForm({ item, onClose, onAdd, onNow }) {
+export function RequestForm({ item, defaultPerson, onClose, onAdd, onNow }) {
   const [busy, setBusy] = useState(false);
   const read = (form) => {
     const b = Object.fromEntries(new FormData(form));
-    return [Math.max(1, parseInt(b.qty, 10) || 1), (b.note || '').trim()];
+    return [Math.max(1, parseInt(b.qty, 10) || 1), (b.note || '').trim(), (b.person || '').trim()];
   };
   const submit = (e) => {
     e.preventDefault();
-    const [qty, note] = read(e.target);
-    onAdd(item, qty, note);
+    const [qty, note, person] = read(e.target);
+    onAdd(item, qty, note, person);
   };
   // ยืมเลย — ส่งคำขอทันที ไม่ผ่านตะกร้า (สำหรับยืมรายการเดียว)
   const submitNow = async (e) => {
     const form = e.target.closest('form');
     if (!form.reportValidity()) return;
-    const [qty, note] = read(form);
+    const [qty, note, person] = read(form);
     setBusy(true);
-    try { await onNow(item, qty, note); } finally { setBusy(false); }
+    try { await onNow(item, qty, note, person); } finally { setBusy(false); }
   };
   return (
     <Modal title={(item.type === 'consumable' ? 'ขอเบิก' : 'ขอยืม') + ' — ' + item.name} onClose={onClose}>
@@ -214,6 +214,9 @@ export function RequestForm({ item, onClose, onAdd, onNow }) {
         คงเหลือให้ขอได้ {item.qty} {item.unit}{item.tracked ? ' (Admin จะเลือกหน่วยให้)' : ''}
       </div>
       <form onSubmit={submit}>
+        <label>ชื่อผู้ยืม
+          <input name="person" defaultValue={defaultPerson || ''} placeholder="ใส่ชื่อผู้ยืม" required />
+        </label>
         <label>จำนวน ({item.unit})
           <input name="qty" type="number" min="1" max={item.qty} defaultValue="1" required />
         </label>

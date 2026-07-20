@@ -13,12 +13,12 @@ export function CartProvider({ children, person }) {
   const [open, setOpen] = useState(false);
   const toast = useToast();
 
-  const addToCart = (item, qty, note) => {
+  const addToCart = (item, qty, note, who) => {
     setCart((p) => {
       const ex = p.find((c) => c.item.id === item.id);
       if (ex) return p.map((c) => c.item.id === item.id
-        ? { ...c, qty: Math.min(item.qty, c.qty + qty), note: note || c.note } : c);
-      return [...p, { item, qty, note }];
+        ? { ...c, qty: Math.min(item.qty, c.qty + qty), note: note || c.note, who: who || c.who } : c);
+      return [...p, { item, qty, note, who }];
     });
     toast('เพิ่มลงตะกร้าแล้ว');
   };
@@ -63,7 +63,8 @@ function CartModal({ cart, setCart, person, onClose }) {
     if (cart.length === 0) return;
     setBusy(true); setErr('');
     try {
-      const r = await api('/api/orders', { method: 'POST', body: { note, person, items: cart.map((c) => ({ item_id: c.item.id, qty: c.qty, note: c.note })) } });
+      const who = cart.find((c) => c.who && c.who.trim())?.who?.trim() || person;
+      const r = await api('/api/orders', { method: 'POST', body: { note, person: who, items: cart.map((c) => ({ item_id: c.item.id, qty: c.qty, note: c.note })) } });
       setCart([]);
       onClose();
       toast(`ส่งคำขอแล้ว ${r.lines} รายการ — รอแอดมินอนุมัติ`);
@@ -84,6 +85,7 @@ function CartModal({ cart, setCart, person, onClose }) {
                 <div className="cart-line-info">
                   <strong>{c.item.name}</strong>
                   <span className="badge">{label(c.item)}</span>
+                  {c.who ? <span className="hint">👤 {c.who}</span> : null}
                   {c.note ? <span className="hint">📝 {c.note}</span> : null}
                 </div>
                 <input type="number" min="1" max={c.item.qty} value={c.qty} onChange={(e) => setQty(c.item.id, e.target.value)} style={{ width: 66 }} />
