@@ -16,7 +16,9 @@ export default function Items({ me, focusItem, onFocused }) {
   const [expanded, setExpanded] = useState(null); // id ของ item ที่เปิด Stock Check (popup)
   const [showEmpty, setShowEmpty] = useState(false); // แสดงของใช้แล้วทิ้งที่เบิกหมด
   const [detail, setDetail] = useState(null); // item ที่กำลังดูรายละเอียด
+  const [cat, setCat] = useState(''); // หมวดที่กรอง ('' = ทั้งหมด)
   const toast = useToast();
+  const shown = cat ? items.filter((i) => catLabel(i) === cat) : items;
   const expandedItem = items.find((x) => x.id === expanded) || null;
   const { addToCart } = useCart();
   const onAddToCart = (item, qty, note) => { addToCart(item, qty, note); setRequesting(null); };
@@ -74,9 +76,10 @@ export default function Items({ me, focusItem, onFocused }) {
         {isAdmin && <button className="btn primary" onClick={() => setEditing(null)}>+ เพิ่มรายการใหม่</button>}
       </div>
 
-      <Summary items={items} />
+      <Summary items={items} cat={cat} onPick={setCat} />
 
       <div className="section-title">รายการทั้งหมด</div>
+      <CategoryBar items={items} cat={cat} onPick={setCat} />
       <table>
         <thead>
           <tr>
@@ -84,10 +87,10 @@ export default function Items({ me, focusItem, onFocused }) {
           </tr>
         </thead>
         <tbody>
-          {items.length === 0 && (
+          {shown.length === 0 && (
             <tr><td colSpan={4} className="muted">— ไม่มีข้อมูล —</td></tr>
           )}
-          {items.map((i) => {
+          {shown.map((i) => {
             const low = i.type === 'consumable' && i.min_qty > 0 && i.qty <= i.min_qty;
             const outLabel = i.type === 'consumable' ? 'ใช้ไป' : 'ถูกยืม';
             const isOpen = expanded === i.id;
@@ -226,7 +229,8 @@ export function RequestForm({ item, onClose, onAdd, onNow }) {
 }
 
 // ตารางสรุปตามหมวดหมู่ — ด้านบนสุด
-function Summary({ items }) {
+// จัดกลุ่มตามหมวด — ใช้ร่วมกับแดชบอร์ด
+export function groupByCategory(items) {
   const groups = {};
   for (const i of items) {
     const key = catLabel(i);
@@ -237,15 +241,41 @@ function Summary({ items }) {
     g.remain += i.qty;
   }
   const keys = Object.keys(groups).sort((a, b) => groups[b].kinds - groups[a].kinds);
+  return { groups, keys };
+}
+
+// ปุ่มเลือกหมวด (chips) — กดแล้วกรอง
+export function CategoryBar({ items, cat, onPick }) {
+  const { groups, keys } = groupByCategory(items);
+  if (keys.length === 0) return null;
+  return (
+    <div className="cat-bar">
+      <button className={'cat-chip' + (cat === '' ? ' active' : '')} onClick={() => onPick('')}>
+        ทั้งหมด <span className="n">{items.length}</span>
+      </button>
+      {keys.map((k) => (
+        <button key={k} className={'cat-chip ' + groups[k].type + (cat === k ? ' active' : '')} onClick={() => onPick(cat === k ? '' : k)}>
+          {k} <span className="n">{groups[k].kinds}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function Summary({ items, cat, onPick }) {
+  const { groups, keys } = groupByCategory(items);
   if (keys.length === 0) return null;
 
   return (
     <>
       <div className="section-title">สรุปตามหมวดหมู่</div>
+      <div className="hint" style={{ marginBottom: 6 }}>กดที่หมวดเพื่อกรองรายการด้านล่าง</div>
       <Table
         headers={['หมวดหมู่', 'จำนวนชนิด', 'มีทั้งหมด', 'ถูกใช้/ยืม', 'คงเหลือ']}
         rows={keys.map((k) => ({
           key: k,
+          onClick: () => onPick(cat === k ? '' : k),
+          className: cat === k ? 'row-active' : '',
           cells: [
             <span className={'badge ' + groups[k].type}>{k}</span>,
             `${groups[k].kinds} ชนิด`,

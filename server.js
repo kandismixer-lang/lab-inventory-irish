@@ -795,9 +795,9 @@ app.get('/api/dashboard', requireAuth, (req, res) => {
       `SELECT * FROM items WHERE active=1 AND type='consumable' AND qty <= min_qty AND min_qty > 0 ORDER BY name`
     )
     .all();
-  // เครื่องมือ — ใช้สูตรเดียวกับหน้ารายการของ + แนบรายชื่อผู้ยืมรายตัว
+  // รายการทั้งหมด (ทุกหมวด) — ใช้สูตรเดียวกับหน้ารายการของ + แนบรายชื่อผู้ยืมรายตัว
   const borrowedOut = db
-    .prepare(`${ITEM_SELECT} WHERE i.active=1 AND i.type='tool' ORDER BY i.name`)
+    .prepare(`${ITEM_SELECT} WHERE i.active=1 AND (i.type='tool' OR i.qty > 0) ORDER BY i.name`)
     .all()
     .map(decorateItem)
     .map((i) => ({ ...i, borrowers: borrowersOf(i) }));

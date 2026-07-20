@@ -285,6 +285,19 @@ tbody tr:hover > td { background: var(--wash-blue); }
 .code-chips { display: flex; flex-wrap: wrap; gap: 5px; }
 .code-chip { font-family: var(--font-mono); font-size: .8rem; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--line-strong); background: rgba(255,255,255,.05); color: var(--accent); }
 .code-chip.cc-repair { color: #fb923c; border-color: rgba(251,146,60,.45); background: rgba(251,146,60,.12); }
+/* ---- แถบเลือกหมวด ---- */
+.cat-bar { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 12px; }
+.cat-chip { display: inline-flex; align-items: center; gap: 7px; cursor: pointer;
+  padding: 7px 14px; border-radius: 999px; font: inherit; font-size: .88rem;
+  border: 1px solid var(--line-strong); background: var(--card-2); color: var(--text);
+  transition: border-color .15s, background .15s, color .15s; }
+.cat-chip:hover { border-color: var(--accent); }
+.cat-chip .n { font-family: var(--font-mono); font-size: .78rem; padding: 1px 8px; border-radius: 999px;
+  background: rgba(255,255,255,.08); color: var(--muted); }
+.cat-chip.active { background: var(--accent); border-color: var(--accent); color: var(--on-primary); }
+.cat-chip.active .n { background: rgba(0,0,0,.22); color: inherit; }
+tr.row-active > td { background: rgba(34,211,238,.10); }
+
 .pager { display: flex; align-items: center; justify-content: center; gap: 14px; margin: 14px 0 4px; font-size: .9rem; flex-wrap: wrap; }
 .pager .btn:disabled { opacity: .4; cursor: default; }
 .pager b { color: var(--text); }

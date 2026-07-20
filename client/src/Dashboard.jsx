@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { api, KIND_LABEL } from './api.js';
 import { Table } from './components.jsx';
 import { BrokenTable } from './Broken.jsx';
+import { CategoryBar, catLabel } from './Items.jsx';
 
 // note เก่าบางแถวเก็บรหัสหน่วยไว้ — แยกออกมาเป็นคอลัมน์รหัส เหลือข้อความจริงไว้ในหมายเหตุ
 const CODE_RE = /^[A-Za-z][A-Za-z0-9]*[-_]?\d+$/;
@@ -52,8 +53,15 @@ export function TxTable({ rows, pageSize = 0 }) {
 
 export default function Dashboard({ go }) {
   const [d, setD] = useState(null);
+  const [cat, setCat] = useState('');
+  const [q, setQ] = useState('');
   useEffect(() => { api('/api/dashboard').then(setD); }, []);
   if (!d) return <p className="muted">กำลังโหลด...</p>;
+
+  const kw = q.trim().toLowerCase();
+  const list = d.borrowedOut.filter(
+    (i) => (!cat || catLabel(i) === cat) && (!kw || i.name.toLowerCase().includes(kw) || (i.location || '').toLowerCase().includes(kw))
+  );
 
   return (
     <>
@@ -76,15 +84,18 @@ export default function Dashboard({ go }) {
         </>
       )}
 
-      <div className="section-title">🔧 เครื่องมือ (คงเหลือในคลัง = ไม่ถูกยืม)</div>
-      <div className="hint" style={{ marginBottom: 6 }}>กดที่แถวเพื่อไปหน้ารายการของ (ยืม/จัดการ)</div>
+      <div className="section-title">📦 รายการของ (คงเหลือในคลัง = ไม่ถูกยืม/ใช้)</div>
+      <div className="hint" style={{ marginBottom: 6 }}>กดที่แถวเพื่อไปหน้ารายการของ (ยืม/จัดการ) · กดหมวดเพื่อกรอง</div>
+      <input type="search" className="stock-search" placeholder="ค้นหาชื่อ / ที่เก็บ…"
+        value={q} onChange={(e) => setQ(e.target.value)} />
+      <CategoryBar items={d.borrowedOut} cat={cat} onPick={setCat} />
       <Table
-        headers={['ชื่อ', 'มีทั้งหมด', 'ถูกยืม', 'คงเหลือ']}
-        rows={d.borrowedOut.map((i) => ({
+        headers={['ชื่อ', 'มีทั้งหมด', 'ถูกใช้/ยืม', 'คงเหลือ']}
+        rows={list.map((i) => ({
           key: i.id,
           onClick: () => go && go('items', { itemId: i.id }),
           cells: [
-            i.name,
+            <span>{i.name}<span className={'badge ' + i.type} style={{ marginLeft: 8 }}>{catLabel(i)}</span></span>,
             <span className="col-total">{i.total_qty} {i.unit}</span>,
             i.out_qty > 0
               ? <span className="col-out">{i.out_qty} {i.unit}</span>
