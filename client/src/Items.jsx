@@ -183,7 +183,6 @@ function DetailModal({ item, onClose }) {
       </div>
       <div className="detail-head">สเปค / รายละเอียด</div>
       <div className="detail-spec">{(item.spec || '').trim() || '— ยังไม่ได้ใส่ข้อมูล —'}</div>
-      {item.note ? <div className="hint" style={{ marginTop: 10 }}>📝 {item.note}</div> : null}
     </Modal>
   );
 }
@@ -442,7 +441,6 @@ function ItemForm({ item, me, onClose, onSaved }) {
           {!item && !tracked && <label>จำนวนตั้งต้น<input name="qty" type="number" min="0" defaultValue="0" /></label>}
           {!tracked && <label>จุดเตือนของใกล้หมด<input name="min_qty" type="number" min="0" defaultValue={item?.min_qty ?? 0} /></label>}
         </div>
-        <label>หมายเหตุ<input name="note" defaultValue={item?.note || ''} /></label>
         <label>สเปค / รายละเอียด (โชว์ในป๊อปอัป "รายละเอียด")
           <textarea name="spec" rows="7" defaultValue={item?.spec || ''}
             placeholder={'ใส่ได้อิสระ เช่น\nCPU: Broadcom BCM2712 quad-core\nRAM: 8GB LPDDR4X\nไฟเลี้ยง: 5V/5A USB-C\nหมายเหตุ: มีพัดลมติดมาด้วย'} />

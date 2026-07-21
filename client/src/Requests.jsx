@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { api, REQ_STATUS, fileToScaledDataURL } from './api.js';
-import { Modal, useToast } from './components.jsx';
+import { Modal, useToast, useConfirm } from './components.jsx';
 
 const ADMIN_TABS = [
   ['pending', 'รออนุมัติ', 'pending'],
@@ -146,6 +146,15 @@ function RequestCard({ r, me, onDone }) {
   const [units, setUnits] = useState([]);   // หน่วยว่างของ item นี้ (pending + tracked)
   const [pickUnits, setPickUnits] = useState([]); // เลือกได้หลายหน่วย
   const toast = useToast();
+  const confirm = useConfirm();
+  // อนุมัติ = ตัดสต็อกทันที → ถามยืนยันกันพลาด
+  const approve = async (body) => {
+    if (!(await confirm({
+      title: `อนุมัติ ${r.item_name} ×${r.qty}?`,
+      message: `จะตัดออกจากคลังทันที (${r.type === 'consumable' || r.kind === 'issue' ? 'เบิกจบ' : 'ยืม'}) ให้ ${r.person || r.requester_fullname || r.requester_name}`,
+    }))) return;
+    call('approve', body);
+  };
   const toggleUnit = (id) => setPickUnits((p) => p.includes(id) ? p.filter((x) => x !== id) : [...p, id]);
 
   // โหลดหน่วยว่างเมื่อเป็นคำขอ pending ของ item ที่ track รายตัว (สำหรับ admin เลือกให้ยืม)
@@ -210,10 +219,10 @@ function RequestCard({ r, me, onDone }) {
                   })}
                 </div>
                 <button className="btn small primary" disabled={pickUnits.length !== r.qty}
-                  onClick={() => call('approve', { unit_ids: pickUnits })}>อนุมัติให้ยืม</button>
+                  onClick={() => approve({ unit_ids: pickUnits })}>อนุมัติให้ยืม</button>
               </div>
             ) : (
-              <button className="btn small primary" onClick={() => call('approve', {})}>อนุมัติ</button>
+              <button className="btn small primary" onClick={() => approve({})}>อนุมัติ</button>
             )}
             <button className="btn small danger" onClick={() => setModal('reject')}>ปฏิเสธ</button>
           </>

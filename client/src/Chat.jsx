@@ -3,17 +3,38 @@ import { api } from './api.js';
 import { catLabel } from './Items.jsx';
 
 // แชทบอทค้นในเครื่อง — ไม่ใช้ AI/ไม่มีค่าใช้จ่าย ตอบจากข้อมูลคลังตรงๆ
-const GREET = 'สวัสดี 👋 ถามได้เลย เช่น "Raspberry เหลือเท่าไหร่", "อะไรใกล้หมด", "ถูกยืมอะไรบ้าง", "อะไรพังบ้าง"';
+const GREET = 'สวัสดี 👋 ถามได้เลย เช่น "Raspberry เหลือเท่าไหร่", "อะไรใกล้หมด", "ถูกยืมอะไรบ้าง", "Adapter เก็บที่ไหน", "ฉันยืมอะไรอยู่"';
 
 const norm = (s) => (s || '').toLowerCase().replace(/\s+/g, '');
 
-function answer(q, items, broken) {
+function answer(q, items, broken, me) {
   const t = norm(q);
   if (!t) return null;
 
   // ทักทาย
   if (/^(สวัสดี|หวัดดี|hello|hi|ดี|ช่วย|help|เมนู)/.test(t))
     return { text: GREET };
+
+  // ของฉันยืมอะไรอยู่ — เทียบชื่อผู้ถือหน่วย (holder) กับชื่อผู้ใช้
+  if (/(ฉันยืม|ผมยืม|ของฉัน|ของผม|ยืมอะไรอยู่|ยืมอยู่ไหม|ยืมไรอยู่)/.test(t)) {
+    const myName = norm(me?.fullname || me?.username);
+    if (!myName || myName === 'guest' || myName === norm('ผู้เยี่ยมชม'))
+      return { text: 'ยังไม่ได้ตั้งชื่อ — ตั้งชื่อที่แถบซ้ายก่อน ระบบถึงจะรู้ว่าของไหนของคุณ' };
+    const mine = [];
+    items.forEach((i) => (i.borrowers || []).forEach((b) => {
+      if (norm(b.person) === myName) mine.push({ name: `${i.name}${b.label ? ' · ' + b.label : ''}`, right: 'คุณยืมอยู่', cls: 'warn' });
+    }));
+    if (mine.length === 0) return { text: `ไม่พบของที่ "${me.fullname || me.username}" ยืมอยู่` };
+    return { text: '🙋 ของที่คุณยืมอยู่:', rows: mine };
+  }
+
+  // ที่เก็บ — Xเก็บที่ไหน / อยู่ตู้ไหน
+  if (/(เก็บที่ไหน|อยู่ที่ไหน|อยู่ตู้|ที่เก็บ|อยู่ไหน|location|วางไว้ไหน)/.test(t)) {
+    const words = q.toLowerCase().split(/[\s,?？]+/).filter((w) => w.length >= 2 && !/(เก็บ|ที่ไหน|อยู่|ตู้|ไหน|location|วางไว้)/.test(w));
+    const hit = items.filter((i) => words.some((w) => i.name.toLowerCase().includes(w)));
+    if (hit.length === 0) return { text: 'บอกชื่อของด้วย เช่น "Adapter เก็บที่ไหน"' };
+    return { text: '📍 ที่เก็บ:', rows: hit.slice(0, 12).map((i) => ({ name: i.name, right: i.location || 'ไม่ระบุที่เก็บ', cls: i.location ? 'ok' : 'bad' })) };
+  }
 
   // ใกล้หมด / เหลือน้อย
   if (/(ใกล้หมด|เหลือน้อย|จะหมด|lowstock|เตือน)/.test(t)) {
@@ -61,7 +82,7 @@ function answer(q, items, broken) {
   };
 }
 
-export default function Chat() {
+export default function Chat({ me }) {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState([]);
   const [broken, setBroken] = useState([]);
@@ -69,11 +90,10 @@ export default function Chat() {
   const [q, setQ] = useState('');
   const bodyRef = useRef();
 
-  // โหลดข้อมูลตอนเปิดครั้งแรก + รีเฟรชทุกครั้งที่เปิด (ให้ตัวเลขล่าสุด)
+  // โหลดจาก /api/dashboard ทีเดียว — ได้ทั้งของ (พร้อมผู้ยืม+ที่เก็บ) และของพัง/หาย
   useEffect(() => {
     if (!open) return;
-    api('/api/items?includeEmpty=1').then(setItems).catch(() => {});
-    api('/api/broken').then(setBroken).catch(() => {});
+    api('/api/dashboard').then((d) => { setItems(d.borrowedOut || []); setBroken(d.unitsOut || []); }).catch(() => {});
   }, [open]);
 
   useEffect(() => { bodyRef.current?.scrollTo(0, 1e9); }, [msgs, open]);
@@ -82,7 +102,7 @@ export default function Chat() {
     e?.preventDefault();
     const text = q.trim();
     if (!text) return;
-    const a = answer(text, items, broken) || { text: '🤔 ไม่เข้าใจ ลองใหม่' };
+    const a = answer(text, items, broken, me) || { text: '🤔 ไม่เข้าใจ ลองใหม่' };
     setMsgs((m) => [...m, { me: true, text }, { me: false, ...a }]);
     setQ('');
   };

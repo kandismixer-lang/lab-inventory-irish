@@ -222,7 +222,7 @@ function Shell({ me, onMe, guestName, onGuestName }) {
           </button>
         )}
       </div>
-      <Chat />
+      <Chat me={me} />
       {changingPw && <ChangePw onClose={() => setChangingPw(false)} />}
       {loggingIn && <LoginModal onClose={() => setLoggingIn(false)} onLogin={(u) => { onMe(u); setLoggingIn(false); }} />}
     </CartProvider>

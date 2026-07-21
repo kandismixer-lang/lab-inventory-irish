@@ -58,6 +58,8 @@ export default function Dashboard({ go }) {
   useEffect(() => { api('/api/dashboard').then(setD); }, []);
   if (!d) return <p className="muted">กำลังโหลด...</p>;
 
+  // ยืม/ใช้จนไม่เหลือในคลัง (แต่ยังมีของในระบบ) — เตือนแยกจากของสิ้นเปลืองใกล้หมด
+  const outOfStock = d.borrowedOut.filter((i) => i.qty <= 0 && i.total_qty > 0);
   const kw = q.trim().toLowerCase();
   const list = d.borrowedOut.filter(
     (i) => (!cat || catLabel(i) === cat) && (!kw || i.name.toLowerCase().includes(kw) || (i.location || '').toLowerCase().includes(kw))
@@ -79,6 +81,26 @@ export default function Dashboard({ go }) {
             rows={d.lowStock.map((i) => ({
               key: i.id,
               cells: [i.name, <span className="badge low">{i.qty} {i.unit}</span>, i.min_qty, i.location],
+            }))}
+          />
+        </>
+      )}
+
+      {outOfStock.length > 0 && (
+        <>
+          <div className="section-title">🚫 หมดคลัง (ถูกยืม/ใช้จนไม่เหลือ)</div>
+          <div className="hint" style={{ marginBottom: 6 }}>ยังมีของในระบบแต่ตอนนี้ไม่เหลือให้ยืม — รอคืน</div>
+          <Table
+            headers={['ชื่อ', 'มีทั้งหมด', 'ถูกยืม/ใช้', 'คงเหลือ']}
+            rows={outOfStock.map((i) => ({
+              key: i.id,
+              onClick: () => go && go('items', { itemId: i.id }),
+              cells: [
+                <span>{i.name}<span className={'badge ' + i.type} style={{ marginLeft: 8 }}>{catLabel(i)}</span></span>,
+                <span className="col-total">{i.total_qty} {i.unit}</span>,
+                <span className="col-out">{i.out_qty} {i.unit}</span>,
+                <span className="badge low">0 {i.unit}</span>,
+              ],
             }))}
           />
         </>

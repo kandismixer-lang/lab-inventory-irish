@@ -504,7 +504,24 @@ function saveImage(dataUrl /* , baseName */) {
 }
 
 // Staff/Admin สร้างคำขอ (เลือกแค่ "ชนิดของ")
+// กันสแปมคำขอจากผู้เยี่ยมชม (เว็บ public) — จำกัดต่อ IP + เพดานคำขอค้างรวม
+const _reqHits = new Map(); // ip -> [เวลา ms]
+const GUEST_WINDOW_MS = 60_000, GUEST_MAX_PER_WINDOW = 8, GUEST_PENDING_CAP = 40;
+function guestThrottle(req) {
+  if (req.user.role !== 'guest') return null; // ผู้ล็อกอินไม่จำกัด
+  const now = Date.now();
+  const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown').split(',')[0].trim();
+  const hits = (_reqHits.get(ip) || []).filter((t) => now - t < GUEST_WINDOW_MS);
+  if (hits.length >= GUEST_MAX_PER_WINDOW) return 'ส่งคำขอถี่เกินไป พัก 1 นาทีแล้วลองใหม่';
+  const pending = db.prepare("SELECT COUNT(*) n FROM requests WHERE status='pending'").get().n;
+  if (pending >= GUEST_PENDING_CAP) return 'มีคำขอรออนุมัติเยอะเกินไป รอแอดมินเคลียร์ก่อน';
+  hits.push(now); _reqHits.set(ip, hits);
+  return null;
+}
+
 app.post('/api/requests', requireAuth, (req, res) => {
+  const block = guestThrottle(req);
+  if (block) return res.status(429).json({ error: block });
   const { item_id, qty, note } = req.body || {};
   const item = db.prepare('SELECT * FROM items WHERE id = ? AND active = 1').get(item_id);
   if (!item) return res.status(404).json({ error: 'ไม่พบรายการของ' });
@@ -521,6 +538,8 @@ app.post('/api/requests', requireAuth, (req, res) => {
 
 // สร้างออเดอร์ = หลายรายการใน 1 ใบ (ตะกร้า) — แต่ละบรรทัดเป็น request แยก (reuse workflow เดิม)
 app.post('/api/orders', requireAuth, (req, res) => {
+  const block = guestThrottle(req);
+  if (block) return res.status(429).json({ error: block });
   const { note, items, person } = req.body || {};
   const who = (person || '').trim() || req.user.fullname || req.user.username;
   if (!Array.isArray(items) || items.length === 0)
