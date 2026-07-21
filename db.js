@@ -32,7 +32,7 @@ if (TURSO_URL) {
     if (!dirty) return;
     dirty = false;
     try { db.sync(); } catch (e) { dirty = true; console.error('Turso auto-sync ล้มเหลว:', e.message); }
-  }, 12_000).unref();
+  }, 30_000).unref();
   const origPrepare = db.prepare.bind(db);
   const origExec = db.exec.bind(db);
   db.prepare = (sql) => {
