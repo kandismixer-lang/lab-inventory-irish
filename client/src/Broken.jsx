@@ -73,8 +73,8 @@ export default function Broken({ me, go }) {
       </div>
       {isAdmin && (
         <div className="movebtns" style={{ marginBottom: 10 }}>
-          <button className="btn small info" onClick={() => go && go('items')}>
-            🔧 จะแจ้งพัง/หาย? ไปหน้า Stock → Stock Check ของชิ้นนั้น → แจ้งพัง/แจ้งหาย
+          <button className="btn small danger" onClick={() => go && go('items')}>
+            🔧 แจ้งพัง/หาย
           </button>
         </div>
       )}
