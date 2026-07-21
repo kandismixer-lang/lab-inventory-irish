@@ -81,24 +81,21 @@ export default function Dashboard({ go, me }) {
         <div className="card stat"><div className="num col-remain">{d.totals.remain}</div><div className="lbl">คงเหลือในคลัง</div></div>
       </div>
 
-      {d.overdue && d.overdue.length > 0 && (() => {
-        const late = d.overdue.filter((r) => r.days_over > 0).length;
+      {(() => {
+        const late = (d.overdue || []).filter((r) => r.days_over > 0);
+        if (late.length === 0) return null;
         return (
           <>
-            <div className="section-title">📅 กำหนดคืน ({d.overdue.length}{late ? ` · เกิน ${late}` : ''})</div>
+            <div className="section-title">⏰ เกินกำหนดคืน ({late.length})</div>
             <Table
-              headers={['รายการ', 'ผู้ยืม', 'กำหนดคืน', 'สถานะ']}
-              rows={d.overdue.map((r) => ({
+              headers={['รายการ', 'ผู้ยืม', 'กำหนดคืน', 'เกินมา']}
+              rows={late.map((r) => ({
                 key: r.id,
                 cells: [
                   <span>{r.item_name} <span className="muted">×{r.qty}</span></span>,
                   r.who || r.requester_fullname || r.requester_name || '-',
-                  <span className={r.days_over > 0 ? 'col-out' : 'col-remain'}>{r.due_date}</span>,
-                  r.days_over > 0
-                    ? <span className="badge low">เกิน {r.days_over} วัน</span>
-                    : r.days_over === 0
-                      ? <span className="badge" style={{ background: 'rgba(250,204,21,.15)', color: '#facc15' }}>ครบวันนี้</span>
-                      : <span className="muted">เหลือ {-r.days_over} วัน</span>,
+                  <span className="col-out">{r.due_date}</span>,
+                  <span className="badge low">เกิน {r.days_over} วัน</span>,
                 ],
               }))}
             />
