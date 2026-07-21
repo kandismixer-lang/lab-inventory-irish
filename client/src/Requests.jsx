@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { api, REQ_STATUS, fileToScaledDataURL } from './api.js';
+import React, { useEffect, useState } from 'react';
+import { api, REQ_STATUS } from './api.js';
 import { Modal, useToast, useConfirm } from './components.jsx';
 
 const ADMIN_TABS = [
@@ -222,13 +222,6 @@ function RequestCard({ r, me, onDone }) {
         </div>
       </div>
 
-      {(r.image_handover || r.image_receive) && (
-        <div className="req-imgs">
-          {r.image_handover && <ImgThumb src={r.image_handover} label="ส่งมอบ" />}
-          {r.image_receive && <ImgThumb src={r.image_receive} label="รับ" />}
-        </div>
-      )}
-
       <div className="req-actions">
         {/* Admin: อนุมัติคำขอ pending */}
         {isAdmin && r.status === 'pending' && (
@@ -272,23 +265,6 @@ function RequestCard({ r, me, onDone }) {
   );
 }
 
-function ImgThumb({ src, label }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <>
-      <figure className="thumb" onClick={() => setOpen(true)}>
-        <img src={src} alt={label} />
-        <figcaption>{label}</figcaption>
-      </figure>
-      {open && (
-        <div className="modal" onClick={() => setOpen(false)}>
-          <img className="img-full" src={src} alt={label} />
-        </div>
-      )}
-    </>
-  );
-}
-
 function RejectModal({ onClose, onSubmit, title }) {
   return (
     <Modal title={title || 'ปฏิเสธคำขอ'} onClose={onClose}>
@@ -300,31 +276,3 @@ function RejectModal({ onClose, onSubmit, title }) {
   );
 }
 
-// ถ่าย/เลือกรูป แล้วส่ง
-function ImageModal({ title, note, onClose, onSubmit }) {
-  const [img, setImg] = useState(null);
-  const [busy, setBusy] = useState(false);
-  const fileRef = useRef();
-
-  const pick = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setBusy(true);
-    try { setImg(await fileToScaledDataURL(file)); } finally { setBusy(false); }
-  };
-
-  return (
-    <Modal title={title} onClose={onClose}>
-      <p className="muted">{note}</p>
-      <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={pick} style={{ display: 'none' }} />
-      <button className="btn info" type="button" onClick={() => fileRef.current.click()} style={{ width: '100%' }}>
-        📷 {img ? 'เปลี่ยนรูป' : 'ถ่าย / เลือกรูป'}
-      </button>
-      {busy && <p className="muted">กำลังประมวลผลรูป…</p>}
-      {img && <img className="img-preview" src={img} alt="preview" />}
-      <button className="btn primary" type="button" onClick={() => onSubmit(img)} style={{ marginTop: 12, width: '100%' }}>
-        ยืนยัน{img ? ' (พร้อมรูป)' : ' (ไม่แนบรูป)'}
-      </button>
-    </Modal>
-  );
-}

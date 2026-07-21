@@ -59,12 +59,6 @@ function requireAdmin(req, res, next) {
     return res.status(403).json({ error: 'ต้องเป็น admin เท่านั้น' });
   next();
 }
-// ⚠️ จัดการคลัง (ของ/หน่วย/ที่เก็บ) — เปิดให้ guest ทำได้เท่า admin ตามที่ตั้งค่าไว้
-// (คำขอ/ผู้ใช้ ยังต้อง login) — ถ้าจะปิดให้ guest แก้ไม่ได้ เปลี่ยนเป็น requireAdmin
-function requireManage(req, res, next) {
-  if (req.user.role === 'admin' || req.user.role === 'guest') return next();
-  return res.status(403).json({ error: 'ไม่มีสิทธิ์จัดการคลัง' });
-}
 
 // หมวดหมู่ → พฤติกรรม (tool = ยืม-คืน, consumable = เบิกหมด)
 const CATEGORY_TYPE = {
@@ -716,62 +710,6 @@ app.post('/api/requests/:id/reject', requireAuth, requireAdmin, (req, res) => {
   db.prepare(
     "UPDATE requests SET status='rejected', approver_id=?, reject_reason=?, closed_at=datetime('now','localtime') WHERE id=?"
   ).run(req.user.id, (req.body?.reason || '').trim(), r.id);
-  res.json({ ok: true });
-});
-
-// Admin: ส่งมอบ (ตัดของออกจากคลัง + แนบรูปได้)
-app.post('/api/requests/:id/handover', requireAuth, requireAdmin, (req, res) => {
-  const r = getReq(req.params.id);
-  if (!r || r.status !== 'approved') return res.status(400).json({ error: 'คำขอนี้ส่งมอบไม่ได้' });
-  const item = db.prepare('SELECT * FROM items WHERE id = ?').get(r.item_id);
-  const img = saveImage(req.body?.image, `req-${r.id}-handover`);
-  const requester = db.prepare('SELECT * FROM users WHERE id = ?').get(r.requester_id);
-  const who = requester.fullname || requester.username;
-
-  try {
-    db.tx(() => {
-      if (item.tracked) {
-        const ids = reqUnitIds(r);
-        if (ids.length !== r.qty) throw new Error('จำนวนหน่วยที่จองไว้ไม่ครบตามคำขอ');
-        for (const uid of ids) {
-          const unit = db.prepare("SELECT * FROM units WHERE id=? AND status='available'").get(uid);
-          if (!unit) throw new Error('มีหน่วยที่เลือกไม่ว่างแล้ว');
-          db.prepare("UPDATE units SET status='borrowed', holder=? WHERE id=?").run(who, unit.id);
-          db.prepare(
-            `INSERT INTO transactions (item_id, unit_id, user_id, kind, qty, delta, person, note)
-             VALUES (?,?,?, 'borrow', 1, -1, ?, ?)`
-          ).run(item.id, unit.id, req.user.id, who, `ส่งมอบตามคำขอ #${r.id}: ${unit.code}`);
-        }
-        db.recalcTracked(item.id);
-      } else {
-        if (item.qty < r.qty) throw new Error(`คงเหลือไม่พอ (มี ${item.qty})`);
-        const delta = -r.qty;
-        db.prepare('UPDATE items SET qty = qty + ? WHERE id = ?').run(delta, item.id);
-        db.prepare(
-          `INSERT INTO transactions (item_id, user_id, kind, qty, delta, person, note)
-           VALUES (?,?,?,?,?,?,?)`
-        ).run(item.id, req.user.id, r.kind, r.qty, delta, who, `ส่งมอบตามคำขอ #${r.id}`);
-      }
-      db.prepare(
-        "UPDATE requests SET status='handed', image_handover=?, handed_at=datetime('now','localtime') WHERE id=?"
-      ).run(img, r.id);
-    });
-    res.json({ ok: true });
-  } catch (e) {
-    res.status(400).json({ error: e.message });
-  }
-});
-
-// Staff: ยืนยันรับ (เจ้าของคำขอเท่านั้น + แนบรูปได้)
-app.post('/api/requests/:id/receive', requireAuth, requireUser, (req, res) => {
-  const r = getReq(req.params.id);
-  if (!r || r.status !== 'handed') return res.status(400).json({ error: 'คำขอนี้ยืนยันรับไม่ได้' });
-  if (r.requester_id !== req.user.id && req.user.role !== 'admin')
-    return res.status(403).json({ error: 'ยืนยันได้เฉพาะผู้ขอ' });
-  const img = saveImage(req.body?.image, `req-${r.id}-receive`);
-  db.prepare(
-    "UPDATE requests SET status='received', image_receive=?, received_at=datetime('now','localtime') WHERE id=?"
-  ).run(img, r.id);
   res.json({ ok: true });
 });
 

@@ -46,8 +46,6 @@ function CartModal({ cart, setCart, person, onClose }) {
   const toast = useToast();
   const confirm = useConfirm();
   const [note, setNote] = useState('');
-  const [err, setErr] = useState('');
-  const [busy, setBusy] = useState(false);
   const setQty = (id, q) => setCart((p) => p.map((c) => c.item.id === id
     ? { ...c, qty: Math.max(1, Math.min(c.item.qty, parseInt(q, 10) || 1)) } : c));
   const remove = async (c) => {
@@ -99,9 +97,8 @@ function CartModal({ cart, setCart, person, onClose }) {
         </>
       )}
       <label style={{ marginTop: 10 }}>หมายเหตุออเดอร์ (ไม่บังคับ)<input value={note} onChange={(e) => setNote(e.target.value)} placeholder="เช่น งานแข่ง..." /></label>
-      <div className="err">{err}</div>
-      <button className="btn primary" disabled={cart.length === 0 || busy} onClick={submit} style={{ marginTop: 12, width: '100%' }}>
-        {busy ? 'กำลังส่ง…' : `ยืนยันยืมทั้งหมด (${cart.length} รายการ)`}
+      <button className="btn primary" disabled={cart.length === 0} onClick={submit} style={{ marginTop: 12, width: '100%' }}>
+        ยืนยันยืมทั้งหมด ({cart.length} รายการ)
       </button>
     </Modal>
   );

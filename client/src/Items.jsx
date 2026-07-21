@@ -473,7 +473,6 @@ function MoveForm({ item, me, onClose, onDone }) {
   const isTool = item.type === 'tool';
   // tool = ตั้งต้นที่ "ยืม" (first choice), consumable = "เบิก"
   const [kind, setKind] = useState(isTool ? 'borrow' : 'issue');
-  const [err, setErr] = useState('');
 
   // ยืม/เบิก มาก่อน แล้วค่อย คืน/รับเข้า/ปรับยอด
   const kinds = [...(isTool ? ['borrow', 'return'] : ['issue']), 'add', ...(me.role === 'admin' ? ['adjust'] : [])];
@@ -496,7 +495,7 @@ function MoveForm({ item, me, onClose, onDone }) {
       <div className="muted" style={{ marginBottom: 6 }}>{item.name} — คงเหลือ <strong>{item.qty} {item.unit}</strong></div>
       <div className="movebtns">
         {kinds.map((k) => (
-          <button key={k} className={`btn k-${k}` + (k === kind ? ' active' : '')} onClick={() => { setKind(k); setErr(''); }}>
+          <button key={k} className={`btn k-${k}` + (k === kind ? ' active' : '')} onClick={() => setKind(k)}>
             {KIND_LABEL[k]}{k === 'add' || k === 'return' ? ' (+)' : k === 'adjust' ? '' : ' (−)'}
           </button>
         ))}
@@ -511,7 +510,6 @@ function MoveForm({ item, me, onClose, onDone }) {
           <label>{kind === 'return' ? 'คืนโดย' : 'ผู้เบิก/ยืม'}<input name="person" defaultValue={me.fullname || me.username} /></label>
         )}
         <label>หมายเหตุ<input name="note" /></label>
-        <div className="err">{err}</div>
         <button className={`btn k-${kind} active`} type="submit" style={{ marginTop: 12, width: '100%' }}>ยืนยัน — {KIND_LABEL[kind]}</button>
       </form>
     </Modal>
