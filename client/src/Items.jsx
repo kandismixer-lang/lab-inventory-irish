@@ -21,14 +21,14 @@ export default function Items({ me, focusItem, onFocused }) {
   const shown = cat ? items.filter((i) => catLabel(i) === cat) : items;
   const expandedItem = items.find((x) => x.id === expanded) || null;
   const { addToCart } = useCart();
-  const onAddToCart = (item, qty, note, person) => { addToCart(item, qty, note, person); setRequesting(null); };
+  const onAddToCart = (item, qty, note, person, due) => { addToCart(item, qty, note, person, due); setRequesting(null); };
   // ยืมเลย — optimistic: ปิด+เด้ง toast ทันที ยิง API เบื้องหลัง
-  const onBorrowNow = (item, qty, note, person) => {
+  const onBorrowNow = (item, qty, note, person, due) => {
     setRequesting(null);
     toast('ส่งคำขอแล้ว — รอแอดมินอนุมัติ');
     api('/api/orders', {
       method: 'POST',
-      body: { person: person || me.fullname || me.username, items: [{ item_id: item.id, qty, note }] },
+      body: { person: person || me.fullname || me.username, items: [{ item_id: item.id, qty, note, due_date: due }] },
     }).then(load).catch((e) => { toast('ส่งคำขอไม่สำเร็จ: ' + e.message); load(); });
   };
   const timer = useRef();
@@ -104,6 +104,7 @@ export default function Items({ me, focusItem, onFocused }) {
                   <td>
                     <strong>{i.name}</strong>
                     <span className={'badge ' + i.type} style={{ marginLeft: 8 }}>{catLabel(i)}</span>
+                    <span className="hint">📍 {i.location || 'ไม่ระบุที่เก็บ'}</span>
                     {i.tracked ? <span className="hint">📇 track รายตัว</span> : null}
                     {i.image ? <img className="item-thumb" src={i.image} alt={i.name} onClick={(e) => { e.stopPropagation(); setDetail(i); }} /> : null}
                     {/* ปุ่มทั้งหมดรวมอยู่ในช่องรายการ — ประหยัดคอลัมน์บนมือถือ */}
@@ -189,21 +190,22 @@ export function RequestForm({ item, defaultPerson, onClose, onAdd, onNow }) {
   const [busy, setBusy] = useState(false);
   const read = (form) => {
     const b = Object.fromEntries(new FormData(form));
-    return [Math.max(1, parseInt(b.qty, 10) || 1), (b.note || '').trim(), (b.person || '').trim()];
+    return [Math.max(1, parseInt(b.qty, 10) || 1), (b.note || '').trim(), (b.person || '').trim(), b.due_date || ''];
   };
   const submit = (e) => {
     e.preventDefault();
-    const [qty, note, person] = read(e.target);
-    onAdd(item, qty, note, person);
+    const [qty, note, person, due] = read(e.target);
+    onAdd(item, qty, note, person, due);
   };
   // ยืมเลย — ส่งคำขอทันที ไม่ผ่านตะกร้า (สำหรับยืมรายการเดียว)
   const submitNow = async (e) => {
     const form = e.target.closest('form');
     if (!form.reportValidity()) return;
-    const [qty, note, person] = read(form);
+    const [qty, note, person, due] = read(form);
     setBusy(true);
-    try { await onNow(item, qty, note, person); } finally { setBusy(false); }
+    try { await onNow(item, qty, note, person, due); } finally { setBusy(false); }
   };
+  const isTool = item.type !== 'consumable';
   return (
     <Modal title={(item.type === 'consumable' ? 'ขอเบิก' : 'ขอยืม') + ' — ' + item.name} onClose={onClose}>
       <div className="muted" style={{ marginBottom: 8 }}>
@@ -217,6 +219,7 @@ export function RequestForm({ item, defaultPerson, onClose, onAdd, onNow }) {
           <input name="qty" type="number" min="1" max={item.qty} defaultValue="1" required />
         </label>
         {!!item.tracked && <div className="hint">ของ track รายตัว — Admin จะเลือกหน่วยจริงให้ครบตามจำนวนตอนอนุมัติ</div>}
+        {isTool && <label>คืนภายใน (ไม่บังคับ)<input name="due_date" type="date" /></label>}
         <label>เหตุผล/รายละเอียด (ไม่บังคับ)<input name="note" placeholder="เช่น ใช้ทำโปรเจกต์ ..." /></label>
         <button className="btn primary" type="button" disabled={busy} onClick={submitNow} style={{ marginTop: 14, width: '100%' }}>
           {busy ? 'กำลังส่ง…' : `🚀 ยืมเลย — ส่งคำขอทันที`}

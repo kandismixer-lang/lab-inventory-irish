@@ -35,7 +35,7 @@ function Codes({ list, cls, label, onFix }) {
   );
 }
 
-export default function Broken({ me }) {
+export default function Broken({ me, go }) {
   const [rows, setRows] = useState(null);
   const [f, setF] = useState('');
   const [q, setQ] = useState('');
@@ -69,8 +69,15 @@ export default function Broken({ me }) {
     <>
       <div className="section-title">🛠️ ของพัง / หาย</div>
       <div className="hint" style={{ marginBottom: 8 }}>
-        หน่วยที่ตัดออกจากคลังแล้ว — ไม่นับรวมใน "มีทั้งหมด" · ซ่อมเสร็จ/กู้คืนได้ที่ Stock Check หน้ารายการของ
+        หน่วยที่ตัดออกจากคลังแล้ว — ไม่นับรวมใน "มีทั้งหมด"
       </div>
+      {isAdmin && (
+        <div className="movebtns" style={{ marginBottom: 10 }}>
+          <button className="btn small info" onClick={() => go && go('items')}>
+            🔧 จะแจ้งพัง/หาย? ไปหน้า Stock → Stock Check ของชิ้นนั้น → แจ้งพัง/แจ้งหาย
+          </button>
+        </div>
+      )}
 
       <div className="stock-summary">
         <span>ทั้งหมด <b>{rows.length}</b></span>

@@ -13,12 +13,12 @@ export function CartProvider({ children, person }) {
   const [open, setOpen] = useState(false);
   const toast = useToast();
 
-  const addToCart = (item, qty, note, who) => {
+  const addToCart = (item, qty, note, who, due) => {
     setCart((p) => {
       const ex = p.find((c) => c.item.id === item.id);
       if (ex) return p.map((c) => c.item.id === item.id
-        ? { ...c, qty: Math.min(item.qty, c.qty + qty), note: note || c.note, who: who || c.who } : c);
-      return [...p, { item, qty, note, who }];
+        ? { ...c, qty: Math.min(item.qty, c.qty + qty), note: note || c.note, who: who || c.who, due: due || c.due } : c);
+      return [...p, { item, qty, note, who, due }];
     });
     toast('เพิ่มลงตะกร้าแล้ว');
   };
@@ -62,7 +62,7 @@ function CartModal({ cart, setCart, person, onClose }) {
     if (cart.length === 0) return;
     const who = cart.find((c) => c.who && c.who.trim())?.who?.trim() || person;
     const snapshot = cart; // เก็บไว้เผื่อต้อง restore
-    const body = { note, person: who, items: cart.map((c) => ({ item_id: c.item.id, qty: c.qty, note: c.note })) };
+    const body = { note, person: who, items: cart.map((c) => ({ item_id: c.item.id, qty: c.qty, note: c.note, due_date: c.due || '' })) };
     setCart([]);
     onClose();
     toast(`ส่งคำขอแล้ว ${snapshot.length} รายการ — รอแอดมินอนุมัติ`);
@@ -87,6 +87,7 @@ function CartModal({ cart, setCart, person, onClose }) {
                   <strong>{c.item.name}</strong>
                   <span className="badge">{label(c.item)}</span>
                   {c.who ? <span className="hint">👤 {c.who}</span> : null}
+                  {c.due ? <span className="hint">📅 คืน {c.due}</span> : null}
                   {c.note ? <span className="hint">📝 {c.note}</span> : null}
                 </div>
                 <input type="number" min="1" max={c.item.qty} value={c.qty} onChange={(e) => setQty(c.item.id, e.target.value)} style={{ width: 66 }} />

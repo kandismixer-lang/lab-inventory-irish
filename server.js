@@ -565,7 +565,8 @@ app.post('/api/orders', requireAuth, (req, res) => {
     const item = db.prepare('SELECT * FROM items WHERE id = ? AND active = 1').get(it.item_id);
     if (!item) return res.status(404).json({ error: `ไม่พบรายการของ (id ${it.item_id})` });
     const n = Math.max(1, parseInt(it.qty, 10) || 1);
-    lines.push({ item, qty: n, note: (it.note || '').trim(), kind: item.type === 'consumable' ? 'issue' : 'borrow' });
+    const due = /^\d{4}-\d{2}-\d{2}$/.test(it.due_date || '') ? it.due_date : '';
+    lines.push({ item, qty: n, note: (it.note || '').trim(), due, kind: item.type === 'consumable' ? 'issue' : 'borrow' });
   }
   const gkey = guestKey(req);
   const orderId = db.tx(() => {
@@ -573,10 +574,10 @@ app.post('/api/orders', requireAuth, (req, res) => {
       .run(req.user.id, (note || '').trim(), who);
     const oid = Number(oi.lastInsertRowid);
     const ins = db.prepare(
-      `INSERT INTO requests (item_id, requester_id, kind, qty, note, status, order_id, person, guest_key)
-       VALUES (?,?,?,?,?, 'pending', ?, ?, ?)`
+      `INSERT INTO requests (item_id, requester_id, kind, qty, note, status, order_id, person, guest_key, due_date)
+       VALUES (?,?,?,?,?, 'pending', ?, ?, ?, ?)`
     );
-    lines.forEach((l) => ins.run(l.item.id, req.user.id, l.kind, l.qty, l.note, oid, who, gkey));
+    lines.forEach((l) => ins.run(l.item.id, req.user.id, l.kind, l.qty, l.note, oid, who, gkey, l.due));
     return oid;
   });
   res.json({ id: orderId, lines: lines.length });
@@ -814,7 +815,20 @@ app.get('/api/dashboard', requireAuth, (req, res) => {
     out: all.reduce((s, i) => s + i.out_qty, 0),       // ถูกยืม/ถูกใช้
     remain: all.reduce((s, i) => s + i.qty, 0),        // คงเหลือในคลัง
   };
-  res.json({ lowStock, borrowedOut, unitsOut, recent, totals });
+  // เกินกำหนดคืน — คำขอที่ยังยืมอยู่ (received) มีวันคืน และเลยวันนี้แล้ว
+  const overdue = db
+    .prepare(
+      `SELECT r.id, r.qty, r.due_date, r.person, i.name AS item_name, i.unit,
+              r.person AS who, req.fullname AS requester_fullname, req.username AS requester_name,
+              CAST(julianday('now','localtime') - julianday(r.due_date) AS INTEGER) AS days_over
+       FROM requests r
+       JOIN items i ON i.id = r.item_id
+       JOIN users req ON req.id = r.requester_id
+       WHERE r.status='received' AND r.due_date != '' AND date(r.due_date) < date('now','localtime')
+       ORDER BY r.due_date`
+    )
+    .all();
+  res.json({ lowStock, borrowedOut, unitsOut, recent, totals, overdue });
 });
 
 // ---------- log รวม ----------

@@ -63,6 +63,9 @@ export default function Requests({ me }) {
   );
 }
 
+// วันนี้ (YYYY-MM-DD) สำหรับเทียบเกินกำหนด
+const today = () => new Date().toLocaleDateString('sv-SE');
+
 // จัดกลุ่มคำขอตาม order_id (คงลำดับตามที่ backend ส่งมา, ใหม่สุดก่อน)
 function groupByOrder(rows) {
   const out = [];
@@ -217,6 +220,11 @@ function RequestCard({ r, me, onDone }) {
           <span>👤 {r.person || r.requester_fullname || r.requester_name}</span>
           <span className="hint">🕑 {r.created_at}</span>
           {r.approver_name && <span className="hint">✔ โดย {r.approver_name}</span>}
+          {r.due_date && (
+            <span className={r.status === 'received' && r.due_date < today() ? 'col-out' : 'hint'}>
+              📅 คืน {r.due_date}{r.status === 'received' && r.due_date < today() ? ' — เกินกำหนด!' : ''}
+            </span>
+          )}
           {r.note && <span className="muted">📝 {r.note}</span>}
           {r.reject_reason && <span className="col-out">เหตุผล: {r.reject_reason}</span>}
         </div>

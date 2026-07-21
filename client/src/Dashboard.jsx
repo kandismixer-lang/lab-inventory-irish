@@ -51,12 +51,20 @@ export function TxTable({ rows, pageSize = 0 }) {
   );
 }
 
-export default function Dashboard({ go }) {
+export default function Dashboard({ go, me }) {
   const [d, setD] = useState(null);
   const [cat, setCat] = useState('');
   const [q, setQ] = useState('');
   useEffect(() => { api('/api/dashboard').then(setD); }, []);
   if (!d) return <p className="muted">กำลังโหลด...</p>;
+
+  // ของที่ "ฉัน" ยืมอยู่ — เทียบชื่อผู้ยืมกับชื่อผู้ใช้/ชื่อที่ตั้งไว้
+  const myName = (me?.fullname || me?.username || '').trim().toLowerCase();
+  const hasName = myName && myName !== 'guest' && myName !== 'ผู้เยี่ยมชม';
+  const mine = [];
+  if (hasName) d.borrowedOut.forEach((i) => (i.borrowers || []).forEach((b) => {
+    if ((b.person || '').trim().toLowerCase() === myName) mine.push({ name: i.name, code: b.label, id: i.id });
+  }));
 
   // ยืม/ใช้จนไม่เหลือในคลัง (แต่ยังมีของในระบบ) — เตือนแยกจากของสิ้นเปลืองใกล้หมด
   const outOfStock = d.borrowedOut.filter((i) => i.qty <= 0 && i.total_qty > 0);
@@ -72,6 +80,38 @@ export default function Dashboard({ go }) {
         <div className="card stat"><div className="num col-out">{d.totals.out}</div><div className="lbl">ถูกยืม / ถูกใช้</div></div>
         <div className="card stat"><div className="num col-remain">{d.totals.remain}</div><div className="lbl">คงเหลือในคลัง</div></div>
       </div>
+
+      {d.overdue && d.overdue.length > 0 && (
+        <>
+          <div className="section-title">⏰ เกินกำหนดคืน ({d.overdue.length})</div>
+          <Table
+            headers={['รายการ', 'ผู้ยืม', 'กำหนดคืน', 'เกินมา']}
+            rows={d.overdue.map((r) => ({
+              key: r.id,
+              cells: [
+                <span>{r.item_name} <span className="muted">×{r.qty}</span></span>,
+                r.who || r.requester_fullname || r.requester_name || '-',
+                <span className="col-out">{r.due_date}</span>,
+                <span className="badge low">{r.days_over} วัน</span>,
+              ],
+            }))}
+          />
+        </>
+      )}
+
+      {mine.length > 0 && (
+        <>
+          <div className="section-title">🙋 ของที่คุณยืมอยู่ ({mine.length})</div>
+          <Table
+            headers={['รายการ', 'รหัส']}
+            rows={mine.map((m, i) => ({
+              key: i,
+              onClick: () => go && go('items', { itemId: m.id }),
+              cells: [m.name, m.code ? <span className="code-chip">{m.code}</span> : <span className="muted">—</span>],
+            }))}
+          />
+        </>
+      )}
 
       {d.lowStock.length > 0 && (
         <>
