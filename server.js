@@ -815,16 +815,17 @@ app.get('/api/dashboard', requireAuth, (req, res) => {
     out: all.reduce((s, i) => s + i.out_qty, 0),       // ถูกยืม/ถูกใช้
     remain: all.reduce((s, i) => s + i.qty, 0),        // คงเหลือในคลัง
   };
-  // เกินกำหนดคืน — คำขอที่ยังยืมอยู่ (received) มีวันคืน และเลยวันนี้แล้ว
+  // กำหนดคืน — คำขอที่ยังยืมอยู่ (received) และมีวันคืน (โชว์ทั้งที่ยังไม่ถึง+เกินแล้ว)
+  // days_over > 0 = เกินมาแล้ว, = 0 คือครบวันนี้, < 0 คือเหลืออีกกี่วัน
   const overdue = db
     .prepare(
       `SELECT r.id, r.qty, r.due_date, r.person, i.name AS item_name, i.unit,
               r.person AS who, req.fullname AS requester_fullname, req.username AS requester_name,
-              CAST(julianday('now','localtime') - julianday(r.due_date) AS INTEGER) AS days_over
+              CAST(julianday('now','localtime','start of day') - julianday(r.due_date) AS INTEGER) AS days_over
        FROM requests r
        JOIN items i ON i.id = r.item_id
        JOIN users req ON req.id = r.requester_id
-       WHERE r.status='received' AND r.due_date != '' AND date(r.due_date) < date('now','localtime')
+       WHERE r.status='received' AND r.due_date != ''
        ORDER BY r.due_date`
     )
     .all();
