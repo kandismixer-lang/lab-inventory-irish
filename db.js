@@ -23,15 +23,16 @@ if (TURSO_URL) {
   }
 
   // ---------- auto-sync: ดันการเขียนขึ้น Turso primary (durable ข้าม redeploy) ----------
-  // debounce 800ms หลังเขียนล่าสุด = รวมหลาย write เป็น sync เดียว (ประหยัด quota)
-  let syncTimer = null;
-  const scheduleSync = () => {
-    if (syncTimer) return;
-    syncTimer = setTimeout(() => {
-      syncTimer = null;
-      try { db.sync(); } catch (e) { console.error('Turso auto-sync ล้มเหลว:', e.message); }
-    }, 800);
-  };
+  // db.sync() บล็อก event loop ระหว่างคุยกับ Turso (แลตเวนซีสูง) — ถ้าเรียกทันทีหลังเขียน
+  // มันจะไปค้างตอนหน้าเว็บ reload พอดี ทำให้ผู้ใช้รู้สึกดีเลย์
+  // แก้: ตั้งธง dirty แล้ว sync เป็นรอบทุก 12 วิ (หลุดจากจังหวะที่ผู้ใช้กด) เขียนยังไว 100%
+  let dirty = false;
+  const scheduleSync = () => { dirty = true; };
+  setInterval(() => {
+    if (!dirty) return;
+    dirty = false;
+    try { db.sync(); } catch (e) { dirty = true; console.error('Turso auto-sync ล้มเหลว:', e.message); }
+  }, 12_000).unref();
   const origPrepare = db.prepare.bind(db);
   const origExec = db.exec.bind(db);
   db.prepare = (sql) => {
