@@ -219,9 +219,11 @@ export function RequestForm({ item, defaultPerson, onClose, onAdd, onNow }) {
         {!!item.tracked && <div className="hint">ของ track รายตัว — Admin จะเลือกหน่วยจริงให้ครบตามจำนวนตอนอนุมัติ</div>}
         <label>เหตุผล/รายละเอียด (ไม่บังคับ)<input name="note" placeholder="เช่น ใช้ทำโปรเจกต์ ..." /></label>
         <button className="btn primary" type="button" disabled={busy} onClick={submitNow} style={{ marginTop: 14, width: '100%' }}>
-          {busy ? 'กำลังส่ง…' : `🚀 ยืมเลย (${item.type === 'consumable' ? 'ขอเบิก' : 'ขอยืม'} รายการนี้อย่างเดียว)`}
+          {busy ? 'กำลังส่ง…' : `🚀 ยืมเลย — ส่งคำขอทันที`}
         </button>
-        <button className="btn" type="submit" disabled={busy} style={{ marginTop: 8, width: '100%' }}>🛒 เพิ่มลงตะกร้า (ขอหลายรายการ)</button>
+        <div className="hint" style={{ margin: '4px 0 0', textAlign: 'center' }}>ขอแค่ของนี้อย่างเดียว จบเลย</div>
+        <button className="btn" type="submit" disabled={busy} style={{ marginTop: 10, width: '100%' }}>🛒 ใส่ตะกร้า — ขอของอื่นเพิ่ม</button>
+        <div className="hint" style={{ margin: '4px 0 0', textAlign: 'center' }}>ยังไม่ส่ง เก็บไว้ขอหลายอย่างพร้อมกันในออเดอร์เดียว</div>
       </form>
     </Modal>
   );
@@ -533,6 +535,7 @@ function UnitsPanel({ item, me, onChanged, onClose, onRequest }) {
   const [q, setQ] = useState('');
   const [units, setUnits] = useState([]);
   const [err, setErr] = useState('');
+  const [busyU, setBusyU] = useState(() => new Set()); // หน่วยที่กำลังรอ API — กันกดซ้ำ
 
   const load = () => api(`/api/items/${item.id}/units`).then(setUnits);
   useEffect(() => { load(); }, []);
@@ -540,6 +543,7 @@ function UnitsPanel({ item, me, onChanged, onClose, onRequest }) {
   // optimistic: อัปเดตสถานะหน่วยในจอทันที แล้วยิง API + reconcile
   const NEXT = { borrow: 'borrowed', return: 'available', repair: 'repair', lost: 'lost', ready: 'available' };
   const act = async (unit, action) => {
+    if (busyU.has(unit.id)) return; // กำลังรอ API ของหน่วยนี้อยู่ — กันกดซ้ำ
     setErr('');
     let person;
     if (action === 'borrow') {
@@ -550,11 +554,13 @@ function UnitsPanel({ item, me, onChanged, onClose, onRequest }) {
     if (ns) setUnits((us) => us.map((u) => u.id === unit.id
       ? { ...u, status: ns, holder: action === 'borrow' ? person : (action === 'return' || action === 'ready' ? '' : u.holder) }
       : u));
+    setBusyU((s) => new Set(s).add(unit.id));
     toast(`${unit.code}: ${KIND_LABEL[action]}`);
     onChanged();
+    const done = () => setBusyU((s) => { const n = new Set(s); n.delete(unit.id); return n; });
     api(`/api/units/${unit.id}/move`, { method: 'POST', body: { action, person } })
-      .then(load)
-      .catch((e) => { setErr(e.message); load(); });
+      .then(() => { load(); done(); })
+      .catch((e) => { setErr(e.message); load(); done(); });
   };
 
   const del = async (unit) => {
@@ -634,9 +640,9 @@ function UnitsPanel({ item, me, onChanged, onClose, onRequest }) {
                         {isAdmin && (
                           <span className="acts">
                             {(UNIT_BTNS[u.status] || []).map(([a, label]) => (
-                              <button key={a} className={`btn small u-${a}`} onClick={() => act(u, a)}>{label}</button>
+                              <button key={a} className={`btn small u-${a}`} disabled={busyU.has(u.id)} onClick={() => act(u, a)}>{label}</button>
                             ))}
-                            <button className="btn small danger" onClick={() => del(u)}>ลบ</button>
+                            <button className="btn small danger" disabled={busyU.has(u.id)} onClick={() => del(u)}>ลบ</button>
                           </span>
                         )}
                       </div>

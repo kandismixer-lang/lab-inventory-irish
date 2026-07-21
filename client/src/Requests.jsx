@@ -89,7 +89,9 @@ function OrderCard({ lines, me, onDone }) {
     .map(([s, n]) => `${(REQ_STATUS[s] || { label: s }).label} ${n}`).join(' · ');
   // รายการที่ยังปฏิเสธได้ (pending/approved)
   const rejectable = lines.filter((l) => ['pending', 'approved'].includes(l.status));
+  const approvable = lines.filter((l) => l.status === 'pending');
   const isAdmin = me.role === 'admin';
+  const [approving, setApproving] = useState(false);
 
   const rejectAll = async (reason) => {
     try {
@@ -99,6 +101,31 @@ function OrderCard({ lines, me, onDone }) {
       setRejecting(false);
       onDone();
     } catch (e) { toast(e.message); }
+  };
+
+  // อนุมัติทั้งออเดอร์ — ของ track จัดหน่วยว่างให้อัตโนมัติ, ของเบิก/ไม่ track อนุมัติตรง
+  const approveAll = async () => {
+    setApproving(true);
+    const used = {}; // item_id -> Set(unit_id) กันหยิบหน่วยซ้ำข้ามรายการ
+    let ok = 0, skip = 0;
+    for (const l of approvable) {
+      try {
+        let body = {};
+        if (l.tracked) {
+          const us = await api(`/api/items/${l.item_id}/units`);
+          const set = used[l.item_id] || (used[l.item_id] = new Set());
+          const free = us.filter((u) => u.status === 'available' && !set.has(u.id)).slice(0, l.qty);
+          if (free.length < l.qty) { skip++; continue; } // หน่วยว่างไม่พอ ข้ามไว้ค้าง pending
+          free.forEach((u) => set.add(u.id));
+          body = { unit_ids: free.map((u) => u.id) };
+        }
+        await api(`/api/requests/${l.id}/approve`, { method: 'POST', body });
+        ok++;
+      } catch { skip++; }
+    }
+    setApproving(false);
+    onDone();
+    toast(skip ? `อนุมัติ ${ok} รายการ · ข้าม ${skip} (หน่วยไม่พอ/ผิดพลาด)` : `อนุมัติครบ ${ok} รายการ`);
   };
 
   return (
@@ -116,6 +143,11 @@ function OrderCard({ lines, me, onDone }) {
           </div>
         </div>
         <div className="req-actions" onClick={(e) => e.stopPropagation()}>
+          {isAdmin && approvable.length > 0 && (
+            <button className="btn small primary" disabled={approving} onClick={approveAll}>
+              {approving ? 'กำลังอนุมัติ…' : `✓ อนุมัติทั้งออเดอร์ (${approvable.length})`}
+            </button>
+          )}
           {isAdmin && rejectable.length > 0 && (
             <button className="btn small danger" onClick={() => setRejecting(true)}>ปฏิเสธทั้งออเดอร์ ({rejectable.length})</button>
           )}

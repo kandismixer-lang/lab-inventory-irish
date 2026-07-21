@@ -8,6 +8,7 @@ const db = require('./db');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+app.set('trust proxy', 1); // อยู่หลัง proxy ของ Render — ให้ req.ip อ่าน X-Forwarded-For ที่ proxy ใส่ (กันปลอม)
 app.use(express.json({ limit: '12mb' })); // เผื่อรูปหลักฐาน (data URL)
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -84,11 +85,24 @@ function resolveCategory(category, fallbackType) {
 }
 
 // ---------- auth ----------
+// กัน brute-force รหัสผ่าน (เว็บ public) — จำกัดครั้งที่ผิดต่อ IP
+const _loginFails = new Map(); // ip -> { count, until }
+const LOGIN_MAX_FAILS = 8, LOGIN_LOCK_MS = 5 * 60_000;
 app.post('/api/login', (req, res) => {
+  const ip = req.ip || 'unknown';
+  const rec = _loginFails.get(ip);
+  if (rec && rec.count >= LOGIN_MAX_FAILS && Date.now() < rec.until)
+    return res.status(429).json({ error: 'ลองผิดหลายครั้งเกินไป รอ 5 นาทีแล้วลองใหม่' });
+
   const { username, password } = req.body || {};
   const user = db.prepare('SELECT * FROM users WHERE username = ? AND active = 1').get(username);
-  if (!user || !bcrypt.compareSync(password || '', user.password))
+  if (!user || !bcrypt.compareSync(password || '', user.password)) {
+    const r = (Date.now() >= (rec?.until || 0)) ? { count: 0, until: 0 } : rec;
+    r.count += 1; r.until = Date.now() + LOGIN_LOCK_MS;
+    _loginFails.set(ip, r);
     return res.status(401).json({ error: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' });
+  }
+  _loginFails.delete(ip); // สำเร็จ = ล้างประวัติผิด
   req.session.uid = user.id;
   res.json({ id: user.id, username: user.username, fullname: user.fullname, role: user.role });
 });
@@ -510,13 +524,20 @@ const GUEST_WINDOW_MS = 60_000, GUEST_MAX_PER_WINDOW = 8, GUEST_PENDING_CAP = 40
 function guestThrottle(req) {
   if (req.user.role !== 'guest') return null; // ผู้ล็อกอินไม่จำกัด
   const now = Date.now();
-  const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown').split(',')[0].trim();
+  const ip = req.ip || 'unknown'; // trust proxy = req.ip เชื่อถือได้ (ปลอม X-Forwarded-For ไม่ได้)
   const hits = (_reqHits.get(ip) || []).filter((t) => now - t < GUEST_WINDOW_MS);
   if (hits.length >= GUEST_MAX_PER_WINDOW) return 'ส่งคำขอถี่เกินไป พัก 1 นาทีแล้วลองใหม่';
   const pending = db.prepare("SELECT COUNT(*) n FROM requests WHERE status='pending'").get().n;
   if (pending >= GUEST_PENDING_CAP) return 'มีคำขอรออนุมัติเยอะเกินไป รอแอดมินเคลียร์ก่อน';
   hits.push(now); _reqHits.set(ip, hits);
   return null;
+}
+
+// กุญแจประจำเบราว์เซอร์ของ guest (เก็บใน cookie-session) — ใช้แยกเจ้าของคำขอโดยไม่ต้อง login
+function guestKey(req) {
+  if (req.user.role !== 'guest') return '';
+  if (!req.session.gkey) req.session.gkey = 'g_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+  return req.session.gkey;
 }
 
 app.post('/api/requests', requireAuth, (req, res) => {
@@ -529,10 +550,10 @@ app.post('/api/requests', requireAuth, (req, res) => {
   const n = Math.max(1, parseInt(qty, 10) || 1);
   const info = db
     .prepare(
-      `INSERT INTO requests (item_id, requester_id, kind, qty, note, status)
-       VALUES (?,?,?,?,?, 'pending')`
+      `INSERT INTO requests (item_id, requester_id, kind, qty, note, status, guest_key)
+       VALUES (?,?,?,?,?, 'pending', ?)`
     )
-    .run(item.id, req.user.id, kind, n, (note || '').trim());
+    .run(item.id, req.user.id, kind, n, (note || '').trim(), guestKey(req));
   res.json({ id: Number(info.lastInsertRowid) });
 });
 
@@ -552,15 +573,16 @@ app.post('/api/orders', requireAuth, (req, res) => {
     const n = Math.max(1, parseInt(it.qty, 10) || 1);
     lines.push({ item, qty: n, note: (it.note || '').trim(), kind: item.type === 'consumable' ? 'issue' : 'borrow' });
   }
+  const gkey = guestKey(req);
   const orderId = db.tx(() => {
     const oi = db.prepare('INSERT INTO orders (requester_id, note, person) VALUES (?,?,?)')
       .run(req.user.id, (note || '').trim(), who);
     const oid = Number(oi.lastInsertRowid);
     const ins = db.prepare(
-      `INSERT INTO requests (item_id, requester_id, kind, qty, note, status, order_id, person)
-       VALUES (?,?,?,?,?, 'pending', ?, ?)`
+      `INSERT INTO requests (item_id, requester_id, kind, qty, note, status, order_id, person, guest_key)
+       VALUES (?,?,?,?,?, 'pending', ?, ?, ?)`
     );
-    lines.forEach((l) => ins.run(l.item.id, req.user.id, l.kind, l.qty, l.note, oid, who));
+    lines.forEach((l) => ins.run(l.item.id, req.user.id, l.kind, l.qty, l.note, oid, who, gkey));
     return oid;
   });
   res.json({ id: orderId, lines: lines.length });
@@ -679,6 +701,7 @@ app.post('/api/requests/:id/approve', requireAuth, requireAdmin, (req, res) => {
          WHERE id=?`
       ).run(finalStatus, req.user.id, ids[0] ?? null, finalStatus, r.id);
     });
+    db.flushNow(); // ธุรกรรมสำคัญ — ดันขึ้น Turso ทันที ไม่รอรอบ
     res.json({ ok: true });
   } catch (e) {
     res.status(400).json({ error: e.message });
@@ -756,8 +779,11 @@ app.post('/api/requests/:id/receive', requireAuth, requireUser, (req, res) => {
 app.post('/api/requests/:id/cancel', requireAuth, (req, res) => {
   const r = getReq(req.params.id);
   if (!r || r.status !== 'pending') return res.status(400).json({ error: 'ยกเลิกไม่ได้' });
-  if (r.requester_id !== req.user.id && req.user.role !== 'admin')
-    return res.status(403).json({ error: 'ยกเลิกได้เฉพาะผู้ขอ' });
+  // เจ้าของ = admin, หรือผู้ล็อกอินที่เป็นคนขอ, หรือ guest ที่ key ตรงกัน (เบราว์เซอร์เดียวกัน)
+  const isOwner = req.user.role === 'admin'
+    || (req.user.role !== 'guest' && r.requester_id === req.user.id)
+    || (req.user.role === 'guest' && r.guest_key && r.guest_key === req.session?.gkey);
+  if (!isOwner) return res.status(403).json({ error: 'ยกเลิกได้เฉพาะผู้ขอ' });
   db.prepare("UPDATE requests SET status='cancelled', closed_at=datetime('now','localtime') WHERE id=?").run(r.id);
   res.json({ ok: true });
 });
@@ -790,6 +816,7 @@ app.post('/api/requests/:id/return', requireAuth, requireAdmin, (req, res) => {
     }
     db.prepare("UPDATE requests SET status='returned', closed_at=datetime('now','localtime') WHERE id=?").run(r.id);
   });
+  db.flushNow(); // คืนของ = ธุรกรรมสำคัญ ดันขึ้น Turso ทันที
   res.json({ ok: true });
 });
 

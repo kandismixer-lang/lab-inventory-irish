@@ -59,16 +59,19 @@ function CartModal({ cart, setCart, person, onClose }) {
     setCart([]);
     toast('ล้างตะกร้าแล้ว');
   };
-  // optimistic: ล้างตะกร้า+ปิด+เด้ง toast ทันที ยิง API เบื้องหลัง
+  // optimistic: ล้างตะกร้า+ปิด+เด้ง toast ทันที ยิง API เบื้องหลัง — ถ้า fail คืนของกลับตะกร้า
   const submit = () => {
     if (cart.length === 0) return;
     const who = cart.find((c) => c.who && c.who.trim())?.who?.trim() || person;
+    const snapshot = cart; // เก็บไว้เผื่อต้อง restore
     const body = { note, person: who, items: cart.map((c) => ({ item_id: c.item.id, qty: c.qty, note: c.note })) };
-    const n = cart.length;
     setCart([]);
     onClose();
-    toast(`ส่งคำขอแล้ว ${n} รายการ — รอแอดมินอนุมัติ`);
-    api('/api/orders', { method: 'POST', body }).catch((e) => toast('ส่งคำขอไม่สำเร็จ: ' + e.message));
+    toast(`ส่งคำขอแล้ว ${snapshot.length} รายการ — รอแอดมินอนุมัติ`);
+    api('/api/orders', { method: 'POST', body }).catch((e) => {
+      setCart((cur) => (cur.length === 0 ? snapshot : cur)); // ยังไม่เพิ่มอะไรใหม่ = คืนของเดิม
+      toast('ส่งคำขอไม่สำเร็จ ของกลับเข้าตะกร้าแล้ว: ' + e.message);
+    });
   };
 
   return (

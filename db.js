@@ -45,6 +45,9 @@ if (TURSO_URL) {
   };
   db.exec = (sql) => { const r = origExec(sql); scheduleSync(); return r; };
 
+  // flush ทันที — สำหรับธุรกรรมสำคัญ (อนุมัติ/คืน) ที่ไม่อยากเสี่ยงรอรอบ 30 วิ
+  db.flushNow = () => { dirty = false; try { db.sync(); } catch (e) { dirty = true; console.error('flush ล้มเหลว:', e.message); } };
+
   // flush ขึ้น Turso ก่อนปิด (Render ส่ง SIGTERM ตอน redeploy) — กัน write ล่าสุดหาย
   const flush = () => { try { db.sync(); } catch {} process.exit(0); };
   process.on('SIGTERM', flush);
@@ -52,6 +55,7 @@ if (TURSO_URL) {
 } else {
   db = new Database(DB_PATH);
   db.exec('PRAGMA journal_mode = WAL;'); // WAL เฉพาะ local (embedded replica จัดการเอง)
+  db.flushNow = () => {}; // dev ไม่มี Turso ไม่ต้อง flush
 }
 db.exec('PRAGMA foreign_keys = ON;');
 
@@ -171,6 +175,7 @@ addColumn('users', 'active', 'INTEGER NOT NULL DEFAULT 1');  // soft-delete (0 =
 addColumn('requests', 'order_id', 'INTEGER');               // จัดกลุ่มคำขอเป็น 1 ออเดอร์ (ตะกร้า)
 addColumn('requests', 'person', "TEXT NOT NULL DEFAULT ''"); // ชื่อผู้ขอที่พิมพ์เอง (guest ไม่มีบัญชี)
 addColumn('orders', 'person', "TEXT NOT NULL DEFAULT ''");
+addColumn('requests', 'guest_key', "TEXT NOT NULL DEFAULT ''"); // แยกเจ้าของคำขอของ guest (ไม่ต้อง login)
 
 // ตั้งค่า category เริ่มต้นจาก type เดิม (ครั้งแรกที่ยังว่าง)
 db.prepare("UPDATE items SET category='เครื่องมือ' WHERE category='' AND type='tool'").run();
