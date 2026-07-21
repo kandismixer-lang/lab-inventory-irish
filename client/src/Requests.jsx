@@ -164,12 +164,12 @@ function RequestCard({ r, me, onDone }) {
     }
   }, [r.status]);
 
-  const call = async (action, body) => {
-    try {
-      await api(`/api/requests/${r.id}/${action}`, { method: 'POST', body });
-      setModal(null);
-      onDone();
-    } catch (e) { toast(e.message); }
+  // optimistic: ปิด modal ทันที ยิง API เบื้องหลัง แล้วรีเฟรชเมื่อเสร็จ
+  const call = (action, body) => {
+    setModal(null);
+    api(`/api/requests/${r.id}/${action}`, { method: 'POST', body })
+      .then(onDone)
+      .catch((e) => { toast(e.message); onDone(); });
   };
 
   return (

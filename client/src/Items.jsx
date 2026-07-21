@@ -22,17 +22,14 @@ export default function Items({ me, focusItem, onFocused }) {
   const expandedItem = items.find((x) => x.id === expanded) || null;
   const { addToCart } = useCart();
   const onAddToCart = (item, qty, note, person) => { addToCart(item, qty, note, person); setRequesting(null); };
-  // ยืมเลย — ส่งคำขอรายการเดียวทันที ไม่ผ่านตะกร้า
-  const onBorrowNow = async (item, qty, note, person) => {
-    try {
-      await api('/api/orders', {
-        method: 'POST',
-        body: { person: person || me.fullname || me.username, items: [{ item_id: item.id, qty, note }] },
-      });
-      setRequesting(null);
-      toast('ส่งคำขอแล้ว — รอแอดมินอนุมัติ');
-      load();
-    } catch (e) { toast(e.message); }
+  // ยืมเลย — optimistic: ปิด+เด้ง toast ทันที ยิง API เบื้องหลัง
+  const onBorrowNow = (item, qty, note, person) => {
+    setRequesting(null);
+    toast('ส่งคำขอแล้ว — รอแอดมินอนุมัติ');
+    api('/api/orders', {
+      method: 'POST',
+      body: { person: person || me.fullname || me.username, items: [{ item_id: item.id, qty, note }] },
+    }).then(load).catch((e) => { toast('ส่งคำขอไม่สำเร็จ: ' + e.message); load(); });
   };
   const timer = useRef();
 
@@ -480,15 +477,16 @@ function MoveForm({ item, me, onClose, onDone }) {
   const kinds = [...(isTool ? ['borrow', 'return'] : ['issue']), 'add', ...(me.role === 'admin' ? ['adjust'] : [])];
   const needPerson = kind === 'issue' || kind === 'borrow' || kind === 'return';
 
-  const submit = async (e) => {
+  // optimistic: ปิด+เด้ง toast ทันที ยิง API เบื้องหลัง
+  const submit = (e) => {
     e.preventDefault();
     const b = Object.fromEntries(new FormData(e.target));
     b.kind = kind;
-    try {
-      const r = await api('/api/items/' + item.id + '/move', { method: 'POST', body: b });
-      toast(`${KIND_LABEL[kind]}สำเร็จ — คงเหลือ ${r.newQty} ${item.unit}`);
-      onDone();
-    } catch (er) { setErr(er.message); }
+    onClose();
+    toast(`${KIND_LABEL[kind]}สำเร็จ`);
+    api('/api/items/' + item.id + '/move', { method: 'POST', body: b })
+      .then(onDone)
+      .catch((er) => { toast(`${KIND_LABEL[kind]}ไม่สำเร็จ: ${er.message}`); onDone(); });
   };
 
   return (
@@ -539,6 +537,8 @@ function UnitsPanel({ item, me, onChanged, onClose, onRequest }) {
   const load = () => api(`/api/items/${item.id}/units`).then(setUnits);
   useEffect(() => { load(); }, []);
 
+  // optimistic: อัปเดตสถานะหน่วยในจอทันที แล้วยิง API + reconcile
+  const NEXT = { borrow: 'borrowed', return: 'available', repair: 'repair', lost: 'lost', ready: 'available' };
   const act = async (unit, action) => {
     setErr('');
     let person;
@@ -546,17 +546,22 @@ function UnitsPanel({ item, me, onChanged, onClose, onRequest }) {
       person = await promptDlg({ title: `ยืม ${unit.code}`, message: 'ใครยืม?', value: me.fullname || me.username });
       if (person === null) return;
     }
-    try {
-      await api(`/api/units/${unit.id}/move`, { method: 'POST', body: { action, person } });
-      toast(`${unit.code}: ${KIND_LABEL[action]}`);
-      load(); onChanged();
-    } catch (e) { setErr(e.message); }
+    const ns = NEXT[action];
+    if (ns) setUnits((us) => us.map((u) => u.id === unit.id
+      ? { ...u, status: ns, holder: action === 'borrow' ? person : (action === 'return' || action === 'ready' ? '' : u.holder) }
+      : u));
+    toast(`${unit.code}: ${KIND_LABEL[action]}`);
+    onChanged();
+    api(`/api/units/${unit.id}/move`, { method: 'POST', body: { action, person } })
+      .then(load)
+      .catch((e) => { setErr(e.message); load(); });
   };
 
   const del = async (unit) => {
     if (!(await confirm({ title: `เลิกใช้หน่วย ${unit.code}?`, message: 'หน่วยนี้จะถูกนำออกจากคลัง (ประวัติยังอยู่)' }))) return;
-    await api(`/api/units/${unit.id}`, { method: 'DELETE' });
-    toast('เลิกใช้แล้ว'); load(); onChanged();
+    setUnits((us) => us.filter((u) => u.id !== unit.id)); // ลบออกจากจอทันที
+    toast('เลิกใช้แล้ว'); onChanged();
+    api(`/api/units/${unit.id}`, { method: 'DELETE' }).then(load).catch((e) => { setErr(e.message); load(); });
   };
 
   const addUnits = async (body) => {

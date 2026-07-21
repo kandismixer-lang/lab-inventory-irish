@@ -59,16 +59,16 @@ function CartModal({ cart, setCart, person, onClose }) {
     setCart([]);
     toast('ล้างตะกร้าแล้ว');
   };
-  const submit = async () => {
+  // optimistic: ล้างตะกร้า+ปิด+เด้ง toast ทันที ยิง API เบื้องหลัง
+  const submit = () => {
     if (cart.length === 0) return;
-    setBusy(true); setErr('');
-    try {
-      const who = cart.find((c) => c.who && c.who.trim())?.who?.trim() || person;
-      const r = await api('/api/orders', { method: 'POST', body: { note, person: who, items: cart.map((c) => ({ item_id: c.item.id, qty: c.qty, note: c.note })) } });
-      setCart([]);
-      onClose();
-      toast(`ส่งคำขอแล้ว ${r.lines} รายการ — รอแอดมินอนุมัติ`);
-    } catch (e) { setErr(e.message); } finally { setBusy(false); }
+    const who = cart.find((c) => c.who && c.who.trim())?.who?.trim() || person;
+    const body = { note, person: who, items: cart.map((c) => ({ item_id: c.item.id, qty: c.qty, note: c.note })) };
+    const n = cart.length;
+    setCart([]);
+    onClose();
+    toast(`ส่งคำขอแล้ว ${n} รายการ — รอแอดมินอนุมัติ`);
+    api('/api/orders', { method: 'POST', body }).catch((e) => toast('ส่งคำขอไม่สำเร็จ: ' + e.message));
   };
 
   return (
