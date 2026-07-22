@@ -219,7 +219,15 @@ function Shell({ me, onMe, guestName, onGuestName }) {
                     placeholder="เช่น มิกซ์ — ไม่ตั้ง = ผู้เยี่ยมชม"
                   />
                 </label>
-                <button className="btn small primary" disabled={!guestName.trim()} onClick={confirmName}>✓ ยืนยันชื่อ / ดึงของที่ยืม</button>
+                <button
+                  className="btn small primary guest-confirm-btn"
+                  disabled={!guestName.trim()}
+                  onClick={confirmName}
+                  title="ยืนยันชื่อ / ดึงของที่ยืม"
+                >
+                  <span className="confirm-text-full">✓ ยืนยันชื่อ / ดึงของที่ยืม</span>
+                  <span className="confirm-text-short">✓ ยืนยัน</span>
+                </button>
                 <button className="btn small" onClick={() => setLoggingIn(true)}>🔑 Admin</button>
               </>
             ) : (
