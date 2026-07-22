@@ -351,39 +351,35 @@ function ItemForm({ item, me, onClose, onSaved }) {
     } catch (e) { toast(e.message); }
   };
 
-  const submit = async (e) => {
+  const submit = (e) => {
     e.preventDefault();
-    if (busy) return; // กันกดซ้ำระหว่างรอ
+    if (busy) return;
     const b = Object.fromEntries(new FormData(e.target));
     b.category = category;
     b.location = location;
     b.tracked = tracked ? 1 : 0;
     if (img) b.image = img;
     else if (removeImg) b.image = ''; // '' = สั่งลบรูปเดิม
+    const unitsBody = { mode: 'bulk', prefix: (uprefix || '').trim(), start: uStartNum, count: uN, pad: parseInt(upad, 10) || 0 };
+    // optimistic: ปิดฟอร์ม+เด้ง toast ทันที แล้วรันหลังบ้าน (เหมือนยืม/คืน) — เสร็จค่อยรีเฟรชลิสต์
     setBusy(true);
-    try {
-      if (item) {
-        await api('/api/items/' + item.id, { method: 'PUT', body: b });
-        // เพิ่งเปิด track รายตัวให้ของเดิม + ระบุจำนวน = สร้างหน่วยให้เลย
-        if (tracked && !item.tracked && uN > 0) {
-          await api('/api/items/' + item.id + '/units', {
-            method: 'POST',
-            body: { mode: 'bulk', prefix: uprefix.trim(), start: uStartNum, count: uN, pad: parseInt(upad, 10) || 0 },
-          });
+    onClose();
+    toast(item ? 'กำลังบันทึก…' : 'กำลังเพิ่มรายการ…');
+    (async () => {
+      try {
+        if (item) {
+          await api('/api/items/' + item.id, { method: 'PUT', body: b });
+          if (tracked && !item.tracked && uN > 0)
+            await api('/api/items/' + item.id + '/units', { method: 'POST', body: unitsBody });
+        } else {
+          const created = await api('/api/items', { method: 'POST', body: b });
+          if (tracked && uN > 0)
+            await api('/api/items/' + created.id + '/units', { method: 'POST', body: unitsBody });
         }
-      } else {
-        const created = await api('/api/items', { method: 'POST', body: b });
-        // สร้างหน่วยอัตโนมัติถ้า track รายตัว + ระบุจำนวน
-        if (tracked && uN > 0) {
-          await api('/api/items/' + created.id + '/units', {
-            method: 'POST',
-            body: { mode: 'bulk', prefix: uprefix.trim(), start: uStartNum, count: uN, pad: parseInt(upad, 10) || 0 },
-          });
-        }
-      }
-      toast('บันทึกแล้ว');
-      onSaved();
-    } catch (er) { setErr(er.message); setBusy(false); }
+        toast('บันทึกแล้ว');
+      } catch (er) { toast('บันทึกไม่สำเร็จ: ' + er.message); }
+      onSaved(); // รีเฟรชลิสต์ (ฟอร์มปิดไปแล้ว)
+    })();
   };
   const del = async () => {
     if (!(await confirm({ title: 'ลบรายการนี้?', message: 'รายการจะถูกซ่อน (ประวัติ/ข้อมูลยังเก็บไว้)' }))) return;
@@ -464,7 +460,7 @@ function ItemForm({ item, me, onClose, onSaved }) {
         </div>
         <div className="err">{err}</div>
         <button className="btn primary" type="submit" disabled={busy} style={{ marginTop: 14, width: '100%' }}>
-          {busy ? 'กำลังบันทึก…' : (item ? 'บันทึกการแก้ไข' : 'เพิ่มรายการ')}
+          {item ? 'บันทึกการแก้ไข' : 'เพิ่มรายการ'}
         </button>
         {item && me.role === 'admin' && (
           <button type="button" className="btn danger" onClick={del} style={{ marginTop: 8, width: '100%' }}>ลบรายการนี้</button>
