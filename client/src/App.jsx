@@ -144,8 +144,23 @@ function Shell({ me, onMe, guestName, onGuestName }) {
   const [loggingIn, setLoggingIn] = useState(false);
   const [badge, setBadge] = useState(0);
   const [focusItem, setFocusItem] = useState(null); // id ของของที่จะให้หน้ารายการเปิดรอ
+  const [refreshKey, setRefreshKey] = useState(0); // บั๊มพ์เพื่อรีโหลดข้อมูลหน้าปัจจุบัน
   const isGuest = me.role === 'guest';
   const Comp = VIEWS[view].comp;
+
+  // guest ยืนยันชื่อ → จำลง session (ดึงของที่ชื่อตรงกันกลับมา แม้ cookie ถูกล้าง)
+  const confirmName = async () => {
+    try {
+      await api('/api/guest/name', { method: 'POST', body: { name: guestName || '' } });
+      loadBadge();
+      setRefreshKey((k) => k + 1); // รีโหลดหน้าปัจจุบัน
+      setView('requests'); // พาไปดูของที่ยืมอยู่เลย
+    } catch {}
+  };
+  // เปิดเว็บมาถ้ามีชื่อเก่าค้างอยู่ (localStorage) sync เข้า session ให้อัตโนมัติ
+  useEffect(() => {
+    if (isGuest && guestName) api('/api/guest/name', { method: 'POST', body: { name: guestName } }).then(() => setRefreshKey((k) => k + 1)).catch(() => {});
+  }, []);
 
   // เปลี่ยนหน้า + สั่งโฟกัสของ (จากแดชบอร์ด)
   const go = (v, payload) => {
@@ -198,9 +213,11 @@ function Shell({ me, onMe, guestName, onGuestName }) {
                   <input
                     value={guestName}
                     onChange={(e) => onGuestName(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && guestName.trim() && confirmName()}
                     placeholder="เช่น มิกซ์ — ไม่ตั้ง = ผู้เยี่ยมชม"
                   />
                 </label>
+                <button className="btn small primary" disabled={!guestName.trim()} onClick={confirmName}>✓ ยืนยันชื่อ / ดึงของที่ยืม</button>
                 <button className="btn small" onClick={() => setLoggingIn(true)}>🔑 Admin</button>
               </>
             ) : (
@@ -213,7 +230,7 @@ function Shell({ me, onMe, guestName, onGuestName }) {
           </div>
         </aside>
         <main>
-          <Comp me={me} go={go} focusItem={focusItem} onFocused={() => setFocusItem(null)} />
+          <Comp key={view + '-' + refreshKey} me={me} go={go} focusItem={focusItem} onFocused={() => setFocusItem(null)} />
         </main>
         {view !== 'items' && (
           <button className="borrow-fab" onClick={() => setView('items')}>

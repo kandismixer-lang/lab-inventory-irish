@@ -116,6 +116,14 @@ app.get('/api/me', (req, res) => {
   res.json(u);
 });
 
+// guest ยืนยันชื่อ — จำลง session เพื่อดึงคำขอที่ชื่อตรงกันกลับมา (แม้ cookie ถูกล้าง/คนละเครื่อง)
+// ตัวตนแบบเบา ไม่ต้อง login: "ชื่อเดิม = ของเดิม"
+app.post('/api/guest/name', requireAuth, (req, res) => {
+  const name = (req.body?.name || '').trim();
+  req.session.gname = name;
+  res.json({ ok: true, name });
+});
+
 app.post('/api/change-password', requireAuth, requireUser, (req, res) => {
   const { oldPassword, newPassword } = req.body || {};
   if (!newPassword || newPassword.length < 6)
@@ -597,11 +605,13 @@ app.get('/api/requests', requireAuth, (req, res) => {
   const where = [];
   const args = [];
   if (req.user.role === 'guest') {
-    // guest ใช้ id ร่วมกันทุกคน — กรองด้วย guest_key เฉพาะเบราว์เซอร์ตัวเอง (ไม่งั้นเห็นของ guest คนอื่นหมด)
+    // guest ใช้ id ร่วมกันทุกคน — แยกตัวตนด้วย "ชื่อที่ยืนยัน" (ถ้ามี) ไม่งั้น fallback guest_key ของเบราว์เซอร์
+    // ชื่อ = ตัวตนถาวร (พิมพ์ชื่อเดิม cookie ใหม่ก็เห็นของเดิม) · guest_key = ตัวตนต่อเบราว์เซอร์
+    const gname = (req.session?.gname || '').trim();
     const gk = req.session?.gkey;
-    if (!gk) return res.json([]); // ยังไม่เคยส่งคำขอ = ไม่มีอะไรให้เห็น
-    where.push('r.guest_key = ?');
-    args.push(gk);
+    if (gname) { where.push('r.person = ? COLLATE NOCASE'); args.push(gname); }
+    else if (gk) { where.push('r.guest_key = ?'); args.push(gk); }
+    else return res.json([]); // ยังไม่ตั้งชื่อ + ยังไม่เคยส่งคำขอ = ไม่มีอะไรให้เห็น
   } else if (req.user.role !== 'admin' || scope === 'mine') {
     where.push('r.requester_id = ?');
     args.push(req.user.id);
@@ -616,24 +626,25 @@ app.get('/api/requests', requireAuth, (req, res) => {
 
 // จำนวนที่รอ admin ดำเนินการ (สำหรับ badge)
 app.get('/api/requests/counts', requireAuth, (req, res) => {
-  // จำนวน "ออเดอร์" ที่ยังถูกยืมอยู่ (นับเป็นใบ ไม่ใช่รายบรรทัด)
-  const borrowedOrders = db
-    .prepare(
-      `SELECT COUNT(*) n FROM (
-         SELECT COALESCE(order_id, -id) AS k FROM requests WHERE status='received' GROUP BY k
-       )`
-    )
-    .get().n;
   if (req.user.role === 'admin') {
+    // admin เห็นภาพรวมทั้งระบบ
+    const borrowedOrders = db.prepare(
+      `SELECT COUNT(*) n FROM (SELECT COALESCE(order_id, -id) AS k FROM requests WHERE status='received' GROUP BY k)`
+    ).get().n;
     const pending = db.prepare("SELECT COUNT(*) n FROM requests WHERE status='pending'").get().n;
-    const toHand = db.prepare("SELECT COUNT(*) n FROM requests WHERE status='approved'").get().n;
-    const handed = db.prepare("SELECT COUNT(*) n FROM requests WHERE status='handed'").get().n;
-    res.json({ pending, toHand, handed, borrowedOrders });
+    res.json({ pending, borrowedOrders });
   } else {
-    const toConfirm = db
-      .prepare("SELECT COUNT(*) n FROM requests WHERE status='handed' AND requester_id=?")
-      .get(req.user.id).n;
-    res.json({ toConfirm, borrowedOrders });
+    // guest/staff — นับเฉพาะของตัวเอง (guest ใช้ชื่อที่ยืนยัน, staff ใช้ id) ให้ badge ตรงกับลิสต์
+    let cond = 'r.requester_id = ?', arg = req.user.id;
+    if (req.user.role === 'guest') {
+      const gname = (req.session?.gname || '').trim();
+      if (gname) { cond = 'r.person = ? COLLATE NOCASE'; arg = gname; }
+      else { cond = 'r.guest_key = ?'; arg = req.session?.gkey || ' '; }
+    }
+    const borrowedOrders = db.prepare(
+      `SELECT COUNT(*) n FROM (SELECT COALESCE(r.order_id, -r.id) AS k FROM requests r WHERE r.status='received' AND ${cond} GROUP BY k)`
+    ).get(arg).n;
+    res.json({ borrowedOrders });
   }
 });
 
