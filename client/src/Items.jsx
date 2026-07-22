@@ -298,6 +298,7 @@ function ItemForm({ item, me, onClose, onSaved }) {
   const confirm = useConfirm();
   const promptDlg = usePrompt();
   const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false); // กำลังบันทึก — กันกดซ้ำจนสร้างซ้ำ
   const [category, setCategory] = useState(item?.category || 'วัสดุสิ้นเปลือง');
   const [tracked, setTracked] = useState(!!item?.tracked);
   const [locations, setLocations] = useState([]);
@@ -352,12 +353,14 @@ function ItemForm({ item, me, onClose, onSaved }) {
 
   const submit = async (e) => {
     e.preventDefault();
+    if (busy) return; // กันกดซ้ำระหว่างรอ
     const b = Object.fromEntries(new FormData(e.target));
     b.category = category;
     b.location = location;
     b.tracked = tracked ? 1 : 0;
     if (img) b.image = img;
     else if (removeImg) b.image = ''; // '' = สั่งลบรูปเดิม
+    setBusy(true);
     try {
       if (item) {
         await api('/api/items/' + item.id, { method: 'PUT', body: b });
@@ -380,7 +383,7 @@ function ItemForm({ item, me, onClose, onSaved }) {
       }
       toast('บันทึกแล้ว');
       onSaved();
-    } catch (er) { setErr(er.message); }
+    } catch (er) { setErr(er.message); setBusy(false); }
   };
   const del = async () => {
     if (!(await confirm({ title: 'ลบรายการนี้?', message: 'รายการจะถูกซ่อน (ประวัติ/ข้อมูลยังเก็บไว้)' }))) return;
@@ -460,8 +463,8 @@ function ItemForm({ item, me, onClose, onSaved }) {
             : (removeImg ? <span className="hint">จะลบรูปเมื่อกดบันทึก</span> : null)}
         </div>
         <div className="err">{err}</div>
-        <button className="btn primary" type="submit" style={{ marginTop: 14, width: '100%' }}>
-          {item ? 'บันทึกการแก้ไข' : 'เพิ่มรายการ'}
+        <button className="btn primary" type="submit" disabled={busy} style={{ marginTop: 14, width: '100%' }}>
+          {busy ? 'กำลังบันทึก…' : (item ? 'บันทึกการแก้ไข' : 'เพิ่มรายการ')}
         </button>
         {item && me.role === 'admin' && (
           <button type="button" className="btn danger" onClick={del} style={{ marginTop: 8, width: '100%' }}>ลบรายการนี้</button>
@@ -695,6 +698,8 @@ function deriveScheme(units) {
 
 function AddUnitsForm({ unit, units, onBulk }) {
   const scheme = useMemo(() => deriveScheme(units), [units]);
+  const [busy, setBusy] = useState(false); // กันกดซ้ำจนสร้างหน่วยซ้ำ
+  const send = async (body) => { if (busy) return; setBusy(true); try { await onBulk(body); } finally { setBusy(false); } };
   const [mode, setMode] = useState('bulk');
   const [custom, setCustom] = useState(false);
   const [count, setCount] = useState(1);
@@ -733,7 +738,7 @@ function AddUnitsForm({ unit, units, onBulk }) {
       )}
 
       {mode === 'bulk' ? (
-        <form onSubmit={(e) => { e.preventDefault(); onBulk({ mode: 'bulk', prefix, start, count, pad }); }}>
+        <form onSubmit={(e) => { e.preventDefault(); send({ mode: 'bulk', prefix, start, count, pad }); }}>
           <label>จำนวนที่เพิ่มมา ({unit})
             <input type="number" min="1" max="500" value={count} onChange={(e) => setCount(e.target.value)} autoFocus />
           </label>
@@ -753,15 +758,15 @@ function AddUnitsForm({ unit, units, onBulk }) {
               กำหนด prefix / เลขเริ่มเอง
             </label>
           )}
-          <button className="btn primary" type="submit" style={{ marginTop: 12, width: '100%' }}>สร้าง {n} หน่วย</button>
+          <button className="btn primary" type="submit" disabled={busy} style={{ marginTop: 12, width: '100%' }}>{busy ? 'กำลังสร้าง…' : `สร้าง ${n} หน่วย`}</button>
         </form>
       ) : (
-        <form onSubmit={(e) => { e.preventDefault(); onBulk({ mode: 'single', code: singleCode }); }}>
+        <form onSubmit={(e) => { e.preventDefault(); send({ mode: 'single', code: singleCode }); }}>
           <label>รหัสประจำตัว
             <input value={singleCode} onChange={(e) => setCode(e.target.value)} required placeholder="เช่น RPI-21" />
           </label>
           <div className="hint">{scheme ? 'เติมให้อัตโนมัติจากรหัสล่าสุด — แก้ได้' : 'ยังไม่มีรหัสเดิม พิมพ์รหัสแรกเอง'}</div>
-          <button className="btn primary" type="submit" style={{ marginTop: 12, width: '100%' }}>เพิ่ม 1 หน่วย — {singleCode || '?'}</button>
+          <button className="btn primary" type="submit" disabled={busy} style={{ marginTop: 12, width: '100%' }}>{busy ? 'กำลังเพิ่ม…' : `เพิ่ม 1 หน่วย — ${singleCode || '?'}`}</button>
         </form>
       )}
     </>
