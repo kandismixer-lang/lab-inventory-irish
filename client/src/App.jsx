@@ -7,6 +7,7 @@ import Dashboard from './Dashboard.jsx';
 import Items from './Items.jsx';
 import Log from './Log.jsx';
 import Broken from './Broken.jsx';
+import People from './People.jsx';
 import Users from './Users.jsx';
 import Requests from './Requests.jsx';
 
@@ -131,6 +132,7 @@ const VIEWS = {
   items: { label: 'Stock', comp: Items },
   requests: { label: 'Requests', comp: Requests },
   broken: { label: 'Broken', comp: Broken },
+  people: { label: 'People', comp: People, adminOnly: true },
   log: { label: 'History', comp: Log },
   users: { label: 'Users', comp: Users, adminOnly: true },
 };

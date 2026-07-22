@@ -810,6 +810,37 @@ app.get('/api/broken', requireAuth, (req, res) => {
   );
 });
 
+// รายชื่อผู้ยืม + สรุป (หน้า "ผู้ยืม") — group ตามชื่อผู้ยืม
+app.get('/api/borrowers', requireAuth, requireAdmin, (req, res) => {
+  res.json(
+    db.prepare(
+      `SELECT r.person AS name,
+              COUNT(*) AS total,
+              SUM(CASE WHEN r.status='received' THEN 1 ELSE 0 END) AS active,
+              MAX(r.created_at) AS last_at
+       FROM requests r
+       WHERE TRIM(r.person) != ''
+       GROUP BY r.person COLLATE NOCASE
+       ORDER BY active DESC, last_at DESC`
+    ).all()
+  );
+});
+
+// ประวัติการยืมของคนคนหนึ่ง
+app.get('/api/borrowers/history', requireAuth, requireAdmin, (req, res) => {
+  const name = (req.query.name || '').trim();
+  if (!name) return res.json([]);
+  res.json(
+    db.prepare(
+      `SELECT r.id, r.qty, r.status, r.kind, r.created_at, r.due_date, i.name AS item_name, i.unit,
+              (SELECT GROUP_CONCAT(u2.code, ', ') FROM request_units ru JOIN units u2 ON u2.id=ru.unit_id WHERE ru.request_id=r.id) AS unit_codes
+       FROM requests r JOIN items i ON i.id = r.item_id
+       WHERE r.person = ? COLLATE NOCASE
+       ORDER BY r.id DESC LIMIT 200`
+    ).all(name)
+  );
+});
+
 // ---------- dashboard / reports ----------
 app.get('/api/dashboard', requireAuth, (req, res) => {
   const lowStock = db
