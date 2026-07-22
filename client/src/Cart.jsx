@@ -62,7 +62,7 @@ function CartModal({ cart, setCart, person, onClose }) {
     if (cart.length === 0) return;
     const who = cart.find((c) => c.who && c.who.trim())?.who?.trim() || person;
     const snapshot = cart; // เก็บไว้เผื่อต้อง restore
-    const body = { note, person: who, items: cart.map((c) => ({ item_id: c.item.id, qty: c.qty, note: c.note, due_date: c.due || '' })) };
+    const body = { note, person: who, items: cart.map((c) => ({ item_id: c.item.id, qty: c.qty, note: c.note, due_date: c.due || '', person: c.who || '' })) };
     setCart([]);
     onClose();
     toast(`ส่งคำขอแล้ว ${snapshot.length} รายการ — รอแอดมินอนุมัติ`);

@@ -17,10 +17,14 @@ const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'data', 'inventory.d
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(path.dirname(DB_PATH), 'uploads');
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 app.use('/uploads', express.static(UPLOAD_DIR));
+// ห้ามใช้ secret ตายตัวในโค้ด (ใครรู้ก็ปลอม cookie เป็น admin ได้) — ถ้าไม่ตั้ง env สุ่มให้ตอนบูต
+const SESSION_SECRET = process.env.SESSION_SECRET || require('crypto').randomBytes(48).toString('hex');
+if (!process.env.SESSION_SECRET)
+  console.warn('⚠️  ไม่ได้ตั้ง env SESSION_SECRET — สุ่มให้ชั่วคราว (ผู้ใช้จะถูก logout ทุกครั้งที่ redeploy) แนะนำตั้งค่าถาวรบน Render');
 app.use(
   cookieSession({
     name: 'sess',
-    keys: [process.env.SESSION_SECRET || 'change-this-secret-in-production'],
+    keys: [SESSION_SECRET],
     maxAge: 8 * 60 * 60 * 1000, // 8 ชม.
     sameSite: 'lax',
   })
@@ -274,6 +278,9 @@ app.put('/api/items/:id', requireAuth, requireAdmin, (req, res) => {
   if (!item) return res.status(404).json({ error: 'ไม่พบรายการ' });
   const { name, category, type: rawType, unit, location, min_qty, note, spec, tracked } = req.body || {};
   const { category: cat, type } = resolveCategory(category, rawType || item.type);
+  // กันเปลี่ยนของ track รายตัว (มีหน่วยผูกอยู่) ไปเป็นของเบิก — หน่วยจะค้างสถานะ borrowed ถาวร ยอดเพี้ยน
+  if (item.tracked && type === 'consumable')
+    return res.status(400).json({ error: 'ของ track รายตัวเปลี่ยนเป็นของเบิก (ใช้แล้วทิ้ง) ไม่ได้ — ต้องลบหน่วยทั้งหมดก่อน' });
   // เปิด track รายตัวให้ของเดิมได้ (0 -> 1) — qty จะมาจากจำนวนหน่วยที่สร้าง จึงรีเซ็ตเป็น 0
   // ปิด track (1 -> 0) ไม่รองรับ เพราะมีหน่วย/ประวัติผูกอยู่
   if (!item.tracked && tracked && type === 'tool') {
@@ -566,7 +573,8 @@ app.post('/api/orders', requireAuth, (req, res) => {
     if (!item) return res.status(404).json({ error: `ไม่พบรายการของ (id ${it.item_id})` });
     const n = Math.max(1, parseInt(it.qty, 10) || 1);
     const due = /^\d{4}-\d{2}-\d{2}$/.test(it.due_date || '') ? it.due_date : '';
-    lines.push({ item, qty: n, note: (it.note || '').trim(), due, kind: item.type === 'consumable' ? 'issue' : 'borrow' });
+    const linePerson = (it.person || '').trim() || who; // ชื่อผู้ยืมต่อรายการ (เผื่อขอแทนหลายคน)
+    lines.push({ item, qty: n, note: (it.note || '').trim(), due, person: linePerson, kind: item.type === 'consumable' ? 'issue' : 'borrow' });
   }
   const gkey = guestKey(req);
   const orderId = db.tx(() => {
@@ -577,7 +585,7 @@ app.post('/api/orders', requireAuth, (req, res) => {
       `INSERT INTO requests (item_id, requester_id, kind, qty, note, status, order_id, person, guest_key, due_date)
        VALUES (?,?,?,?,?, 'pending', ?, ?, ?, ?)`
     );
-    lines.forEach((l) => ins.run(l.item.id, req.user.id, l.kind, l.qty, l.note, oid, who, gkey, l.due));
+    lines.forEach((l) => ins.run(l.item.id, req.user.id, l.kind, l.qty, l.note, oid, l.person, gkey, l.due));
     return oid;
   });
   res.json({ id: orderId, lines: lines.length });
@@ -588,7 +596,13 @@ app.get('/api/requests', requireAuth, (req, res) => {
   const { status, scope } = req.query;
   const where = [];
   const args = [];
-  if (req.user.role !== 'admin' || scope === 'mine') {
+  if (req.user.role === 'guest') {
+    // guest ใช้ id ร่วมกันทุกคน — กรองด้วย guest_key เฉพาะเบราว์เซอร์ตัวเอง (ไม่งั้นเห็นของ guest คนอื่นหมด)
+    const gk = req.session?.gkey;
+    if (!gk) return res.json([]); // ยังไม่เคยส่งคำขอ = ไม่มีอะไรให้เห็น
+    where.push('r.guest_key = ?');
+    args.push(gk);
+  } else if (req.user.role !== 'admin' || scope === 'mine') {
     where.push('r.requester_id = ?');
     args.push(req.user.id);
   }
