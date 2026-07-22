@@ -580,6 +580,16 @@ function UnitsPanel({ item, me, onChanged, onClose, onRequest }) {
     } catch (e) { setErr(e.message); }
   };
 
+  // ลบหน่วยว่างทั้งหมด (กรณีสร้างรหัสผิด) — ตัวที่ถูกยืม/พัง/หายไม่ถูกลบ
+  const delAll = async () => {
+    const nAvail = units.filter((u) => u.status === 'available').length;
+    if (nAvail === 0) return setErr('ไม่มีหน่วยว่างให้ลบ (ตัวถูกยืม/พัง/หาย ต้องจัดการก่อน)');
+    if (!(await confirm({ title: `ลบหน่วยว่างทั้งหมด ${nAvail} ตัว?`, message: `${item.name} — เอาออกจากคลังทั้งหมด (ตัวถูกยืม/พัง/หายไม่ถูกลบ) ประวัติยังอยู่` }))) return;
+    setUnits((us) => us.filter((u) => u.status !== 'available')); // เอาออกจากจอทันที
+    toast(`ลบ ${nAvail} หน่วย`); onChanged();
+    api(`/api/items/${item.id}/units`, { method: 'DELETE' }).then(load).catch((e) => { setErr(e.message); load(); });
+  };
+
   const counts = units.reduce((a, u) => ((a[u.status] = (a[u.status] || 0) + 1), a), {});
   // ค้นหา (ของเยอะ 20-30+ ชิ้น หาไว)
   const kw = q.trim().toLowerCase();
@@ -613,6 +623,9 @@ function UnitsPanel({ item, me, onChanged, onClose, onRequest }) {
         <div className="subtabs">
           <button className={'btn small' + (tab === 'list' ? ' active' : '')} onClick={() => setTab('list')}>รายการหน่วย</button>
           <button className={'btn small' + (tab === 'add' ? ' active' : '')} onClick={() => setTab('add')}>+ สร้างหน่วย</button>
+          {(counts.available || 0) > 0 && (
+            <button className="btn small danger" style={{ marginLeft: 'auto' }} onClick={delAll}>🗑️ ลบตัวว่างทั้งหมด</button>
+          )}
         </div>
       )}
       <div className="err">{err}</div>

@@ -499,6 +499,18 @@ app.delete('/api/units/:id', requireAuth, requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
+// ลบหน่วยทั้งหมดของ item (กรณีสร้างรหัสผิด) — เฉพาะที่ว่าง กันลบตัวที่ถูกยืม/พัง/หายอยู่
+app.delete('/api/items/:id/units', requireAuth, requireAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  const rows = db.prepare("SELECT id FROM units WHERE item_id=? AND active=1 AND status='available'").all(id);
+  db.tx(() => {
+    for (const u of rows) db.prepare('UPDATE units SET active=0 WHERE id=?').run(u.id);
+    db.recalcTracked(id);
+  });
+  const left = db.prepare("SELECT COUNT(*) n FROM units WHERE item_id=? AND active=1").get(id).n;
+  res.json({ ok: true, deleted: rows.length, left });
+});
+
 // ---------- requests (workflow ขอยืม → อนุมัติ → ส่งมอบ → รับ) ----------
 const REQ_SELECT = `
   SELECT r.*,
