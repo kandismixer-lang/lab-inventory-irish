@@ -36,7 +36,11 @@ export default function People() {
 function PersonCard({ p, open, onToggle }) {
   const [rows, setRows] = useState(null);
   useEffect(() => {
-    if (open && rows === null) api('/api/borrowers/history?name=' + encodeURIComponent(p.name)).then(setRows);
+    if (open && rows === null)
+      api('/api/borrowers/history?name=' + encodeURIComponent(p.name)).then((data) =>
+        // เห็นเฉพาะที่ยืมอยู่ + เบิกไป (consumable) — ซ่อนคืนแล้ว/ปฏิเสธ/ยกเลิก
+        setRows(data.filter((r) => r.kind === 'issue' || (r.status !== 'returned' && r.status !== 'rejected' && r.status !== 'cancelled')))
+      );
   }, [open]);
 
   return (
@@ -58,7 +62,7 @@ function PersonCard({ p, open, onToggle }) {
       {open && (
         <div className="order-lines">
           {rows === null ? <p className="muted" style={{ padding: 10 }}>กำลังโหลด...</p>
-            : rows.length === 0 ? <p className="muted" style={{ padding: 10 }}>— ไม่มีข้อมูล —</p>
+            : rows.length === 0 ? <p className="muted" style={{ padding: 10 }}>— ไม่มีของที่ยืม/เบิกอยู่ —</p>
             : rows.map((r) => {
               const st = REQ_STATUS[r.status] || { label: r.status, cls: '' };
               return (
