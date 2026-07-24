@@ -151,7 +151,16 @@ export default function Items({ me, focusItem, onFocused }) {
         <ItemForm item={editing} me={me} onClose={() => setEditing(undefined)} onSaved={refresh} />
       )}
       {moving && <MoveForm item={moving} me={me} onClose={() => setMoving(null)} onDone={refresh} />}
-      {requesting && <RequestForm item={requesting} defaultPerson={me.fullname || me.username} onClose={() => setRequesting(null)} onAdd={onAddToCart} onNow={onBorrowNow} />}
+      {requesting && (
+        <RequestForm
+          item={requesting}
+          // guest ที่ยังไม่ตั้งชื่อจริง (ยังเป็น "ผู้เยี่ยมชม") = เว้นว่างบังคับให้พิมพ์ชื่อเอง
+          defaultPerson={me.fullname && me.fullname !== 'ผู้เยี่ยมชม' ? me.fullname : (me.role === 'guest' ? '' : me.username)}
+          onClose={() => setRequesting(null)}
+          onAdd={onAddToCart}
+          onNow={onBorrowNow}
+        />
+      )}
       {detail && <DetailModal item={detail} onClose={() => setDetail(null)} />}
       {expandedItem && (
         <UnitsPanel
@@ -212,9 +221,10 @@ export function RequestForm({ item, defaultPerson, onClose, onAdd, onNow }) {
         คงเหลือให้ขอได้ {item.qty} {item.unit}{item.tracked ? ' (Admin จะเลือกหน่วยให้)' : ''}
       </div>
       <form onSubmit={submit}>
-        <label>ชื่อผู้ยืม
-          <input name="person" defaultValue={defaultPerson || ''} placeholder="ใส่ชื่อผู้ยืม" required />
+        <label>ชื่อผู้ยืม <span className="col-out">*</span>
+          <input name="person" defaultValue={defaultPerson || ''} placeholder="ใส่ชื่อผู้ยืม" required autoFocus={!defaultPerson} />
         </label>
+        {!defaultPerson && <div className="hint">กรุณาใส่ชื่อผู้ยืม เพื่อให้ตามของคืนได้</div>}
         <label>จำนวน ({item.unit})
           <input name="qty" type="number" min="1" max={item.qty} defaultValue="1" required />
         </label>
