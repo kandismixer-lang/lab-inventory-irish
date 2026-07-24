@@ -289,6 +289,13 @@ app.put('/api/items/:id', requireAuth, requireAdmin, (req, res) => {
   // กันเปลี่ยนของ track รายตัว (มีหน่วยผูกอยู่) ไปเป็นของเบิก — หน่วยจะค้างสถานะ borrowed ถาวร ยอดเพี้ยน
   if (item.tracked && type === 'consumable')
     return res.status(400).json({ error: 'ของ track รายตัวเปลี่ยนเป็นของเบิก (ใช้แล้วทิ้ง) ไม่ได้ — ต้องลบหน่วยทั้งหมดก่อน' });
+  // กันสลับ type ทั้งที่ยังมีของยืม/เบิกค้างอยู่ — สูตรคิดยอดต่างกัน (tool=borrow-return, consumable=issue)
+  // ถ้าสลับ ยอด "ถูกยืม" จะเพี้ยนเป็น 0 ทันที (ของที่อยู่กับคนหายจากยอด)
+  if (type !== item.type) {
+    const dec = decorateItem(db.prepare(`${ITEM_SELECT} WHERE i.id = ?`).get(item.id));
+    if (dec.out_qty > 0)
+      return res.status(400).json({ error: `เปลี่ยนหมวด/ประเภทไม่ได้ ขณะที่ยังมีของยืม/เบิกค้างอยู่ ${dec.out_qty} ${item.unit} — ต้องคืน/เคลียร์ให้หมดก่อน` });
+  }
   // เปิด track รายตัวให้ของเดิมได้ (0 -> 1) — qty จะมาจากจำนวนหน่วยที่สร้าง จึงรีเซ็ตเป็น 0
   // ปิด track (1 -> 0) ไม่รองรับ เพราะมีหน่วย/ประวัติผูกอยู่
   if (!item.tracked && tracked && type === 'tool') {

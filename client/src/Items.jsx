@@ -376,18 +376,24 @@ function ItemForm({ item, me, onClose, onSaved }) {
     onClose();
     toast(item ? 'กำลังบันทึก…' : 'กำลังเพิ่มรายการ…');
     (async () => {
+      let itemSaved = false; // ตัว item บันทึกสำเร็จแล้วหรือยัง (แยกจากการสร้างหน่วย)
       try {
         if (item) {
-          await api('/api/items/' + item.id, { method: 'PUT', body: b });
+          await api('/api/items/' + item.id, { method: 'PUT', body: b }); itemSaved = true;
           if (tracked && !item.tracked && uN > 0)
             await api('/api/items/' + item.id + '/units', { method: 'POST', body: unitsBody });
         } else {
-          const created = await api('/api/items', { method: 'POST', body: b });
+          const created = await api('/api/items', { method: 'POST', body: b }); itemSaved = true;
           if (tracked && uN > 0)
             await api('/api/items/' + created.id + '/units', { method: 'POST', body: unitsBody });
         }
         toast('บันทึกแล้ว');
-      } catch (er) { toast('บันทึกไม่สำเร็จ: ' + er.message); }
+      } catch (er) {
+        // ถ้า item ถูกสร้าง/บันทึกแล้วแต่ "สร้างหน่วย" พัง — บอกให้ชัด อย่าให้เข้าใจว่าล้มเหลวทั้งหมดแล้วกดซ้ำ (item จะซ้ำ)
+        toast(itemSaved
+          ? `บันทึกรายการแล้ว แต่สร้างหน่วยไม่สำเร็จ (${er.message}) — ไปเพิ่มหน่วยที่ Stock Check ได้เลย ไม่ต้องเพิ่มรายการซ้ำ`
+          : `บันทึกไม่สำเร็จ: ${er.message}`);
+      }
       onSaved(); // รีเฟรชลิสต์ (ฟอร์มปิดไปแล้ว)
     })();
   };
