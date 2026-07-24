@@ -141,7 +141,9 @@ main > * { animation: fadeInUp .4s ease both; }
 .login-card { position: relative; z-index: 1; width: 380px; max-width: 100%; box-shadow: var(--shadow-soft);
   background: rgba(17,17,26,.82); backdrop-filter: blur(10px); animation: fadeInUp .6s .1s ease both; }
 .login-card h1 { margin: 0 0 4px; font-size: 1.7rem; font-family: var(--font-display); font-weight: 500; letter-spacing: -0.02em; }
-.login-card label, form label { display: block; margin: 12px 0 0; font-size: 0.88rem; color: var(--muted); }
+.login-card label, form label { display: block; margin: 12px 0 0; font-size: 0.88rem; color: var(--text); font-weight: 600; }
+/* ข้อความ (ไม่บังคับ)/hint ในหัวข้อ ให้จางกว่าชื่อช่อง */
+form label .muted, form label .hint { font-weight: 400; }
 .login-card input, form input, form select, form textarea {
   width: 100%; margin-top: 4px; padding: 11px 14px;
   border: 1px solid var(--line-strong); border-radius: var(--radius-sm); font: inherit;
