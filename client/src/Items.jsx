@@ -307,7 +307,6 @@ function ItemForm({ item, me, onClose, onSaved }) {
   const toast = useToast();
   const confirm = useConfirm();
   const promptDlg = usePrompt();
-  const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false); // กำลังบันทึก — กันกดซ้ำจนสร้างซ้ำ
   const [category, setCategory] = useState(item?.category || 'วัสดุสิ้นเปลือง');
   const [tracked, setTracked] = useState(!!item?.tracked);
@@ -474,7 +473,6 @@ function ItemForm({ item, me, onClose, onSaved }) {
             ? <img className="item-thumb" src={shownImg} alt="preview" />
             : (removeImg ? <span className="hint">จะลบรูปเมื่อกดบันทึก</span> : null)}
         </div>
-        <div className="err">{err}</div>
         <button className="btn primary" type="submit" disabled={busy} style={{ marginTop: 14, width: '100%' }}>
           {item ? 'บันทึกการแก้ไข' : 'เพิ่มรายการ'}
         </button>

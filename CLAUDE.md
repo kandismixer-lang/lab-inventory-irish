@@ -34,12 +34,12 @@ cd client && npm run build
   - หมวดใช้แล้วทิ้ง→consumable: สายไฟ, วัสดุสิ้นเปลือง, สาย USB (ใช้ตัด)
 - **units**: หน่วยย่อยรายตัว (code + status: available/borrowed/repair/lost) สำหรับ item ที่ `tracked=1`
 - **transactions**: ประวัติทุกการเคลื่อนไหว (add/issue/borrow/return/repair/ready/lost)
-- **requests**: workflow ขออนุมัติ — pending→approved→handed→received→(returned) / rejected / cancelled
+- **requests**: workflow ขออนุมัติ — pending→received→(returned) / rejected / cancelled (อนุมัติ = ตัดสต็อกจบขั้นเดียว ไม่มี approved/handed แล้ว)
 - **locations**: ตู้/ที่เก็บ (dropdown + เพิ่มได้)
 
 ## กติกาสำคัญ
-- **สิทธิ์:** admin = เพิ่ม/แก้/สร้างหน่วย/อนุมัติ/ส่งมอบ · staff = ขอยืม + ยืนยันรับ + คืน เท่านั้น (บังคับที่ server)
-- **workflow ขอยืม:** staff ขอ (เลือกแค่ชนิดของ) → admin อนุมัติ+เลือกหน่วยจริง (dropdown ในการ์ด) → ส่งมอบ (ตัดสต็อก+แนบรูป) → staff ยืนยันรับ (แนบรูป) → ถูกยืม → คืน
+- **สิทธิ์:** admin = เพิ่ม/แก้/สร้างหน่วย/อนุมัติ/รับของคืน · staff/guest = ขอยืมเท่านั้น (บังคับที่ server)
+- **workflow ขอยืม:** staff/guest ขอ (เลือกแค่ชนิดของ) → admin อนุมัติ+เลือกหน่วยจริง (dropdown ในการ์ด) = ตัดสต็อกทันที ถือว่าอยู่กับผู้ขอเลย → admin กด "รับของคืนแล้ว" ตอนคืน (ไม่มีขั้นส่งมอบ/ยืนยันรับแยกแล้ว)
 - **แนบรูป:** ถ่ายจากมือถือได้ ย่ออัตโนมัติเป็น JPEG ~1280px เก็บเป็น data URL ใน DB
 - **ของ consumable เบิกจนเหลือ 0 หายจากหน้ารายการของ** (ข้อมูล/ประวัติยังอยู่ครบ) — admin ติ๊ก "แสดงของที่เบิกหมด" เพื่อดู/เติมสต็อก
 - responsive คอม/มือถือแล้ว

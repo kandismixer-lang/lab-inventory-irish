@@ -177,7 +177,7 @@ function RequestCard({ r, me, onDone }) {
   const isAdmin = me.role === 'admin';
   const mine = r.requester_id === me.id;
   const st = REQ_STATUS[r.status] || { label: r.status, cls: '' };
-  const [modal, setModal] = useState(null); // 'handover' | 'receive' | 'reject'
+  const [modal, setModal] = useState(null); // 'reject' (เดียวที่ใช้ตอนนี้)
   const [units, setUnits] = useState([]);   // หน่วยว่างของ item นี้ (pending + tracked)
   const [pickUnits, setPickUnits] = useState([]); // เลือกได้หลายหน่วย
   const toast = useToast();
