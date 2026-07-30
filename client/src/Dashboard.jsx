@@ -85,7 +85,7 @@ export default function Dashboard({ go, me }) {
         const late = (d.overdue || []).filter((r) => r.days_over > 0);
         if (late.length === 0) return null;
         return (
-          <>
+          <div className="overdue-zone">
             <div className="section-title">⏰ เกินกำหนดคืน ({late.length})</div>
             <Table
               headers={['รายการ', 'ผู้ยืม', 'กำหนดคืน', 'เกินมา']}
@@ -99,7 +99,7 @@ export default function Dashboard({ go, me }) {
                 ],
               }))}
             />
-          </>
+          </div>
         );
       })()}
 
@@ -124,7 +124,7 @@ export default function Dashboard({ go, me }) {
             headers={['ชื่อ', 'คงเหลือ', 'จุดเตือน', 'ที่เก็บ']}
             rows={d.lowStock.map((i) => ({
               key: i.id,
-              cells: [i.name, <span className="badge low">{i.qty} {i.unit}</span>, i.min_qty, i.location],
+              cells: [i.name, <span className="badge warn-low">{i.qty} {i.unit}</span>, i.min_qty, i.location],
             }))}
           />
         </>

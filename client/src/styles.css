@@ -263,6 +263,11 @@ tbody tr:hover > td { background: var(--wash-blue); }
 .badge.adjust { background: var(--card-2); color: var(--muted); }
 .badge.repair { background: rgba(251,191,36,.14); color: var(--warn); }
 .badge.lost { background: rgba(248,113,113,.14); color: var(--danger); }
+.badge.warn-low { background: rgba(251,191,36,.14); color: var(--warn); }
+
+/* โซนเกินกำหนดคืน — เน้นวิกฤตด้วย accent แดงจาง */
+.overdue-zone { background: rgba(248,113,113,.06); border-left: 3px solid var(--danger); border-radius: var(--radius-sm); padding: 10px 12px 4px; margin-bottom: 14px; }
+.overdue-zone table { background: transparent; }
 /* สถานะหน่วย: ว่าง=เขียว · ยืม=เหลือง · พัง=ส้ม · หาย=แดง */
 .badge.st-available { background: rgba(74,222,128,.12); color: var(--ok); }
 .badge.st-borrowed { background: rgba(250,204,21,.14); color: #facc15; }
@@ -277,11 +282,11 @@ tbody tr:hover > td { background: var(--wash-blue); }
 .stock-search {
   width: 100%; margin: 4px 0 12px; padding: 11px 16px;
   border: 1px solid var(--line-strong); border-radius: 999px;
-  font: inherit; background: #f4f6fa; color: #16161c;
+  font: inherit; background: var(--card-2); color: var(--text);
   transition: box-shadow .15s, border-color .15s;
 }
-.stock-search::placeholder { color: #8a8fa3; }
-.stock-search:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(34,211,238,0.22); background: #fff; }
+.stock-search::placeholder { color: var(--muted); }
+.stock-search:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(34,211,238,0.22); background: var(--card-2); }
 .stock-search::-webkit-search-cancel-button { cursor: pointer; }
 
 /* ---- ตารางของพัง/หาย ---- */

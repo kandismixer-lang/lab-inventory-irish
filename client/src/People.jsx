@@ -66,7 +66,7 @@ function PersonCard({ p, open, onToggle }) {
             : rows.map((r) => {
               const st = REQ_STATUS[r.status] || { label: r.status, cls: '' };
               return (
-                <div className="req-bar card" key={r.id}>
+                <div className="req-bar" key={r.id}>
                   <div className="req-info">
                     <div className="req-title">
                       <strong>{r.item_name}</strong>
