@@ -658,7 +658,7 @@ app.get('/api/requests/counts', requireAuth, (req, res) => {
     if (req.user.role === 'guest') {
       const gname = (req.session?.gname || '').trim();
       if (gname) { cond = 'r.person = ? COLLATE NOCASE'; arg = gname; }
-      else { cond = 'r.guest_key = ?'; arg = req.session?.gkey || ' '; }
+      else { cond = 'r.guest_key = ?'; arg = req.session?.gkey || ' '; }
     }
     const borrowedOrders = db.prepare(
       `SELECT COUNT(*) n FROM (SELECT COALESCE(r.order_id, -r.id) AS k FROM requests r WHERE r.status='received' AND ${cond} GROUP BY k)`
