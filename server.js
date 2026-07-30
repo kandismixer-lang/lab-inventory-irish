@@ -289,12 +289,14 @@ app.put('/api/items/:id', requireAuth, requireAdmin, (req, res) => {
   // กันเปลี่ยนของ track รายตัว (มีหน่วยผูกอยู่) ไปเป็นของเบิก — หน่วยจะค้างสถานะ borrowed ถาวร ยอดเพี้ยน
   if (item.tracked && type === 'consumable')
     return res.status(400).json({ error: 'ของ track รายตัวเปลี่ยนเป็นของเบิก (ใช้แล้วทิ้ง) ไม่ได้ — ต้องลบหน่วยทั้งหมดก่อน' });
-  // กันสลับ type ทั้งที่ยังมีของยืม/เบิกค้างอยู่ — สูตรคิดยอดต่างกัน (tool=borrow-return, consumable=issue)
-  // ถ้าสลับ ยอด "ถูกยืม" จะเพี้ยนเป็น 0 ทันที (ของที่อยู่กับคนหายจากยอด)
+  // กันสลับ type ทั้งที่ยัง "ยืมค้าง" อยู่จริง — ถ้าสลับ ยอดถูกยืมจะเพี้ยน (ของที่อยู่กับคนหายจากยอด)
+  // นับเฉพาะที่ค้างจริง: หน่วยที่ถูกยืม (tracked) + ยืมค้างของ tool (borrow−return)
+  // ไม่นับ issued_total ของ consumable เพราะเบิกแล้วจบ ไม่มีวันคืน = ไม่ใช่ของค้าง
   if (type !== item.type) {
     const dec = decorateItem(db.prepare(`${ITEM_SELECT} WHERE i.id = ?`).get(item.id));
-    if (dec.out_qty > 0)
-      return res.status(400).json({ error: `เปลี่ยนหมวด/ประเภทไม่ได้ ขณะที่ยังมีของยืม/เบิกค้างอยู่ ${dec.out_qty} ${item.unit} — ต้องคืน/เคลียร์ให้หมดก่อน` });
+    const outstanding = dec.units_borrowed + Math.max(0, dec.borrowed_net);
+    if (outstanding > 0)
+      return res.status(400).json({ error: `เปลี่ยนหมวด/ประเภทไม่ได้ ขณะที่ยังมีของยืมค้างอยู่ ${outstanding} ${item.unit} — ต้องคืนให้หมดก่อน` });
   }
   // เปิด track รายตัวให้ของเดิมได้ (0 -> 1) — qty จะมาจากจำนวนหน่วยที่สร้าง จึงรีเซ็ตเป็น 0
   // ปิด track (1 -> 0) ไม่รองรับ เพราะมีหน่วย/ประวัติผูกอยู่
@@ -568,24 +570,8 @@ function guestKey(req) {
   return req.session.gkey;
 }
 
-app.post('/api/requests', requireAuth, (req, res) => {
-  const block = guestThrottle(req);
-  if (block) return res.status(429).json({ error: block });
-  const { item_id, qty, note } = req.body || {};
-  const item = db.prepare('SELECT * FROM items WHERE id = ? AND active = 1').get(item_id);
-  if (!item) return res.status(404).json({ error: 'ไม่พบรายการของ' });
-  const kind = item.type === 'consumable' ? 'issue' : 'borrow';
-  const n = Math.max(1, parseInt(qty, 10) || 1);
-  const info = db
-    .prepare(
-      `INSERT INTO requests (item_id, requester_id, kind, qty, note, status, guest_key)
-       VALUES (?,?,?,?,?, 'pending', ?)`
-    )
-    .run(item.id, req.user.id, kind, n, (note || '').trim(), guestKey(req));
-  res.json({ id: Number(info.lastInsertRowid) });
-});
-
-// สร้างออเดอร์ = หลายรายการใน 1 ใบ (ตะกร้า) — แต่ละบรรทัดเป็น request แยก (reuse workflow เดิม)
+// สร้างออเดอร์ = หลายรายการใน 1 ใบ (ตะกร้า) — แต่ละบรรทัดเป็น request แยก
+// (ทุก flow ขอยืม/เบิก ทั้งเดี่ยวและหลายชิ้น ไปทางนี้หมด — ไม่มี POST /api/requests เดี่ยวแล้ว)
 app.post('/api/orders', requireAuth, (req, res) => {
   const block = guestThrottle(req);
   if (block) return res.status(429).json({ error: block });
