@@ -77,7 +77,7 @@ export default function Dashboard({ go, me }) {
     <>
       <div className="stat-row">
         <div className="card stat"><div className="num col-total">{d.totals.total}</div><div className="lbl">จำนวนรวม</div></div>
-        <div className="card stat"><div className="num col-out">{d.totals.borrowed}</div><div className="lbl">ถูกยืม (ต้องคืน)</div></div>
+        <div className="card stat"><div className="num col-out">{d.totals.borrowed}</div><div className="lbl">ถูกยืม </div></div>
         <div className="card stat"><div className="num col-remain">{d.totals.remain}</div><div className="lbl">คงเหลือในคลัง</div></div>
       </div>
 
@@ -150,7 +150,7 @@ export default function Dashboard({ go, me }) {
         </>
       )}
 
-      <div className="section-title">📦 รายการของ (คงเหลือในคลัง = ไม่ถูกยืม/ใช้)</div>
+      <div className="section-title">📦 รายการของ </div>
       <div className="hint" style={{ marginBottom: 6 }}>กดที่แถวเพื่อไปหน้ารายการของ (ยืม/จัดการ) · กดหมวดเพื่อกรอง</div>
       <input type="search" className="stock-search" placeholder="ค้นหาชื่อ / ที่เก็บ…"
         value={q} onChange={(e) => setQ(e.target.value)} />
