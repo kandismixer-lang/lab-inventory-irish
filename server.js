@@ -903,7 +903,9 @@ app.get('/api/dashboard', requireAuth, (req, res) => {
   const totals = {
     items: all.length,
     total: all.reduce((s, i) => s + i.total_qty, 0),   // จำนวนรวม
-    out: all.reduce((s, i) => s + i.out_qty, 0),       // ถูกยืม/ถูกใช้
+    out: all.reduce((s, i) => s + i.out_qty, 0),       // ถูกยืม+เบิก รวม (เผื่อโค้ดเก่า)
+    borrowed: all.filter((i) => i.type === 'tool').reduce((s, i) => s + i.out_qty, 0),      // ยืมค้าง (ต้องคืน)
+    issued: all.filter((i) => i.type === 'consumable').reduce((s, i) => s + i.out_qty, 0),  // เบิกไป (ตัดยอดถาวร)
     remain: all.reduce((s, i) => s + i.qty, 0),        // คงเหลือในคลัง
   };
   // กำหนดคืน — คำขอที่ยังยืมอยู่ (received) และมีวันคืน (โชว์ทั้งที่ยังไม่ถึง+เกินแล้ว)
