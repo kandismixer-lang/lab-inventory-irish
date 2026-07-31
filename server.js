@@ -819,6 +819,36 @@ app.get('/api/borrowers', requireAuth, requireAdmin, (req, res) => {
   );
 });
 
+// ลบผู้ยืมออกจากระบบ (เช่น ข้อมูลทดสอบ "ผู้เยี่ยมชม") — คืนของที่ถืออยู่กลับคลัง + ลบคำขอ/ประวัติคำขอทิ้ง
+app.delete('/api/borrowers', requireAuth, requireAdmin, (req, res) => {
+  const name = (req.query.name || '').trim();
+  if (!name) return res.status(400).json({ error: 'ต้องระบุชื่อ' });
+  const reqs = db.prepare('SELECT * FROM requests WHERE person = ? COLLATE NOCASE').all(name);
+  if (reqs.length === 0) return res.json({ ok: true, removed: 0 });
+  const touched = new Set();
+  db.tx(() => {
+    for (const r of reqs) {
+      // ของที่ยังถืออยู่ (received) — คืนกลับคลังก่อน กันหน่วย/ยอดค้าง
+      if (r.status === 'received') {
+        const item = db.prepare('SELECT * FROM items WHERE id=?').get(r.item_id);
+        if (item?.tracked) {
+          for (const uid of reqUnitIds(r)) {
+            db.prepare("UPDATE units SET status='available', holder='' WHERE id=?").run(uid);
+          }
+          touched.add(r.item_id);
+        } else if (item?.type === 'tool') {
+          db.prepare('UPDATE items SET qty = qty + ? WHERE id = ?').run(r.qty, r.item_id);
+        }
+      }
+      db.prepare('DELETE FROM request_units WHERE request_id = ?').run(r.id);
+      db.prepare('DELETE FROM requests WHERE id = ?').run(r.id);
+    }
+    for (const id of touched) db.recalcTracked(id);
+  });
+  db.flushNow();
+  res.json({ ok: true, removed: reqs.length });
+});
+
 // ประวัติการยืมของคนคนหนึ่ง
 app.get('/api/borrowers/history', requireAuth, requireAdmin, (req, res) => {
   const name = (req.query.name || '').trim();

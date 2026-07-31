@@ -1,13 +1,29 @@
 import React, { useEffect, useState } from 'react';
 import { api, REQ_STATUS } from './api.js';
+import { useToast, useConfirm } from './components.jsx';
 
 // หน้า "ผู้ยืม" — ลิสต์ชื่อคน กดแล้วกางดูว่ายืม/เบิกอะไรไปบ้าง
 export default function People() {
   const [people, setPeople] = useState(null);
   const [open, setOpen] = useState(null); // ชื่อที่กางอยู่
   const [q, setQ] = useState('');
+  const toast = useToast();
+  const confirm = useConfirm();
 
-  useEffect(() => { api('/api/borrowers').then(setPeople); }, []);
+  const load = () => api('/api/borrowers').then(setPeople);
+  useEffect(() => { load(); }, []);
+
+  const del = async (p) => {
+    if (!(await confirm({
+      title: `ลบผู้ยืม "${p.name}"?`,
+      message: `ลบประวัติคำขอทั้งหมดของคนนี้${p.active > 0 ? ` และคืนของที่ถืออยู่ ${p.active} รายการกลับคลัง` : ''} — ใช้สำหรับล้างข้อมูลทดสอบ`,
+    }))) return;
+    setPeople((ps) => ps.filter((x) => x.name !== p.name)); // เอาออกจากจอทันที
+    if (open === p.name) setOpen(null);
+    toast(`ลบ "${p.name}" แล้ว`);
+    api('/api/borrowers?name=' + encodeURIComponent(p.name), { method: 'DELETE' }).then(load).catch((e) => { toast(e.message); load(); });
+  };
+
   if (!people) return <p className="muted">กำลังโหลด...</p>;
 
   const kw = q.trim().toLowerCase();
@@ -25,7 +41,7 @@ export default function People() {
       ) : (
         <div className="req-list">
           {list.map((p) => (
-            <PersonCard key={p.name} p={p} open={open === p.name} onToggle={() => setOpen(open === p.name ? null : p.name)} />
+            <PersonCard key={p.name} p={p} open={open === p.name} onToggle={() => setOpen(open === p.name ? null : p.name)} onDelete={() => del(p)} />
           ))}
         </div>
       )}
@@ -33,7 +49,7 @@ export default function People() {
   );
 }
 
-function PersonCard({ p, open, onToggle }) {
+function PersonCard({ p, open, onToggle, onDelete }) {
   const [rows, setRows] = useState(null);
   useEffect(() => {
     if (open && rows === null)
@@ -57,7 +73,10 @@ function PersonCard({ p, open, onToggle }) {
             <span className="hint">🕑 ล่าสุด {p.last_at}</span>
           </div>
         </div>
-        <button className="btn small info" onClick={(e) => { e.stopPropagation(); onToggle(); }}>{open ? 'ซ่อน ▲' : 'ดูรายการ ▼'}</button>
+        <div className="req-actions" onClick={(e) => e.stopPropagation()}>
+          <button className="btn small info" onClick={onToggle}>{open ? 'ซ่อน ▲' : 'ดูรายการ ▼'}</button>
+          <button className="btn small danger" onClick={onDelete} title="ลบผู้ยืม (ล้างข้อมูลทดสอบ)">ลบ</button>
+        </div>
       </div>
       {open && (
         <div className="order-lines">
