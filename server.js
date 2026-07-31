@@ -900,13 +900,14 @@ app.get('/api/dashboard', requireAuth, (req, res) => {
     .all();
   // ยอดรวม — คิดจากรายการทั้งหมดด้วยสูตรเดียวกับหน้ารายการของ (ตัวเลข sync กัน)
   const all = db.prepare(`${ITEM_SELECT} WHERE i.active=1`).all().map(decorateItem);
+  const borrowed = all.filter((i) => i.type === 'tool').reduce((s, i) => s + i.out_qty, 0); // ยืมค้าง (ต้องคืน)
+  const remain = all.reduce((s, i) => s + i.qty, 0);   // คงเหลือในคลัง
   const totals = {
     items: all.length,
-    total: all.reduce((s, i) => s + i.total_qty, 0),   // จำนวนรวม
-    out: all.reduce((s, i) => s + i.out_qty, 0),       // ถูกยืม+เบิก รวม (เผื่อโค้ดเก่า)
-    borrowed: all.filter((i) => i.type === 'tool').reduce((s, i) => s + i.out_qty, 0),      // ยืมค้าง (ต้องคืน)
-    issued: all.filter((i) => i.type === 'consumable').reduce((s, i) => s + i.out_qty, 0),  // เบิกไป (ตัดยอดถาวร)
-    remain: all.reduce((s, i) => s + i.qty, 0),        // คงเหลือในคลัง
+    // จำนวนรวม = ของในคลัง + ของที่ยืมค้าง (จะกลับมา) — ไม่นับของเบิกที่ใช้ไปแล้ว (ตัดออกจากคลังถาวร)
+    total: remain + borrowed,
+    borrowed,
+    remain,
   };
   // กำหนดคืน — คำขอที่ยังยืมอยู่ (received) และมีวันคืน (โชว์ทั้งที่ยังไม่ถึง+เกินแล้ว)
   // days_over > 0 = เกินมาแล้ว, = 0 คือครบวันนี้, < 0 คือเหลืออีกกี่วัน

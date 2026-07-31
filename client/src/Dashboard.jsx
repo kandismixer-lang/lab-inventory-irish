@@ -78,7 +78,6 @@ export default function Dashboard({ go, me }) {
       <div className="stat-row">
         <div className="card stat"><div className="num col-total">{d.totals.total}</div><div className="lbl">จำนวนรวม</div></div>
         <div className="card stat"><div className="num col-out">{d.totals.borrowed}</div><div className="lbl">ถูกยืม (ต้องคืน)</div></div>
-        <div className="card stat"><div className="num" style={{ color: 'var(--warn)' }}>{d.totals.issued}</div><div className="lbl">เบิกไป (ตัดยอด)</div></div>
         <div className="card stat"><div className="num col-remain">{d.totals.remain}</div><div className="lbl">คงเหลือในคลัง</div></div>
       </div>
 
