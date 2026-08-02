@@ -190,13 +190,13 @@ function DetailModal({ item, onClose }) {
       </div>
       {item.is_kit && item.components && (
         <>
-          <div className="detail-head">🤖 อุปกรณ์ที่ประกอบ (ของพอประกอบได้ {item.buildable ?? item.qty} ชุด)</div>
+          <div className="detail-head">🤖 ประกอบด้วย (จองของไว้ในหุ่นตัวนี้แล้ว)</div>
           <div className="kit-list">
             {item.components.length === 0 ? <div className="muted">— ยังไม่ได้กำหนดอุปกรณ์ —</div>
               : item.components.map((c) => (
-                <div className="kit-line" key={c.item_id}>
+                <div className="kit-line" key={`${c.item_id}-${c.unit_id || 0}`}>
                   <span>{c.name}{c.unit_code ? ` (${c.unit_code})` : ''}</span>
-                  <span className="muted">×{c.qty} {c.unit} · เหลือ {c.avail} → ทำได้ {c.buildable}</span>
+                  <span className="muted">×{c.qty} {c.unit}</span>
                 </div>
               ))}
           </div>
@@ -473,7 +473,7 @@ function ItemForm({ item, me, onClose, onSaved }) {
         {isKit && (
           <div className="kit-box">
             <div className="kit-head">🤖 อุปกรณ์ที่ใช้ประกอบหุ่นยนต์นี้</div>
-            <div className="hint" style={{ marginTop: 0 }}>หุ่นยนต์ไม่นับเป็นสต็อกเอง · ยืมหุ่น = ยืมอุปกรณ์ทั้งชุด · คงเหลือ = ประกอบได้กี่ตัว</div>
+            <div className="hint" style={{ marginTop: 0 }}>บันทึกแล้ว = จองของเข้าหุ่นทันที (ตัดออกจากคลัง) · ยืมหุ่น = ยืมของชิ้นเดียวเหมือนเครื่องมือทั่วไป · แก้/ลบหุ่นทำไม่ได้ขณะถูกยืมออกไปอยู่</div>
             {comps.length === 0 && <div className="muted" style={{ padding: '6px 0' }}>— ยังไม่ได้เลือกอุปกรณ์ —</div>}
             {comps.map((c, i) => {
               const compItem = allItems.find((x) => String(x.id) === c.item_id);
