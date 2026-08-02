@@ -115,12 +115,17 @@ function OrderCard({ lines, me, onDone }) {
       try {
         let body = {};
         if (l.tracked) {
-          const us = await api(`/api/items/${l.item_id}/units`);
           const set = used[l.item_id] || (used[l.item_id] = new Set());
-          const free = us.filter((u) => u.status === 'available' && !set.has(u.id)).slice(0, l.qty);
-          if (free.length < l.qty) { skip++; continue; } // หน่วยว่างไม่พอ ข้ามไว้ค้าง pending
-          free.forEach((u) => set.add(u.id));
-          body = { unit_ids: free.map((u) => u.id) };
+          // ผูกหน่วยเจาะจงไว้ล่วงหน้าแล้ว (จาก kit component) — ไม่ต้องเลือกซ้ำ ปล่อยให้ server ใช้ want_unit_id เอง
+          if (l.want_unit_id && l.qty === 1) {
+            body = {};
+          } else {
+            const us = await api(`/api/items/${l.item_id}/units`);
+            const free = us.filter((u) => u.status === 'available' && !set.has(u.id)).slice(0, l.qty);
+            if (free.length < l.qty) { skip++; continue; } // หน่วยว่างไม่พอ ข้ามไว้ค้าง pending
+            free.forEach((u) => set.add(u.id));
+            body = { unit_ids: free.map((u) => u.id) };
+          }
         }
         await api(`/api/requests/${l.id}/approve`, { method: 'POST', body });
         ok++;
@@ -193,9 +198,13 @@ function RequestCard({ r, me, onDone }) {
   const toggleUnit = (id) => setPickUnits((p) => p.includes(id) ? p.filter((x) => x !== id) : [...p, id]);
 
   // โหลดหน่วยว่างเมื่อเป็นคำขอ pending ของ item ที่ track รายตัว (สำหรับ admin เลือกให้ยืม)
+  // ถ้ามีการผูกหน่วยเจาะจงไว้ล่วงหน้า (จาก kit component) ให้ติ๊กให้อัตโนมัติ ไม่ต้องเลือกซ้ำ
   useEffect(() => {
     if (isAdmin && r.status === 'pending' && r.tracked) {
-      api(`/api/items/${r.item_id}/units`).then((us) => setUnits(us.filter((u) => u.status === 'available')));
+      api(`/api/items/${r.item_id}/units`).then((us) => {
+        setUnits(us.filter((u) => u.status === 'available'));
+        if (r.want_unit_id) setPickUnits([r.want_unit_id]);
+      });
     }
   }, [r.status]);
 
@@ -237,7 +246,9 @@ function RequestCard({ r, me, onDone }) {
             {r.tracked ? (
               <div className="unit-pick">
                 <div className="hint" style={{ margin: '0 0 4px' }}>
-                  เลือกหน่วยให้ครบ {r.qty} ชิ้น (ว่าง {units.length}) — เลือกแล้ว {pickUnits.length}
+                  {r.want_unit_code
+                    ? `ผูกหน่วยไว้แล้ว: ${r.want_unit_code} (แก้ได้ถ้าต้องการ)`
+                    : `เลือกหน่วยให้ครบ ${r.qty} ชิ้น (ว่าง ${units.length}) — เลือกแล้ว ${pickUnits.length}`}
                 </div>
                 <div className="unit-chips">
                   {units.map((u) => {

@@ -187,6 +187,8 @@ addColumn('requests', 'person', "TEXT NOT NULL DEFAULT ''"); // ชื่อผ�
 addColumn('orders', 'person', "TEXT NOT NULL DEFAULT ''");
 addColumn('requests', 'guest_key', "TEXT NOT NULL DEFAULT ''"); // แยกเจ้าของคำขอของ guest (ไม่ต้อง login)
 addColumn('requests', 'due_date', "TEXT NOT NULL DEFAULT ''");  // กำหนดคืน (YYYY-MM-DD) — เตือนเกินกำหนด
+addColumn('kit_components', 'unit_id', 'INTEGER');  // ผูกหน่วยเจาะจง (เฉพาะ component ที่ tracked + ใช้ทีละ 1 ชิ้น) — ว่าง = หน่วยไหนก็ได้
+addColumn('requests', 'want_unit_id', 'INTEGER');   // หน่วยที่จองไว้ล่วงหน้าจาก kit component ผูกหน่วย — admin ไม่ต้องเลือกซ้ำตอนอนุมัติ
 
 // ตั้งค่า category เริ่มต้นจาก type เดิม (ครั้งแรกที่ยังว่าง)
 db.prepare("UPDATE items SET category='เครื่องมือ' WHERE category='' AND type='tool'").run();

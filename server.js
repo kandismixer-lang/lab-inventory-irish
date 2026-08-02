@@ -201,13 +201,19 @@ function decorateItem(i) {
 }
 
 // รายการ component ของหุ่นยนต์ (พร้อมชื่อ/คงเหลือของแต่ละชิ้น)
+// unit_id (ถ้ามี) = ผูกหน่วยเจาะจงไว้ (เฉพาะ component tracked + qty=1) — buildable นับจากหน่วยนั้นตัวเดียว
 function kitComponents(kitId) {
   return db.prepare(
-    `SELECT kc.item_id, kc.qty, i.name, i.unit, i.type, i.tracked FROM kit_components kc
-     JOIN items i ON i.id = kc.item_id WHERE kc.kit_id = ? AND i.active = 1 ORDER BY i.name`
+    `SELECT kc.item_id, kc.qty, kc.unit_id, i.name, i.unit, i.type, i.tracked,
+       u.code AS unit_code, u.status AS unit_status
+     FROM kit_components kc
+     JOIN items i ON i.id = kc.item_id
+     LEFT JOIN units u ON u.id = kc.unit_id
+     WHERE kc.kit_id = ? AND i.active = 1 ORDER BY i.name`
   ).all(kitId).map((c) => {
     const it = decorateItem(db.prepare(`${ITEM_SELECT} WHERE i.id = ?`).get(c.item_id));
-    return { ...c, avail: it.qty, buildable: Math.floor(it.qty / c.qty) };
+    const buildable = c.unit_id ? (c.unit_status === 'available' ? 1 : 0) : Math.floor(it.qty / c.qty);
+    return { ...c, avail: it.qty, buildable };
   });
 }
 // ประกอบหุ่นยนต์ได้กี่ตัว = น้อยสุดของ floor(คงเหลือ component / ที่ต้องใช้)
@@ -216,20 +222,29 @@ function kitBuildable(kitId) {
   if (comps.length === 0) return 0;
   return Math.max(0, Math.min(...comps.map((c) => c.buildable)));
 }
-// บันทึกสูตรประกอบ — แทนที่ของเดิมทั้งชุด (components = [{item_id, qty}])
+// บันทึกสูตรประกอบ — แทนที่ของเดิมทั้งชุด (components = [{item_id, qty, unit_id?}])
+// unit_id = ผูกหน่วยเจาะจง — รับได้เฉพาะ component tracked + ใช้ทีละ 1 ชิ้น (qty=1) ไม่งั้นไม่มีความหมาย
 function saveKitComponents(kitId, comps) {
   db.prepare('DELETE FROM kit_components WHERE kit_id = ?').run(kitId);
   if (!Array.isArray(comps)) return;
-  const seen = new Map(); // รวม component ซ้ำ (item เดียวกัน) เป็นแถวเดียว บวก qty
+  const seen = new Map(); // รวม component ซ้ำ (item เดียวกัน+หน่วยเดียวกัน) เป็นแถวเดียว บวก qty
   for (const c of comps) {
     const cid = parseInt(c.item_id, 10);
     const n = Math.max(1, parseInt(c.qty, 10) || 1);
     if (!cid || cid === kitId) continue; // ห้ามอ้างตัวเอง
-    if (!db.prepare('SELECT 1 FROM items WHERE id=? AND active=1 AND is_kit=0').get(cid)) continue;
-    seen.set(cid, (seen.get(cid) || 0) + n);
+    const compItem = db.prepare('SELECT * FROM items WHERE id=? AND active=1 AND is_kit=0').get(cid);
+    if (!compItem) continue;
+    let unitId = null;
+    if (compItem.tracked && n === 1 && c.unit_id) {
+      const u = db.prepare('SELECT * FROM units WHERE id=? AND item_id=? AND active=1').get(parseInt(c.unit_id, 10), cid);
+      if (u) unitId = u.id;
+    }
+    const key = unitId ? `${cid}:${unitId}` : `${cid}`;
+    const prev = seen.get(key);
+    seen.set(key, { item_id: cid, qty: (prev?.qty || 0) + n, unit_id: unitId });
   }
-  const ins = db.prepare('INSERT INTO kit_components (kit_id, item_id, qty) VALUES (?,?,?)');
-  for (const [cid, n] of seen) ins.run(kitId, cid, n);
+  const ins = db.prepare('INSERT INTO kit_components (kit_id, item_id, qty, unit_id) VALUES (?,?,?,?)');
+  for (const { item_id, qty, unit_id } of seen.values()) ins.run(kitId, item_id, qty, unit_id);
 }
 
 // ใครยืมของชิ้นนี้อยู่ ณ ตอนนี้ — ตรงกับ out_qty (พัง/หาย ตัดออกจากคลังแล้ว ไม่แสดงที่นี่)
@@ -579,12 +594,14 @@ const REQ_SELECT = `
   SELECT r.*,
     i.name AS item_name, i.unit AS item_unit, i.type AS item_type, i.tracked,
     u.code AS unit_code,
+    wu.code AS want_unit_code,
     (SELECT GROUP_CONCAT(u2.code, ', ') FROM request_units ru JOIN units u2 ON u2.id = ru.unit_id WHERE ru.request_id = r.id) AS unit_codes,
     req.username AS requester_name, req.fullname AS requester_fullname,
     apr.username AS approver_name
   FROM requests r
   JOIN items i ON i.id = r.item_id
   LEFT JOIN units u ON u.id = r.unit_id
+  LEFT JOIN units wu ON wu.id = r.want_unit_id
   JOIN users req ON req.id = r.requester_id
   LEFT JOIN users apr ON apr.id = r.approver_id
 `;
@@ -648,9 +665,12 @@ app.post('/api/orders', requireAuth, (req, res) => {
       for (const c of comps) {
         const ci = db.prepare('SELECT * FROM items WHERE id = ? AND active = 1').get(c.item_id);
         if (!ci) continue;
+        const lineQty = c.qty * n;
+        // component ผูกหน่วยเจาะจงไว้ + สั่งพอดี 1 ชุด (ไม่งั้นหน่วยเดียวจองซ้ำหลายตัวไม่ได้) — จองหน่วยนั้นเลย ไม่ต้องให้ admin เลือกซ้ำตอนอนุมัติ
+        const wantUnitId = c.unit_id && lineQty === 1 ? c.unit_id : null;
         // ใส่ชื่อหุ่นในหมายเหตุทุกไลน์ = รู้ว่าชิ้นนี้เป็นของหุ่นตัวไหน (โชว์ในคำขอ/People)
-        lines.push({ item: ci, qty: c.qty * n, note: `🤖 ${item.name}${it.note ? ' · ' + it.note.trim() : ''}`,
-          due, person: linePerson, kind: ci.type === 'consumable' ? 'issue' : 'borrow' });
+        lines.push({ item: ci, qty: lineQty, note: `🤖 ${item.name}${it.note ? ' · ' + it.note.trim() : ''}`,
+          due, person: linePerson, kind: ci.type === 'consumable' ? 'issue' : 'borrow', wantUnitId });
       }
       continue;
     }
@@ -662,10 +682,10 @@ app.post('/api/orders', requireAuth, (req, res) => {
       .run(req.user.id, (note || '').trim(), who);
     const oid = Number(oi.lastInsertRowid);
     const ins = db.prepare(
-      `INSERT INTO requests (item_id, requester_id, kind, qty, note, status, order_id, person, guest_key, due_date)
-       VALUES (?,?,?,?,?, 'pending', ?, ?, ?, ?)`
+      `INSERT INTO requests (item_id, requester_id, kind, qty, note, status, order_id, person, guest_key, due_date, want_unit_id)
+       VALUES (?,?,?,?,?, 'pending', ?, ?, ?, ?, ?)`
     );
-    lines.forEach((l) => ins.run(l.item.id, req.user.id, l.kind, l.qty, l.note, oid, l.person, gkey, l.due));
+    lines.forEach((l) => ins.run(l.item.id, req.user.id, l.kind, l.qty, l.note, oid, l.person, gkey, l.due, l.wantUnitId || null));
     return oid;
   });
   res.json({ id: orderId, lines: lines.length });
@@ -751,6 +771,8 @@ app.post('/api/requests/:id/approve', requireAuth, requireAdmin, (req, res) => {
     let raw = req.body?.unit_ids;
     if (!Array.isArray(raw)) raw = req.body?.unit_id != null ? [req.body.unit_id] : [];
     ids = [...new Set(raw.map((x) => parseInt(x, 10)).filter((x) => x))];
+    // ยังไม่ได้เลือก แต่ตอนสร้างคำขอผูกหน่วยเจาะจงไว้แล้ว (จาก kit component) — ใช้อันนั้นอัตโนมัติ
+    if (ids.length === 0 && r.want_unit_id && r.qty === 1) ids = [r.want_unit_id];
     if (ids.length !== r.qty)
       return res.status(400).json({ error: `ต้องเลือกหน่วยว่างให้ครบ ${r.qty} ชิ้น` });
     for (const id of ids) {

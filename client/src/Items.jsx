@@ -195,7 +195,7 @@ function DetailModal({ item, onClose }) {
             {item.components.length === 0 ? <div className="muted">— ยังไม่ได้กำหนดอุปกรณ์ —</div>
               : item.components.map((c) => (
                 <div className="kit-line" key={c.item_id}>
-                  <span>{c.name}</span>
+                  <span>{c.name}{c.unit_code ? ` (${c.unit_code})` : ''}</span>
                   <span className="muted">×{c.qty} {c.unit} · เหลือ {c.avail} → ทำได้ {c.buildable}</span>
                 </div>
               ))}
@@ -329,15 +329,25 @@ function ItemForm({ item, me, onClose, onSaved }) {
   const type = CATEGORY_TYPE[category] || 'consumable';
   // หุ่นยนต์ = ชุดประกอบ (kit) — เลือกอุปกรณ์ที่ใช้ประกอบ ไม่มีสต็อกตัวเอง
   const isKit = category === 'หุ่นยนต์';
-  const [comps, setComps] = useState(() => (item?.components || []).map((c) => ({ item_id: String(c.item_id), qty: String(c.qty) })));
+  const [comps, setComps] = useState(() => (item?.components || []).map((c) => ({ item_id: String(c.item_id), qty: String(c.qty), unit_id: c.unit_id ? String(c.unit_id) : '' })));
   const [allItems, setAllItems] = useState([]);
+  const [compUnits, setCompUnits] = useState({}); // item_id -> หน่วยว่างของ item นั้น (สำหรับผูกหน่วยเจาะจง)
   useEffect(() => {
     if (isKit && allItems.length === 0)
       api('/api/items?includeEmpty=1').then((r) => setAllItems(r.filter((x) => !x.is_kit && x.id !== item?.id)));
   }, [isKit]);
-  const setComp = (i, k, v) => setComps((cs) => cs.map((c, j) => (j === i ? { ...c, [k]: v } : c)));
-  const addComp = () => setComps((cs) => [...cs, { item_id: '', qty: '1' }]);
+  const setComp = (i, k, v) => setComps((cs) => cs.map((c, j) => (j === i ? { ...c, [k]: v, ...(k === 'item_id' ? { unit_id: '' } : {}) } : c)));
+  const addComp = () => setComps((cs) => [...cs, { item_id: '', qty: '1', unit_id: '' }]);
   const rmComp = (i) => setComps((cs) => cs.filter((_, j) => j !== i));
+  // โหลดหน่วยว่างของ component ที่ track รายตัว (ให้เลือกผูกหน่วยเจาะจงได้)
+  const loadCompUnits = (itemId) => {
+    if (!itemId || compUnits[itemId]) return;
+    api(`/api/items/${itemId}/units`).then((us) => setCompUnits((m) => ({ ...m, [itemId]: us.filter((u) => u.status === 'available') })));
+  };
+  // ตอนแก้ไขหุ่นเดิม — โหลดหน่วยว่างของ component ที่ track รายตัวไว้ล่วงหน้า (ให้เห็น dropdown ผูกหน่วยได้เลย)
+  useEffect(() => {
+    comps.forEach((c) => { if (c.item_id) loadCompUnits(c.item_id); });
+  }, [allItems]);
   const [img, setImg] = useState('');            // รูปใหม่ (data URL) ถ้าเลือก
   const [removeImg, setRemoveImg] = useState(false); // ติ๊กลบรูปเดิม
   const [imgBusy, setImgBusy] = useState(false);
@@ -394,7 +404,11 @@ function ItemForm({ item, me, onClose, onSaved }) {
     b.tracked = isKit ? 0 : (tracked ? 1 : 0);
     if (isKit) {
       b.is_kit = 1;
-      b.components = comps.filter((c) => c.item_id).map((c) => ({ item_id: Number(c.item_id), qty: Math.max(1, parseInt(c.qty, 10) || 1) }));
+      b.components = comps.filter((c) => c.item_id).map((c) => ({
+        item_id: Number(c.item_id),
+        qty: Math.max(1, parseInt(c.qty, 10) || 1),
+        unit_id: c.unit_id ? Number(c.unit_id) : undefined,
+      }));
     }
     if (img) b.image = img;
     else if (removeImg) b.image = ''; // '' = สั่งลบรูปเดิม
@@ -461,16 +475,35 @@ function ItemForm({ item, me, onClose, onSaved }) {
             <div className="kit-head">🤖 อุปกรณ์ที่ใช้ประกอบหุ่นยนต์นี้</div>
             <div className="hint" style={{ marginTop: 0 }}>หุ่นยนต์ไม่นับเป็นสต็อกเอง · ยืมหุ่น = ยืมอุปกรณ์ทั้งชุด · คงเหลือ = ประกอบได้กี่ตัว</div>
             {comps.length === 0 && <div className="muted" style={{ padding: '6px 0' }}>— ยังไม่ได้เลือกอุปกรณ์ —</div>}
-            {comps.map((c, i) => (
-              <div className="kit-row" key={i}>
-                <select value={c.item_id} onChange={(e) => setComp(i, 'item_id', e.target.value)}>
-                  <option value="">— เลือกอุปกรณ์ —</option>
-                  {allItems.map((x) => <option key={x.id} value={x.id}>{x.name} (เหลือ {x.qty})</option>)}
-                </select>
-                <input type="number" min="1" value={c.qty} onChange={(e) => setComp(i, 'qty', e.target.value)} style={{ width: 70 }} title="ใช้กี่ชิ้น" />
-                <button type="button" className="btn small danger" onClick={() => rmComp(i)}>ลบ</button>
-              </div>
-            ))}
+            {comps.map((c, i) => {
+              const compItem = allItems.find((x) => String(x.id) === c.item_id);
+              const canPinUnit = compItem?.tracked && (parseInt(c.qty, 10) || 1) === 1;
+              return (
+                <div key={i}>
+                  <div className="kit-row">
+                    <select value={c.item_id} onChange={(e) => { setComp(i, 'item_id', e.target.value); loadCompUnits(e.target.value); }}>
+                      <option value="">— เลือกอุปกรณ์ —</option>
+                      {allItems.map((x) => <option key={x.id} value={x.id}>{x.name} (เหลือ {x.qty})</option>)}
+                    </select>
+                    <input type="number" min="1" value={c.qty} onChange={(e) => setComp(i, 'qty', e.target.value)} style={{ width: 70 }} title="ใช้กี่ชิ้น" />
+                    <button type="button" className="btn small danger" onClick={() => rmComp(i)}>ลบ</button>
+                  </div>
+                  {canPinUnit && (
+                    <div className="kit-row" style={{ marginTop: 4 }}>
+                      <select value={c.unit_id} onChange={(e) => setComp(i, 'unit_id', e.target.value)} style={{ flex: 1 }}>
+                        <option value="">— หน่วยไหนก็ได้ —</option>
+                        {(compUnits[c.item_id] || []).map((u) => <option key={u.id} value={u.id}>{u.code}</option>)}
+                        {/* หน่วยที่ผูกไว้อยู่แล้วแต่ยังไม่โหลดมาในลิสต์ (เช่นตอนแรกเปิดฟอร์มแก้ไข) */}
+                        {c.unit_id && !(compUnits[c.item_id] || []).some((u) => String(u.id) === c.unit_id) && (
+                          <option value={c.unit_id}>{item?.components?.find((oc) => String(oc.item_id) === c.item_id)?.unit_code || `หน่วย #${c.unit_id}`}</option>
+                        )}
+                      </select>
+                      <span className="hint" style={{ flex: 'none' }} title="ผูกหน่วยนี้ให้หุ่นตัวนี้เจาะจง — ตอนยืมจะจองหน่วยนี้ให้เลย">📌 ผูกหน่วยเจาะจง (ไม่บังคับ)</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
             <button type="button" className="btn small info" onClick={addComp} style={{ marginTop: 6 }}>＋ เพิ่มอุปกรณ์</button>
           </div>
         )}
