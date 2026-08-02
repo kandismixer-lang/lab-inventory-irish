@@ -187,10 +187,12 @@ const ITEM_SELECT = `
 // คำนวณ มี / ถูกยืม / คงเหลือ
 // ของ track รายตัว: หน่วยที่ "พัง/หาย" ถือว่าตัดออกจากคลังแล้ว ไม่นับใน "มีทั้งหมด"
 function decorateItem(i) {
-  // หุ่นยนต์ (kit) — ไม่มีสต็อกตัวเอง คงเหลือ = ประกอบได้กี่ตัวจาก component (min ของทุกชิ้น)
+  // หุ่นยนต์ (kit) = แบบเดียว มี 1 เสมอ · คงเหลือ = 1 ถ้าของพอประกอบ ≥1 ชุด, 0 ถ้าไม่พอ
+  // buildable = ประกอบได้จริงกี่ชุด (เก็บไว้โชว์ในรายละเอียด) · ไม่นับเป็นสต็อกในยอดรวม (dashboard กรอง is_kit ออก)
   if (i.is_kit) {
-    const avail = kitBuildable(i.id);
-    return { ...i, out_qty: 0, total_qty: avail, qty: avail, components: kitComponents(i.id) };
+    const buildable = kitBuildable(i.id);
+    const qty = buildable >= 1 ? 1 : 0;
+    return { ...i, out_qty: 0, total_qty: 1, qty, buildable, components: kitComponents(i.id) };
   }
   const remaining = i.qty;
   let out; // ถูกยืมออกไป ณ ตอนนี้ (สำหรับสิ้นเปลือง = ยอดที่เบิกใช้ไปสะสม)

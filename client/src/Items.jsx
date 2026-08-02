@@ -190,7 +190,7 @@ function DetailModal({ item, onClose }) {
       </div>
       {item.is_kit && item.components && (
         <>
-          <div className="detail-head">🤖 อุปกรณ์ที่ประกอบ (ประกอบได้ {item.qty} ตัว)</div>
+          <div className="detail-head">🤖 อุปกรณ์ที่ประกอบ (ของพอประกอบได้ {item.buildable ?? item.qty} ชุด)</div>
           <div className="kit-list">
             {item.components.length === 0 ? <div className="muted">— ยังไม่ได้กำหนดอุปกรณ์ —</div>
               : item.components.map((c) => (
