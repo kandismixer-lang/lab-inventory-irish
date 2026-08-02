@@ -329,15 +329,36 @@ function ItemForm({ item, me, onClose, onSaved }) {
   const type = CATEGORY_TYPE[category] || 'consumable';
   // หุ่นยนต์ = ชุดประกอบ (kit) — เลือกอุปกรณ์ที่ใช้ประกอบ ไม่มีสต็อกตัวเอง
   const isKit = category === 'หุ่นยนต์';
-  const [comps, setComps] = useState(() => (item?.components || []).map((c) => ({ item_id: String(c.item_id), qty: String(c.qty), unit_id: c.unit_id ? String(c.unit_id) : '' })));
+  // รวม component ชิ้นเดียวกันเป็นแถวเดียว — tracked ที่จองหลายหน่วยเก็บ unit_ids เป็น array (โมเดลใหม่แตกเป็นแถวละหน่วย)
+  const [comps, setComps] = useState(() => {
+    const byItem = new Map();
+    for (const c of (item?.components || [])) {
+      const key = String(c.item_id);
+      if (!byItem.has(key)) byItem.set(key, { item_id: key, qty: 0, unit_ids: [] });
+      const g = byItem.get(key);
+      g.qty += parseInt(c.qty, 10) || 1;
+      if (c.unit_id) g.unit_ids.push(String(c.unit_id));
+    }
+    return [...byItem.values()].map((g) => ({ item_id: g.item_id, qty: String(g.qty), unit_ids: g.unit_ids }));
+  });
+  // รหัสหน่วยที่ผูกไว้เดิม (หน่วยพวกนี้สถานะ borrowed อยู่ในหุ่น ไม่อยู่ในลิสต์ว่าง — ต้องโชว์เป็นตัวเลือกได้)
+  const boundUnitCode = useMemo(() => {
+    const m = {};
+    for (const c of (item?.components || [])) if (c.unit_id) m[c.unit_id] = c.unit_code;
+    return m;
+  }, [item]);
   const [allItems, setAllItems] = useState([]);
   const [compUnits, setCompUnits] = useState({}); // item_id -> หน่วยว่างของ item นั้น (สำหรับผูกหน่วยเจาะจง)
   useEffect(() => {
     if (isKit && allItems.length === 0)
       api('/api/items?includeEmpty=1').then((r) => setAllItems(r.filter((x) => !x.is_kit && x.id !== item?.id)));
   }, [isKit]);
-  const setComp = (i, k, v) => setComps((cs) => cs.map((c, j) => (j === i ? { ...c, [k]: v, ...(k === 'item_id' ? { unit_id: '' } : {}) } : c)));
-  const addComp = () => setComps((cs) => [...cs, { item_id: '', qty: '1', unit_id: '' }]);
+  const setComp = (i, k, v) => setComps((cs) => cs.map((c, j) => (j === i ? { ...c, [k]: v, ...(k === 'item_id' ? { unit_ids: [] } : {}) } : c)));
+  const setUnitAt = (i, slot, v) => setComps((cs) => cs.map((c, j) => {
+    if (j !== i) return c;
+    const arr = [...(c.unit_ids || [])]; arr[slot] = v; return { ...c, unit_ids: arr };
+  }));
+  const addComp = () => setComps((cs) => [...cs, { item_id: '', qty: '1', unit_ids: [] }]);
   const rmComp = (i) => setComps((cs) => cs.filter((_, j) => j !== i));
   // โหลดหน่วยว่างของ component ที่ track รายตัว (ให้เลือกผูกหน่วยเจาะจงได้)
   const loadCompUnits = (itemId) => {
@@ -404,11 +425,20 @@ function ItemForm({ item, me, onClose, onSaved }) {
     b.tracked = isKit ? 0 : (tracked ? 1 : 0);
     if (isKit) {
       b.is_kit = 1;
-      b.components = comps.filter((c) => c.item_id).map((c) => ({
-        item_id: Number(c.item_id),
-        qty: Math.max(1, parseInt(c.qty, 10) || 1),
-        unit_id: c.unit_id ? Number(c.unit_id) : undefined,
-      }));
+      // tracked: แตกเป็นแถวละหน่วยที่ผูก + ที่เหลือ (ไม่ผูก) รวมเป็นก้อน auto · ไม่ tracked: ก้อนเดียวตาม qty
+      b.components = comps.filter((c) => c.item_id).flatMap((c) => {
+        const item_id = Number(c.item_id);
+        const qty = Math.max(1, parseInt(c.qty, 10) || 1);
+        const ci = allItems.find((x) => String(x.id) === c.item_id);
+        if (ci?.tracked) {
+          const pins = [...new Set((c.unit_ids || []).filter(Boolean))].slice(0, qty);
+          const out = pins.map((uid) => ({ item_id, qty: 1, unit_id: Number(uid) }));
+          const rest = qty - pins.length;
+          if (rest > 0) out.push({ item_id, qty: rest }); // ที่เหลือให้ server auto เลือกหน่วยว่าง
+          return out;
+        }
+        return [{ item_id, qty }];
+      });
     }
     if (img) b.image = img;
     else if (removeImg) b.image = ''; // '' = สั่งลบรูปเดิม
@@ -477,7 +507,8 @@ function ItemForm({ item, me, onClose, onSaved }) {
             {comps.length === 0 && <div className="muted" style={{ padding: '6px 0' }}>— ยังไม่ได้เลือกอุปกรณ์ —</div>}
             {comps.map((c, i) => {
               const compItem = allItems.find((x) => String(x.id) === c.item_id);
-              const canPinUnit = compItem?.tracked && (parseInt(c.qty, 10) || 1) === 1;
+              const qtyN = Math.max(1, parseInt(c.qty, 10) || 1);
+              const opts = compUnits[c.item_id] || [];
               return (
                 <div key={i}>
                   <div className="kit-row">
@@ -488,19 +519,24 @@ function ItemForm({ item, me, onClose, onSaved }) {
                     <input type="number" min="1" value={c.qty} onChange={(e) => setComp(i, 'qty', e.target.value)} style={{ width: 70 }} title="ใช้กี่ชิ้น" />
                     <button type="button" className="btn small danger" onClick={() => rmComp(i)}>ลบ</button>
                   </div>
-                  {canPinUnit && (
-                    <div className="kit-row" style={{ marginTop: 4 }}>
-                      <select value={c.unit_id} onChange={(e) => setComp(i, 'unit_id', e.target.value)} style={{ flex: 1 }}>
-                        <option value="">— หน่วยไหนก็ได้ —</option>
-                        {(compUnits[c.item_id] || []).map((u) => <option key={u.id} value={u.id}>{u.code}</option>)}
-                        {/* หน่วยที่ผูกไว้อยู่แล้วแต่ยังไม่โหลดมาในลิสต์ (เช่นตอนแรกเปิดฟอร์มแก้ไข) */}
-                        {c.unit_id && !(compUnits[c.item_id] || []).some((u) => String(u.id) === c.unit_id) && (
-                          <option value={c.unit_id}>{item?.components?.find((oc) => String(oc.item_id) === c.item_id)?.unit_code || `หน่วย #${c.unit_id}`}</option>
-                        )}
-                      </select>
-                      <span className="hint" style={{ flex: 'none' }} title="ผูกหน่วยนี้ให้หุ่นตัวนี้เจาะจง — ตอนยืมจะจองหน่วยนี้ให้เลย">📌 ผูกหน่วยเจาะจง (ไม่บังคับ)</span>
-                    </div>
-                  )}
+                  {/* ของ track รายตัว: เลือกหน่วยเจาะจงได้ทีละช่องตามจำนวนที่ใช้ (ว่างไว้ = ให้ระบบเลือกหน่วยว่างให้) */}
+                  {compItem?.tracked && Array.from({ length: qtyN }).map((_, k) => {
+                    const val = c.unit_ids?.[k] || '';
+                    const usedOther = (c.unit_ids || []).filter((u, idx) => idx !== k && u);
+                    return (
+                      <div className="kit-row" style={{ marginTop: 4 }} key={k}>
+                        <select value={val} onChange={(e) => setUnitAt(i, k, e.target.value)} style={{ flex: 1 }}>
+                          <option value="">— หน่วยไหนก็ได้ —</option>
+                          {opts.filter((u) => !usedOther.includes(String(u.id))).map((u) => <option key={u.id} value={u.id}>{u.code}</option>)}
+                          {/* หน่วยที่ผูกไว้อยู่แล้ว (สถานะ borrowed อยู่ในหุ่น ไม่อยู่ในลิสต์ว่าง) */}
+                          {val && !opts.some((u) => String(u.id) === val) && (
+                            <option value={val}>{boundUnitCode[val] || `หน่วย #${val}`}</option>
+                          )}
+                        </select>
+                        <span className="hint" style={{ flex: 'none' }} title="ผูกหน่วยนี้ให้หุ่นตัวนี้เจาะจง (ไม่เลือก = ระบบเลือกหน่วยว่างให้เอง)">📌 หน่วย #{k + 1} (ไม่บังคับ)</span>
+                      </div>
+                    );
+                  })}
                 </div>
               );
             })}
