@@ -151,6 +151,15 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_ru_req ON request_units(request_id);
 
+  -- สูตรประกอบ "หุ่นยนต์ = ชุด (kit)" — หุ่นยนต์ 1 ตัวใช้ component อะไรกี่ชิ้น
+  -- kit_id = item ที่ is_kit=1, item_id = อุปกรณ์ที่ประกอบ
+  CREATE TABLE IF NOT EXISTS kit_components (
+    kit_id  INTEGER NOT NULL REFERENCES items(id),
+    item_id INTEGER NOT NULL REFERENCES items(id),
+    qty     INTEGER NOT NULL DEFAULT 1
+  );
+  CREATE INDEX IF NOT EXISTS idx_kit ON kit_components(kit_id);
+
   -- ตู้/ที่เก็บของ (จัดการเป็นรายการ เลือกจาก dropdown)
   CREATE TABLE IF NOT EXISTS locations (
     id     INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -171,6 +180,7 @@ addColumn('transactions', 'unit_id', 'INTEGER');            // อ้างถ�
 addColumn('items', 'category', "TEXT NOT NULL DEFAULT ''");  // หมวดหมู่ย่อย
 addColumn('items', 'image', "TEXT NOT NULL DEFAULT ''");     // รูปสินค้า (path /uploads/xxx)
 addColumn('items', 'spec', "TEXT NOT NULL DEFAULT ''");      // สเปค/รายละเอียด (ข้อความยาว)
+addColumn('items', 'is_kit', 'INTEGER NOT NULL DEFAULT 0');  // 1 = หุ่นยนต์/ชุดประกอบ (ประกอบจาก kit_components ไม่มีสต็อกตัวเอง)
 addColumn('users', 'active', 'INTEGER NOT NULL DEFAULT 1');  // soft-delete (0 = ลบแล้ว เก็บประวัติไว้)
 addColumn('requests', 'order_id', 'INTEGER');               // จัดกลุ่มคำขอเป็น 1 ออเดอร์ (ตะกร้า)
 addColumn('requests', 'person', "TEXT NOT NULL DEFAULT ''"); // ชื่อผู้ขอที่พิมพ์เอง (guest ไม่มีบัญชี)

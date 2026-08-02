@@ -187,12 +187,47 @@ const ITEM_SELECT = `
 // คำนวณ มี / ถูกยืม / คงเหลือ
 // ของ track รายตัว: หน่วยที่ "พัง/หาย" ถือว่าตัดออกจากคลังแล้ว ไม่นับใน "มีทั้งหมด"
 function decorateItem(i) {
+  // หุ่นยนต์ (kit) — ไม่มีสต็อกตัวเอง คงเหลือ = ประกอบได้กี่ตัวจาก component (min ของทุกชิ้น)
+  if (i.is_kit) {
+    const avail = kitBuildable(i.id);
+    return { ...i, out_qty: 0, total_qty: avail, qty: avail, components: kitComponents(i.id) };
+  }
   const remaining = i.qty;
   let out; // ถูกยืมออกไป ณ ตอนนี้ (สำหรับสิ้นเปลือง = ยอดที่เบิกใช้ไปสะสม)
   if (i.tracked) out = i.units_borrowed;                         // เฉพาะที่ถูกยืม (ไม่รวมพัง/หาย)
   else if (i.type === 'tool') out = Math.max(0, i.borrowed_net); // ยืมค้างอยู่
   else out = i.issued_total;                                     // วัสดุสิ้นเปลือง = เบิกไปแล้วรวม
   return { ...i, out_qty: out, total_qty: remaining + out };
+}
+
+// รายการ component ของหุ่นยนต์ (พร้อมชื่อ/คงเหลือของแต่ละชิ้น)
+function kitComponents(kitId) {
+  return db.prepare(
+    `SELECT kc.item_id, kc.qty, i.name, i.unit, i.type, i.tracked FROM kit_components kc
+     JOIN items i ON i.id = kc.item_id WHERE kc.kit_id = ? ORDER BY i.name`
+  ).all(kitId).map((c) => {
+    const it = decorateItem(db.prepare(`${ITEM_SELECT} WHERE i.id = ?`).get(c.item_id));
+    return { ...c, avail: it.qty, buildable: Math.floor(it.qty / c.qty) };
+  });
+}
+// ประกอบหุ่นยนต์ได้กี่ตัว = น้อยสุดของ floor(คงเหลือ component / ที่ต้องใช้)
+function kitBuildable(kitId) {
+  const comps = kitComponents(kitId);
+  if (comps.length === 0) return 0;
+  return Math.max(0, Math.min(...comps.map((c) => c.buildable)));
+}
+// บันทึกสูตรประกอบ — แทนที่ของเดิมทั้งชุด (components = [{item_id, qty}])
+function saveKitComponents(kitId, comps) {
+  db.prepare('DELETE FROM kit_components WHERE kit_id = ?').run(kitId);
+  if (!Array.isArray(comps)) return;
+  const ins = db.prepare('INSERT INTO kit_components (kit_id, item_id, qty) VALUES (?,?,?)');
+  for (const c of comps) {
+    const cid = parseInt(c.item_id, 10);
+    const n = Math.max(1, parseInt(c.qty, 10) || 1);
+    if (!cid || cid === kitId) continue; // ห้ามอ้างตัวเอง
+    const exists = db.prepare('SELECT 1 FROM items WHERE id=? AND active=1 AND is_kit=0').get(cid);
+    if (exists) ins.run(kitId, cid, n);
+  }
 }
 
 // ใครยืมของชิ้นนี้อยู่ ณ ตอนนี้ — ตรงกับ out_qty (พัง/หาย ตัดออกจากคลังแล้ว ไม่แสดงที่นี่)
@@ -239,7 +274,8 @@ app.get('/api/items/:id', requireAuth, (req, res) => {
        WHERE t.item_id = ? ORDER BY t.id DESC LIMIT 100`
     )
     .all(req.params.id);
-  res.json({ item, history });
+  const components = item.is_kit ? kitComponents(item.id) : undefined;
+  res.json({ item: { ...item, ...(components ? { components, qty: kitBuildable(item.id) } : {}) }, history });
 });
 
 app.post('/api/items', requireAuth, requireAdmin, (req, res) => {
@@ -276,6 +312,11 @@ app.post('/api/items', requireAuth, requireAdmin, (req, res) => {
     }
     return newId;
   });
+  // หุ่นยนต์/ชุดประกอบ — ไม่มีสต็อกตัวเอง เก็บเป็นสูตร component
+  if (req.body?.is_kit) {
+    db.prepare('UPDATE items SET is_kit=1, tracked=0, qty=0 WHERE id=?').run(id);
+    saveKitComponents(id, req.body?.components);
+  }
   const imgPath = saveImage(req.body?.image, `item-${id}`);
   if (imgPath) db.prepare('UPDATE items SET image=? WHERE id=?').run(imgPath, id);
   res.json({ id });
@@ -316,6 +357,8 @@ app.put('/api/items/:id', requireAuth, requireAdmin, (req, res) => {
     (spec ?? item.spec ?? '').trim(),
     item.id
   );
+  // แก้สูตรประกอบหุ่นยนต์ (ถ้าส่ง components มา)
+  if (item.is_kit && Array.isArray(req.body?.components)) saveKitComponents(item.id, req.body.components);
   // image: '' = สั่งลบรูปเดิม, data URL = รูปใหม่, ไม่ส่งมา = คงเดิม
   if (req.body?.image === '') {
     db.prepare("UPDATE items SET image='' WHERE id=?").run(item.id);
@@ -587,6 +630,18 @@ app.post('/api/orders', requireAuth, (req, res) => {
     const n = Math.max(1, parseInt(it.qty, 10) || 1);
     const due = /^\d{4}-\d{2}-\d{2}$/.test(it.due_date || '') ? it.due_date : '';
     const linePerson = (it.person || '').trim() || who; // ชื่อผู้ยืมต่อรายการ (เผื่อขอแทนหลายคน)
+    // หุ่นยนต์ (kit) — กระจายเป็น component ทีละชิ้น (ยืมหุ่น = ยืมอุปกรณ์ทั้งชุด)
+    if (item.is_kit) {
+      const comps = kitComponents(item.id);
+      if (comps.length === 0) return res.status(400).json({ error: `${item.name} ยังไม่ได้กำหนดอุปกรณ์ประกอบ` });
+      for (const c of comps) {
+        const ci = db.prepare('SELECT * FROM items WHERE id = ? AND active = 1').get(c.item_id);
+        if (!ci) continue;
+        lines.push({ item: ci, qty: c.qty * n, note: (it.note || `ประกอบ ${item.name}`).trim(),
+          due, person: linePerson, kind: ci.type === 'consumable' ? 'issue' : 'borrow' });
+      }
+      continue;
+    }
     lines.push({ item, qty: n, note: (it.note || '').trim(), due, person: linePerson, kind: item.type === 'consumable' ? 'issue' : 'borrow' });
   }
   const gkey = guestKey(req);

@@ -333,6 +333,16 @@ tbody tr:hover > td { background: var(--wash-blue); }
   .chat-panel { left: 8px; right: 8px; bottom: 8px; width: auto; max-width: none; height: 70vh; }
 }
 
+/* ---- หุ่นยนต์: ชุดประกอบ (kit) ---- */
+.kit-box { margin-top: 12px; padding: 12px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: rgba(255,255,255,.03); }
+.kit-head { font-weight: 600; margin-bottom: 4px; }
+.kit-row { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+.kit-row select { flex: 1; margin: 0; }
+.kit-row input { margin: 0; }
+.kit-list { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 8px; }
+.kit-line { display: flex; justify-content: space-between; gap: 10px; align-items: baseline;
+  padding: 7px 10px; border-radius: var(--radius-sm); background: rgba(255,255,255,.04); font-size: .9rem; }
+
 /* ---- แถบเลือกหมวด ---- */
 .cat-bar { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 12px; }
 .cat-chip { display: inline-flex; align-items: center; gap: 7px; cursor: pointer;

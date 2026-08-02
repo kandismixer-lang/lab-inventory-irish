@@ -188,6 +188,20 @@ function DetailModal({ item, onClose }) {
         <span className="col-remain">คงเหลือ {item.qty} {item.unit}</span>
         {!!item.tracked && <span className="hint">📇 track รายตัว</span>}
       </div>
+      {item.is_kit && item.components && (
+        <>
+          <div className="detail-head">🤖 อุปกรณ์ที่ประกอบ (ประกอบได้ {item.qty} ตัว)</div>
+          <div className="kit-list">
+            {item.components.length === 0 ? <div className="muted">— ยังไม่ได้กำหนดอุปกรณ์ —</div>
+              : item.components.map((c) => (
+                <div className="kit-line" key={c.item_id}>
+                  <span>{c.name}</span>
+                  <span className="muted">×{c.qty} {c.unit} · เหลือ {c.avail} → ทำได้ {c.buildable}</span>
+                </div>
+              ))}
+          </div>
+        </>
+      )}
       <div className="detail-head">สเปค / รายละเอียด</div>
       <div className="detail-spec">{(item.spec || '').trim() || '— ยังไม่ได้ใส่ข้อมูล —'}</div>
     </Modal>
@@ -313,6 +327,17 @@ function ItemForm({ item, me, onClose, onSaved }) {
   const [locations, setLocations] = useState([]);
   const [location, setLocation] = useState(item?.location || '');
   const type = CATEGORY_TYPE[category] || 'consumable';
+  // หุ่นยนต์ = ชุดประกอบ (kit) — เลือกอุปกรณ์ที่ใช้ประกอบ ไม่มีสต็อกตัวเอง
+  const isKit = category === 'หุ่นยนต์';
+  const [comps, setComps] = useState(() => (item?.components || []).map((c) => ({ item_id: String(c.item_id), qty: String(c.qty) })));
+  const [allItems, setAllItems] = useState([]);
+  useEffect(() => {
+    if (isKit && allItems.length === 0)
+      api('/api/items?includeEmpty=1').then((r) => setAllItems(r.filter((x) => !x.is_kit && x.id !== item?.id)));
+  }, [isKit]);
+  const setComp = (i, k, v) => setComps((cs) => cs.map((c, j) => (j === i ? { ...c, [k]: v } : c)));
+  const addComp = () => setComps((cs) => [...cs, { item_id: '', qty: '1' }]);
+  const rmComp = (i) => setComps((cs) => cs.filter((_, j) => j !== i));
   const [img, setImg] = useState('');            // รูปใหม่ (data URL) ถ้าเลือก
   const [removeImg, setRemoveImg] = useState(false); // ติ๊กลบรูปเดิม
   const [imgBusy, setImgBusy] = useState(false);
@@ -366,7 +391,11 @@ function ItemForm({ item, me, onClose, onSaved }) {
     const b = Object.fromEntries(new FormData(e.target));
     b.category = category;
     b.location = location;
-    b.tracked = tracked ? 1 : 0;
+    b.tracked = isKit ? 0 : (tracked ? 1 : 0);
+    if (isKit) {
+      b.is_kit = 1;
+      b.components = comps.filter((c) => c.item_id).map((c) => ({ item_id: Number(c.item_id), qty: Math.max(1, parseInt(c.qty, 10) || 1) }));
+    }
     if (img) b.image = img;
     else if (removeImg) b.image = ''; // '' = สั่งลบรูปเดิม
     const unitsBody = { mode: 'bulk', prefix: (uprefix || '').trim(), start: uStartNum, count: uN, pad: parseInt(upad, 10) || 0 };
@@ -427,7 +456,25 @@ function ItemForm({ item, me, onClose, onSaved }) {
             <button type="button" className="btn small info" onClick={addLocation} title="เพิ่มตู้เก็บ">＋ เพิ่มตู้</button>
           </div>
         </label>
-        {type === 'tool' && (
+        {isKit && (
+          <div className="kit-box">
+            <div className="kit-head">🤖 อุปกรณ์ที่ใช้ประกอบหุ่นยนต์นี้</div>
+            <div className="hint" style={{ marginTop: 0 }}>หุ่นยนต์ไม่นับเป็นสต็อกเอง · ยืมหุ่น = ยืมอุปกรณ์ทั้งชุด · คงเหลือ = ประกอบได้กี่ตัว</div>
+            {comps.length === 0 && <div className="muted" style={{ padding: '6px 0' }}>— ยังไม่ได้เลือกอุปกรณ์ —</div>}
+            {comps.map((c, i) => (
+              <div className="kit-row" key={i}>
+                <select value={c.item_id} onChange={(e) => setComp(i, 'item_id', e.target.value)}>
+                  <option value="">— เลือกอุปกรณ์ —</option>
+                  {allItems.map((x) => <option key={x.id} value={x.id}>{x.name} (เหลือ {x.qty})</option>)}
+                </select>
+                <input type="number" min="1" value={c.qty} onChange={(e) => setComp(i, 'qty', e.target.value)} style={{ width: 70 }} title="ใช้กี่ชิ้น" />
+                <button type="button" className="btn small danger" onClick={() => rmComp(i)}>ลบ</button>
+              </div>
+            ))}
+            <button type="button" className="btn small info" onClick={addComp} style={{ marginTop: 6 }}>＋ เพิ่มอุปกรณ์</button>
+          </div>
+        )}
+        {!isKit && type === 'tool' && (
           <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 12 }}>
             <input type="checkbox" style={{ width: 'auto', margin: 0 }} checked={tracked}
               onChange={(e) => setTracked(e.target.checked)} disabled={!!item?.tracked} />
@@ -453,10 +500,12 @@ function ItemForm({ item, me, onClose, onSaved }) {
             {uPreview && <div className="hint" style={{ marginBottom: 0 }}>ตัวอย่างรหัส: <b>{uPreview}</b> ({uN} ชิ้น)</div>}
           </div>
         )}
-        <div className="form-row">
-          {!item && !tracked && <label>จำนวนตั้งต้น<input name="qty" type="number" min="0" defaultValue="0" /></label>}
-          {!tracked && <label>จุดเตือนของใกล้หมด<input name="min_qty" type="number" min="0" defaultValue={item?.min_qty ?? 0} /></label>}
-        </div>
+        {!isKit && (
+          <div className="form-row">
+            {!item && !tracked && <label>จำนวนตั้งต้น<input name="qty" type="number" min="0" defaultValue="0" /></label>}
+            {!tracked && <label>จุดเตือนของใกล้หมด<input name="min_qty" type="number" min="0" defaultValue={item?.min_qty ?? 0} /></label>}
+          </div>
+        )}
         <label>สเปค / รายละเอียด (โชว์ในป๊อปอัป "รายละเอียด")
           <textarea name="spec" rows="7" defaultValue={item?.spec || ''}
             placeholder={'ใส่ได้อิสระ เช่น\nCPU: Broadcom BCM2712 quad-core\nRAM: 8GB LPDDR4X\nไฟเลี้ยง: 5V/5A USB-C\nหมายเหตุ: มีพัดลมติดมาด้วย'} />
