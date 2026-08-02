@@ -198,6 +198,12 @@ function decorateItem(i) {
   return { ...i, out_qty: out, total_qty: remaining + out, ...extra };
 }
 
+// หุ่นถูกยืมออกไปจริงไหม (out_qty>0) — ใช้กันแก้/ลบตอนถูกยืม (ไม่ใช้ qty<1 เพราะหุ่นเปล่าเก่า qty=0 แต่ไม่ถูกยืม)
+function kitBorrowedOut(kitId) {
+  const row = db.prepare(`${ITEM_SELECT} WHERE i.id = ?`).get(kitId);
+  return row ? decorateItem(row).out_qty > 0 : false;
+}
+
 // รายการ component ที่ "จองไว้" ให้หุ่นยนต์ตัวนี้แล้ว (พร้อมชื่อ/หน่วยที่ผูก)
 function kitComponents(kitId) {
   return db.prepare(
@@ -431,8 +437,9 @@ app.put('/api/items/:id', requireAuth, requireAdmin, (req, res) => {
   if (!item.tracked && tracked && type === 'tool' && !wantKit) {
     db.prepare('UPDATE items SET tracked=1, qty=0 WHERE id=?').run(item.id);
   }
-  // แก้/ยกเลิกหุ่นยนต์ห้ามทำตอนหุ่นถูกยืมออกไปอยู่ (qty=0) — ของข้างในจองผูกกับหุ่นที่ถืออยู่กับคนอื่น
-  if (item.is_kit && item.qty < 1)
+  // แก้/ยกเลิกหุ่นยนต์ห้ามทำตอนหุ่น "ถูกยืมออกไปจริง" — ของข้างในจองผูกกับหุ่นที่ถืออยู่กับคนอื่น
+  // (เช็ค out_qty ไม่ใช่ qty<1 — หุ่นเปล่าจากโมเดลเก่า qty=0 แต่ไม่ได้ถูกยืม ต้องแก้/ลบได้)
+  if (item.is_kit && kitBorrowedOut(item.id))
     return res.status(400).json({ error: 'หุ่นตัวนี้ถูกยืมออกไปอยู่ — ต้องรอคืนก่อนถึงจะแก้ไข/ยกเลิกได้' });
 
   try {
@@ -496,7 +503,7 @@ app.post('/api/locations', requireAuth, requireAdmin, (req, res) => {
 app.delete('/api/items/:id', requireAuth, requireAdmin, (req, res) => {
   const item = db.prepare('SELECT * FROM items WHERE id = ?').get(req.params.id);
   if (!item) return res.status(404).json({ error: 'ไม่พบรายการ' });
-  if (item.is_kit && item.qty < 1)
+  if (item.is_kit && kitBorrowedOut(item.id))
     return res.status(400).json({ error: 'หุ่นตัวนี้ถูกยืมออกไปอยู่ — ต้องรอคืนก่อนถึงจะลบได้' });
   db.tx(() => {
     if (item.is_kit) releaseKitReservation(item.id, req.user.id, `รื้อหุ่น ${item.name} คืนของ`);
