@@ -94,6 +94,7 @@ function PersonCard({ p, open, onToggle, onDelete }) {
                       <span className={'badge ' + st.cls}>{st.label}</span>
                     </div>
                     <div className="req-sub">
+                      {r.note && <span className="muted">{r.note}</span>}
                       <span className="hint">🕑 {r.created_at}</span>
                       {r.due_date && <span className="hint">📅 คืน {r.due_date}</span>}
                     </div>

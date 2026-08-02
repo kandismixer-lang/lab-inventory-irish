@@ -204,7 +204,7 @@ function decorateItem(i) {
 function kitComponents(kitId) {
   return db.prepare(
     `SELECT kc.item_id, kc.qty, i.name, i.unit, i.type, i.tracked FROM kit_components kc
-     JOIN items i ON i.id = kc.item_id WHERE kc.kit_id = ? ORDER BY i.name`
+     JOIN items i ON i.id = kc.item_id WHERE kc.kit_id = ? AND i.active = 1 ORDER BY i.name`
   ).all(kitId).map((c) => {
     const it = decorateItem(db.prepare(`${ITEM_SELECT} WHERE i.id = ?`).get(c.item_id));
     return { ...c, avail: it.qty, buildable: Math.floor(it.qty / c.qty) };
@@ -220,14 +220,16 @@ function kitBuildable(kitId) {
 function saveKitComponents(kitId, comps) {
   db.prepare('DELETE FROM kit_components WHERE kit_id = ?').run(kitId);
   if (!Array.isArray(comps)) return;
-  const ins = db.prepare('INSERT INTO kit_components (kit_id, item_id, qty) VALUES (?,?,?)');
+  const seen = new Map(); // รวม component ซ้ำ (item เดียวกัน) เป็นแถวเดียว บวก qty
   for (const c of comps) {
     const cid = parseInt(c.item_id, 10);
     const n = Math.max(1, parseInt(c.qty, 10) || 1);
     if (!cid || cid === kitId) continue; // ห้ามอ้างตัวเอง
-    const exists = db.prepare('SELECT 1 FROM items WHERE id=? AND active=1 AND is_kit=0').get(cid);
-    if (exists) ins.run(kitId, cid, n);
+    if (!db.prepare('SELECT 1 FROM items WHERE id=? AND active=1 AND is_kit=0').get(cid)) continue;
+    seen.set(cid, (seen.get(cid) || 0) + n);
   }
+  const ins = db.prepare('INSERT INTO kit_components (kit_id, item_id, qty) VALUES (?,?,?)');
+  for (const [cid, n] of seen) ins.run(kitId, cid, n);
 }
 
 // ใครยืมของชิ้นนี้อยู่ ณ ตอนนี้ — ตรงกับ out_qty (พัง/หาย ตัดออกจากคลังแล้ว ไม่แสดงที่นี่)
@@ -357,8 +359,15 @@ app.put('/api/items/:id', requireAuth, requireAdmin, (req, res) => {
     (spec ?? item.spec ?? '').trim(),
     item.id
   );
-  // แก้สูตรประกอบหุ่นยนต์ (ถ้าส่ง components มา)
-  if (item.is_kit && Array.isArray(req.body?.components)) saveKitComponents(item.id, req.body.components);
+  // หุ่นยนต์/ชุดประกอบ — ตั้ง/แก้/ยกเลิกตามค่าที่ส่งมา (แก้บั๊กเดิมที่ PUT ไม่บันทึก BOM)
+  if (req.body?.is_kit) {
+    db.prepare('UPDATE items SET is_kit=1, tracked=0, qty=0 WHERE id=?').run(item.id);
+    saveKitComponents(item.id, req.body?.components);
+  } else if (item.is_kit) {
+    // เปลี่ยนหุ่นยนต์กลับเป็นของธรรมดา — ล้างสูตร (กัน ghost kit)
+    db.prepare('UPDATE items SET is_kit=0 WHERE id=?').run(item.id);
+    db.prepare('DELETE FROM kit_components WHERE kit_id=?').run(item.id);
+  }
   // image: '' = สั่งลบรูปเดิม, data URL = รูปใหม่, ไม่ส่งมา = คงเดิม
   if (req.body?.image === '') {
     db.prepare("UPDATE items SET image='' WHERE id=?").run(item.id);
@@ -406,6 +415,8 @@ app.post('/api/items/:id/move', requireAuth, requireAdmin, (req, res) => {
   if (!item) return res.status(404).json({ error: 'ไม่พบรายการ' });
   if (item.tracked)
     return res.status(400).json({ error: 'ของนี้ track รายตัว — ให้จัดการที่หน่วยย่อยแทน' });
+  if (item.is_kit)
+    return res.status(400).json({ error: 'หุ่นยนต์ (ชุดประกอบ) ไม่มีสต็อกของตัวเอง — จัดการที่อุปกรณ์ประกอบแทน' });
 
   const { kind, qty, person, note, target } = req.body || {};
   if (!(kind in KINDS)) return res.status(400).json({ error: 'ประเภทการเคลื่อนไหวไม่ถูกต้อง' });
@@ -637,7 +648,8 @@ app.post('/api/orders', requireAuth, (req, res) => {
       for (const c of comps) {
         const ci = db.prepare('SELECT * FROM items WHERE id = ? AND active = 1').get(c.item_id);
         if (!ci) continue;
-        lines.push({ item: ci, qty: c.qty * n, note: (it.note || `ประกอบ ${item.name}`).trim(),
+        // ใส่ชื่อหุ่นในหมายเหตุทุกไลน์ = รู้ว่าชิ้นนี้เป็นของหุ่นตัวไหน (โชว์ในคำขอ/People)
+        lines.push({ item: ci, qty: c.qty * n, note: `🤖 ${item.name}${it.note ? ' · ' + it.note.trim() : ''}`,
           due, person: linePerson, kind: ci.type === 'consumable' ? 'issue' : 'borrow' });
       }
       continue;
@@ -910,7 +922,7 @@ app.get('/api/borrowers/history', requireAuth, requireAdmin, (req, res) => {
   if (!name) return res.json([]);
   res.json(
     db.prepare(
-      `SELECT r.id, r.qty, r.status, r.kind, r.created_at, r.due_date, i.name AS item_name, i.unit,
+      `SELECT r.id, r.qty, r.status, r.kind, r.note, r.created_at, r.due_date, i.name AS item_name, i.unit,
               (SELECT GROUP_CONCAT(u2.code, ', ') FROM request_units ru JOIN units u2 ON u2.id=ru.unit_id WHERE ru.request_id=r.id) AS unit_codes
        FROM requests r JOIN items i ON i.id = r.item_id
        WHERE r.person = ? COLLATE NOCASE
@@ -955,13 +967,15 @@ app.get('/api/dashboard', requireAuth, (req, res) => {
     .all();
   // ยอดรวม — คิดจากรายการทั้งหมดด้วยสูตรเดียวกับหน้ารายการของ (ตัวเลข sync กัน)
   const all = db.prepare(`${ITEM_SELECT} WHERE i.active=1`).all().map(decorateItem);
-  const borrowed = all.filter((i) => i.type === 'tool').reduce((s, i) => s + i.out_qty, 0); // ยืมค้าง (ต้องคืน)
-  const remain = all.reduce((s, i) => s + i.qty, 0);   // คงเหลือในคลัง
+  // ไม่นับหุ่นยนต์ (kit) ในยอดรวม — เป็นของเสมือน qty=ประกอบได้ ซึ่งคือ component ที่นับไปแล้ว (กันนับซ้ำ)
+  const real = all.filter((i) => !i.is_kit);
+  const borrowedReal = real.filter((i) => i.type === 'tool').reduce((s, i) => s + i.out_qty, 0);
+  const remain = real.reduce((s, i) => s + i.qty, 0);   // คงเหลือในคลัง
   const totals = {
-    items: all.length,
-    // จำนวนรวม = ของในคลัง + ของที่ยืมค้าง (จะกลับมา) — ไม่นับของเบิกที่ใช้ไปแล้ว (ตัดออกจากคลังถาวร)
-    total: remain + borrowed,
-    borrowed,
+    items: real.length,
+    // จำนวนรวม = ของในคลัง + ของที่ยืมค้าง (จะกลับมา) — ไม่นับของเบิกที่ใช้ไปแล้ว + ไม่นับหุ่น
+    total: remain + borrowedReal,
+    borrowed: borrowedReal,
     remain,
   };
   // กำหนดคืน — คำขอที่ยังยืมอยู่ (received) และมีวันคืน (โชว์ทั้งที่ยังไม่ถึง+เกินแล้ว)
