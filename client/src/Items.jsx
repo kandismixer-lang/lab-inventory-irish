@@ -306,11 +306,22 @@ export function CategoryBar({ items, cat, onPick, splitRobot }) {
           🤖 หุ่นยนต์ <span className="n">{robotKinds}</span>
         </button>
       )}
-      {restKeys.map((k) => (
+      {/* โหมด splitRobot: หมวดย่อยไม่โชว์ในแถวนี้ (โชว์แถวล่างเฉพาะตอนกด "อุปกรณ์ทั้งหมด") */}
+      {!splitRobot && restKeys.map((k) => (
         <button key={k} className={'cat-chip ' + groups[k].type + (cat === k ? ' active' : '')} onClick={() => onPick(cat === k ? '' : k)}>
           {k} <span className="n">{groups[k].kinds}</span>
         </button>
       ))}
+      {/* หมวดย่อยของอุปกรณ์ (ไม่นับหุ่น) — โผล่เป็นแถวล่างเมื่อเลือก "อุปกรณ์ทั้งหมด" หรือหมวดใดหมวดหนึ่งอยู่ */}
+      {splitRobot && (cat === '__parts__' || restKeys.includes(cat)) && (
+        <div className="cat-bar cat-sub">
+          {restKeys.map((k) => (
+            <button key={k} className={'cat-chip ' + groups[k].type + (cat === k ? ' active' : '')} onClick={() => onPick(cat === k ? '__parts__' : k)}>
+              {k} <span className="n">{groups[k].kinds}</span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

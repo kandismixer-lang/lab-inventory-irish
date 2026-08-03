@@ -382,6 +382,8 @@ tbody tr:hover > td { background: var(--wash-blue); }
 .cat-chip.fix.robot:hover { background: rgba(45,212,191,.2); }
 .cat-chip.fix.robot.active { background: #2dd4bf; border-color: #2dd4bf; color: #06201c; }
 .cat-chip .sub { font-size: .72rem; color: var(--muted); font-weight: 400; }
+/* หมวดย่อยของ "อุปกรณ์ทั้งหมด" — แถวล่าง เยื้องขวานิด มีเส้นบอกว่าเป็นลูก */
+.cat-bar.cat-sub { flex-basis: 100%; margin: 4px 0 0 14px; padding-left: 12px; border-left: 2px solid var(--line-strong); }
 .cat-chip.fix.active .sub { color: rgba(255,255,255,.8); }
 /* dropdown ผูกหน่วย: "หน่วยไหนก็ได้" (auto) = teal จางบอกว่าไม่ระบุ · เลือกหน่วยแล้ว = ปกติ */
 select.unit-any { color: #2dd4bf; font-style: italic; }
