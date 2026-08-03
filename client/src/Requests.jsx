@@ -146,6 +146,7 @@ function OrderCard({ lines, me, onDone }) {
           </div>
           <div className="req-sub">
             <span>👤 {[...new Set(lines.map((l) => l.person).filter(Boolean))].join(', ') || first.requester_fullname || first.requester_name}</span>
+            {first.card && <span className="hint">🪪 {first.card}</span>}
             <span className="hint">🕑 {first.created_at}</span>
             <span className="muted">{summary}</span>
           </div>
@@ -227,6 +228,7 @@ function RequestCard({ r, me, onDone }) {
         </div>
         <div className="req-sub">
           <span>👤 {r.person || r.requester_fullname || r.requester_name}</span>
+          {r.card && <span className="hint">🪪 {r.card}</span>}
           <span className="hint">🕑 {r.created_at}</span>
           {r.approver_name && <span className="hint">✔ โดย {r.approver_name}</span>}
           {r.due_date && (

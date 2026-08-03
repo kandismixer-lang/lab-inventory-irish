@@ -68,6 +68,7 @@ function PersonCard({ p, open, onToggle, onDelete }) {
             <strong>{p.name}</strong>
           </div>
           <div className="req-sub">
+            {p.card && <span className="hint">🪪 {p.card}</span>}
             {p.active > 0 && <span className="col-out">กำลังยืม {p.active} รายการ</span>}
             <span className="muted">ทั้งหมด {p.total} ครั้ง</span>
             <span className="hint">🕑 ล่าสุด {p.last_at}</span>

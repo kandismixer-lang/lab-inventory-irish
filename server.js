@@ -119,9 +119,13 @@ app.get('/api/me', (req, res) => {
 // guest ยืนยันชื่อ — จำลง session เพื่อดึงคำขอที่ชื่อตรงกันกลับมา (แม้ cookie ถูกล้าง/คนละเครื่อง)
 // ตัวตนแบบเบา ไม่ต้อง login: "ชื่อเดิม = ของเดิม"
 app.post('/api/guest/name', requireAuth, (req, res) => {
-  const name = (req.body?.name || '').trim();
+  let name = (req.body?.name || '').trim();
   const cardId = (req.body?.card || '').trim();
-  // ยืนยันตัวตน guest ได้ 2 ทาง: ชื่อ หรือ รหัสบัตร — เก็บลง session เพื่อดึงของที่ยืมกลับมา
+  // ยืนยันด้วยรหัสบัตร → หาชื่อที่เคยยืมด้วยบัตรนี้ มาตั้งเป็นชื่อด้วย (ให้ทุกหน้าที่อิงชื่อ sync ตรงกัน)
+  if (cardId && !name) {
+    const row = db.prepare("SELECT person FROM requests WHERE card=? AND person<>'' ORDER BY id DESC LIMIT 1").get(cardId);
+    if (row?.person) name = row.person;
+  }
   req.session.gname = name;
   req.session.gcard = cardId;
   res.json({ ok: true, name, card: cardId });
@@ -802,8 +806,9 @@ app.post('/api/orders', requireAuth, (req, res) => {
     if (!item) return res.status(404).json({ error: `ไม่พบรายการของ (id ${it.item_id})` });
     const n = Math.max(1, parseInt(it.qty, 10) || 1);
     const due = /^\d{4}-\d{2}-\d{2}$/.test(it.due_date || '') ? it.due_date : '';
-    const linePerson = (it.person || '').trim() || who; // ชื่อผู้ยืมต่อรายการ (เผื่อขอแทนหลายคน)
-    const lineCard = (it.card || card || '').trim();     // รหัสบัตรผู้ยืม (บังคับกรอก)
+    const linePerson = (it.person || person || '').trim(); // ชื่อผู้ยืมต่อรายการ (บังคับกรอก)
+    const lineCard = (it.card || card || '').trim();       // รหัสบัตรผู้ยืม (บังคับกรอก)
+    if (!linePerson) return res.status(400).json({ error: `กรุณากรอกชื่อผู้ยืมของ ${item.name}` });
     if (!lineCard) return res.status(400).json({ error: `กรุณากรอกรหัสบัตรผู้ยืมของ ${item.name}` });
     // หุ่นยนต์ (kit) ตั้งแต่โมเดลใหม่ = ของชิ้นเดียวเหมือน tool ปกติ (อุปกรณ์ข้างในถูกจองตอนสร้างหุ่นแล้ว)
     // ยืมหุ่น = ยืมของชิ้นเดียว ไม่ต้องขยาย component ซ้ำ
@@ -1038,7 +1043,8 @@ app.get('/api/borrowers', requireAuth, requireAdmin, (req, res) => {
       `SELECT r.person AS name,
               COUNT(*) AS total,
               SUM(CASE WHEN r.status='received' THEN 1 ELSE 0 END) AS active,
-              MAX(r.created_at) AS last_at
+              MAX(r.created_at) AS last_at,
+              (SELECT r2.card FROM requests r2 WHERE r2.person = r.person COLLATE NOCASE AND r2.card <> '' ORDER BY r2.id DESC LIMIT 1) AS card
        FROM requests r
        WHERE TRIM(r.person) != ''
        GROUP BY r.person COLLATE NOCASE
@@ -1083,7 +1089,7 @@ app.get('/api/borrowers/history', requireAuth, requireAdmin, (req, res) => {
   if (!name) return res.json([]);
   res.json(
     db.prepare(
-      `SELECT r.id, r.qty, r.status, r.kind, r.note, r.created_at, r.due_date, i.name AS item_name, i.unit,
+      `SELECT r.id, r.qty, r.status, r.kind, r.note, r.card, r.created_at, r.due_date, i.name AS item_name, i.unit,
               (SELECT GROUP_CONCAT(u2.code, ', ') FROM request_units ru JOIN units u2 ON u2.id=ru.unit_id WHERE ru.request_id=r.id) AS unit_codes
        FROM requests r JOIN items i ON i.id = r.item_id
        WHERE r.person = ? COLLATE NOCASE

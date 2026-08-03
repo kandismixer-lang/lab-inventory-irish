@@ -156,8 +156,11 @@ function Shell({ me, onMe, guestName, onGuestName }) {
   const confirmId = async () => {
     const body = idMode === 'card' ? { card: guestCard.trim() } : { name: (guestName || '').trim() };
     try {
-      await api('/api/guest/name', { method: 'POST', body });
-      if (idMode === 'card') localStorage.setItem('guestCard', guestCard.trim());
+      const r = await api('/api/guest/name', { method: 'POST', body });
+      if (idMode === 'card') {
+        localStorage.setItem('guestCard', guestCard.trim());
+        if (r?.name) onGuestName(r.name); // ตั้งชื่อจากบัตร → หน้าที่อิงชื่อ (แดชบอร์ด "ของที่คุณยืม") sync ตรงกัน
+      }
       loadBadge();
       setRefreshKey((k) => k + 1); // รีโหลดหน้าปัจจุบัน
       setView('requests'); // พาไปดูของที่ยืมอยู่เลย
