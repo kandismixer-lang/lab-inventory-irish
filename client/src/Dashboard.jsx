@@ -64,7 +64,8 @@ export default function Dashboard({ go, me }) {
   const hasName = myName && myName !== 'guest' && myName !== 'ผู้เยี่ยมชม';
   const mine = [];
   if (hasName) d.borrowedOut.forEach((i) => (i.borrowers || []).forEach((b) => {
-    if ((b.person || '').trim().toLowerCase() === myName) mine.push({ name: i.name, code: b.label, id: i.id });
+    // หุ่นยนต์ (kit) ไม่มีรหัสหน่วยย่อย — ใช้ชื่อหุ่นเป็นรหัสแทน (ไม่โชว์ "N ชิ้น")
+    if ((b.person || '').trim().toLowerCase() === myName) mine.push({ name: i.name, code: i.is_kit ? i.name : b.label, id: i.id });
   }));
 
   // ยืม/ใช้จนไม่เหลือในคลัง (แต่ยังมีของในระบบ) — เตือนแยกจากของสิ้นเปลืองใกล้หมด
