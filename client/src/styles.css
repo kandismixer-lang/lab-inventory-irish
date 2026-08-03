@@ -374,6 +374,18 @@ tbody tr:hover > td { background: var(--wash-blue); }
   background: rgba(255,255,255,.08); color: var(--muted); }
 .cat-chip.active { background: var(--accent); border-color: var(--accent); color: var(--on-primary); }
 .cat-chip.active .n { background: rgba(0,0,0,.22); color: inherit; }
+/* 3 ชิปแรก fix (ทั้งหมด/อุปกรณ์ทั้งหมด/หุ่นยนต์) — เด่นกว่าหมวดทั่วไป: ขอบหนา + พื้นเข้ม */
+.cat-chip.fix { border-width: 2px; border-color: var(--primary); background: rgba(96,165,250,.10); font-weight: 600; }
+.cat-chip.fix:hover { background: rgba(96,165,250,.18); }
+.cat-chip.fix.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+.cat-chip.fix.robot { border-color: #2dd4bf; background: rgba(45,212,191,.10); }
+.cat-chip.fix.robot:hover { background: rgba(45,212,191,.2); }
+.cat-chip.fix.robot.active { background: #2dd4bf; border-color: #2dd4bf; color: #06201c; }
+.cat-chip .sub { font-size: .72rem; color: var(--muted); font-weight: 400; }
+.cat-chip.fix.active .sub { color: rgba(255,255,255,.8); }
+/* dropdown ผูกหน่วย: "หน่วยไหนก็ได้" (auto) = teal จางบอกว่าไม่ระบุ · เลือกหน่วยแล้ว = ปกติ */
+select.unit-any { color: #2dd4bf; font-style: italic; }
+select.unit-pinned { color: var(--text); font-weight: 600; }
 tr.row-active > td { background: rgba(34,211,238,.10); }
 
 .pager { display: flex; align-items: center; justify-content: center; gap: 14px; margin: 14px 0 4px; font-size: .9rem; flex-wrap: wrap; }

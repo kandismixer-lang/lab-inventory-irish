@@ -18,7 +18,8 @@ export default function Items({ me, focusItem, onFocused }) {
   const [detail, setDetail] = useState(null); // item ที่กำลังดูรายละเอียด
   const [cat, setCat] = useState(''); // หมวดที่กรอง ('' = ทั้งหมด)
   const toast = useToast();
-  const shown = cat ? items.filter((i) => catLabel(i) === cat) : items;
+  const shown = cat === '__parts__' ? items.filter((i) => !i.is_kit)
+    : cat ? items.filter((i) => catLabel(i) === cat) : items;
   const expandedItem = items.find((x) => x.id === expanded) || null;
   const { addToCart } = useCart();
   const onAddToCart = (item, qty, note, person, due) => { addToCart(item, qty, note, person, due); setRequesting(null); };
@@ -76,7 +77,7 @@ export default function Items({ me, focusItem, onFocused }) {
 
       <div className="section-title">รายการทั้งหมด</div>
       <input type="search" className="stock-search" placeholder="ค้นหาชื่อ / ที่เก็บ..." value={q} onChange={(e) => onSearch(e.target.value)} />
-      <CategoryBar items={items} cat={cat} onPick={setCat} />
+      <CategoryBar items={items} cat={cat} onPick={setCat} splitRobot />
       <table>
         <thead>
           <tr>
@@ -282,15 +283,30 @@ export function groupByCategory(items) {
 }
 
 // ปุ่มเลือกหมวด (chips) — กดแล้วกรอง
-export function CategoryBar({ items, cat, onPick }) {
+export function CategoryBar({ items, cat, onPick, splitRobot }) {
   const { groups, keys } = groupByCategory(items);
   if (keys.length === 0) return null;
+  const ROBOT = 'หุ่นยนต์';
+  // 3 ชิปแรก fix ไว้เสมอ: ทั้งหมด · อุปกรณ์ทั้งหมด(ไม่นับหุ่น) · หุ่นยนต์ — แล้วค่อยหมวดอื่น
+  const restKeys = splitRobot ? keys.filter((k) => k !== ROBOT) : keys;
+  const partsCount = items.filter((i) => !i.is_kit).length;
+  const robotKinds = groups[ROBOT]?.kinds || 0;
   return (
     <div className="cat-bar">
-      <button className={'cat-chip' + (cat === '' ? ' active' : '')} onClick={() => onPick('')}>
+      <button className={'cat-chip fix' + (cat === '' ? ' active' : '')} onClick={() => onPick('')}>
         ทั้งหมด <span className="n">{items.length}</span>
       </button>
-      {keys.map((k) => (
+      {splitRobot && (
+        <button className={'cat-chip fix' + (cat === '__parts__' ? ' active' : '')} onClick={() => onPick(cat === '__parts__' ? '' : '__parts__')}>
+          อุปกรณ์ทั้งหมด <span className="sub">(ไม่นับหุ่น)</span> <span className="n">{partsCount}</span>
+        </button>
+      )}
+      {splitRobot && (
+        <button className={'cat-chip fix robot' + (cat === ROBOT ? ' active' : '')} onClick={() => onPick(cat === ROBOT ? '' : ROBOT)}>
+          🤖 หุ่นยนต์ <span className="n">{robotKinds}</span>
+        </button>
+      )}
+      {restKeys.map((k) => (
         <button key={k} className={'cat-chip ' + groups[k].type + (cat === k ? ' active' : '')} onClick={() => onPick(cat === k ? '' : k)}>
           {k} <span className="n">{groups[k].kinds}</span>
         </button>
@@ -536,7 +552,7 @@ function ItemForm({ item, me, onClose, onSaved }) {
                     const usedOther = (c.unit_ids || []).filter((u, idx) => idx !== k && u);
                     return (
                       <div className="kit-row" style={{ marginTop: 4 }} key={k}>
-                        <select value={val} onChange={(e) => setUnitAt(i, k, e.target.value)} style={{ flex: 1 }}>
+                        <select className={val ? 'unit-pinned' : 'unit-any'} value={val} onChange={(e) => setUnitAt(i, k, e.target.value)} style={{ flex: 1 }}>
                           <option value="">— หน่วยไหนก็ได้ —</option>
                           {opts.filter((u) => !usedOther.includes(String(u.id))).map((u) => <option key={u.id} value={u.id}>{u.code}</option>)}
                           {/* หน่วยที่ผูกไว้อยู่แล้ว (สถานะ borrowed อยู่ในหุ่น ไม่อยู่ในลิสต์ว่าง) */}
