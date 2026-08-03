@@ -427,6 +427,7 @@ app.post('/api/items', requireAuth, requireAdmin, (req, res) => {
     });
     const imgPath = saveImage(req.body?.image, `item-${id}`);
     if (imgPath) db.prepare('UPDATE items SET image=? WHERE id=?').run(imgPath, id);
+    db.flushNow(); // sync ทันที — ให้ GET รอบถัดไปเห็นของใหม่เลย (ไม่ต้องรอรอบ 30 วิ)
     res.json({ id });
   } catch (e) {
     res.status(400).json({ error: e.message || 'สร้างรายการไม่สำเร็จ' });
@@ -498,6 +499,7 @@ app.put('/api/items/:id', requireAuth, requireAdmin, (req, res) => {
     const imgPath = saveImage(req.body?.image, `item-${item.id}`);
     if (imgPath) db.prepare('UPDATE items SET image=? WHERE id=?').run(imgPath, item.id);
   }
+  db.flushNow(); // sync ทันที — ให้ GET รอบถัดไปเห็นการแก้ไขเลย
   res.json({ ok: true });
 });
 

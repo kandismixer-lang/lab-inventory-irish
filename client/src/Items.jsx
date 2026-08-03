@@ -481,30 +481,26 @@ function ItemForm({ item, me, onClose, onSaved }) {
     if (img) b.image = img;
     else if (removeImg) b.image = ''; // '' = สั่งลบรูปเดิม
     const unitsBody = { mode: 'bulk', prefix: (uprefix || '').trim(), start: uStartNum, count: uN, pad: parseInt(upad, 10) || 0 };
-    // บันทึกตัว item ก่อน (รอผลจริง) — ถ้า server ปฏิเสธ (เช่น หุ่นกำลังถูกยืม/ของไม่พอจอง) ฟอร์มค้างไว้ โชว์เหตุผล ไม่ปิดหนี
+    // optimistic: ปิดฟอร์มทันที (ไม่ต้องรอ server ที่อาจตื่นช้า) แล้วรันหลังบ้าน
+    // เสร็จแล้วรีเฟรช 2 รอบ (ทันที + หน่วงอีกนิด) เผื่อ DB sync ช้า ของจะได้โผล่จริง ไม่ค้าง "บันทึกแล้วแต่ของยังไม่มา"
     setBusy(true);
+    onClose();
+    toast(item ? 'กำลังบันทึก…' : 'กำลังเพิ่มรายการ…');
     (async () => {
-      let created = item;
+      let created = item, itemSaved = false;
       try {
-        if (item) await api('/api/items/' + item.id, { method: 'PUT', body: b });
-        else created = await api('/api/items', { method: 'POST', body: b });
+        if (item) { await api('/api/items/' + item.id, { method: 'PUT', body: b }); itemSaved = true; }
+        else { created = await api('/api/items', { method: 'POST', body: b }); itemSaved = true; }
+        const needUnits = tracked && uN > 0 && (!item || !item.tracked);
+        if (needUnits) await api('/api/items/' + created.id + '/units', { method: 'POST', body: unitsBody });
+        toast('บันทึกแล้ว');
       } catch (er) {
-        setBusy(false);
-        toast(`บันทึกไม่สำเร็จ: ${er.message}`);
-        return; // ฟอร์มยังเปิด ให้แก้แล้วลองใหม่
+        toast(itemSaved
+          ? `บันทึกรายการแล้ว แต่สร้างหน่วยไม่สำเร็จ (${er.message}) — ไปเพิ่มหน่วยที่ Stock Check ได้เลย ไม่ต้องเพิ่มรายการซ้ำ`
+          : `บันทึกไม่สำเร็จ: ${er.message}`);
       }
-      // ตัว item สำเร็จแล้ว — ปิดฟอร์ม แล้วสร้างหน่วย (ถ้ามี) เบื้องหลัง
-      onClose();
-      toast('บันทึกแล้ว');
-      (async () => {
-        try {
-          const needUnits = tracked && uN > 0 && (!item || !item.tracked);
-          if (needUnits) await api('/api/items/' + created.id + '/units', { method: 'POST', body: unitsBody });
-        } catch (er) {
-          toast(`บันทึกรายการแล้ว แต่สร้างหน่วยไม่สำเร็จ (${er.message}) — ไปเพิ่มหน่วยที่ Stock Check ได้เลย ไม่ต้องเพิ่มรายการซ้ำ`);
-        }
-        onSaved();
-      })();
+      onSaved();
+      setTimeout(onSaved, 1200); // รีเฟรชซ้ำ เผื่อ sync ยังไม่ทันรอบแรก
     })();
   };
   const del = async () => {
