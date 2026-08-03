@@ -75,11 +75,13 @@ export default function Dashboard({ go, me }) {
 
   return (
     <>
-      <div className="stat-row">
+      {/* 3 คอลัมน์ 2 แถว — แถวบน: รวม/ยืม/คงเหลือ · แถวล่าง: (เว้น)/ประกอบ/คงเหลือหลังประกอบ (ตรงคอลัมน์กัน) */}
+      <div className="stat-grid">
         <div className="card stat"><div className="num col-total">{d.totals.total}</div><div className="lbl">จำนวนรวม</div></div>
-        <div className="card stat"><div className="num col-out">{d.totals.borrowed}</div><div className="lbl">ถูกยืม </div></div>
-        <div className="card stat"><div className="num col-inkit">{d.totals.inKit || 0}</div><div className="lbl">ถูกนำไปประกอบ</div></div>
+        <div className="card stat"><div className="num col-out">{d.totals.borrowed}</div><div className="lbl">ถูกยืม</div></div>
         <div className="card stat"><div className="num col-remain">{d.totals.remain}</div><div className="lbl">คงเหลือในคลัง</div></div>
+        <div className="stat-empty" aria-hidden="true" />
+        <div className="card stat"><div className="num col-inkit">{d.totals.inKit || 0}</div><div className="lbl">ถูกนำไปประกอบ</div></div>
         <div className="card stat"><div className="num col-free">{d.totals.freeStock ?? d.totals.remain}</div><div className="lbl">คงเหลือหลังประกอบ</div></div>
       </div>
 

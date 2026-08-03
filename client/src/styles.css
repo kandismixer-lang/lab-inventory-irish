@@ -230,6 +230,10 @@ main { flex: 1; min-width: 0; max-width: 1120px; margin: 24px auto; padding: 0 2
 
 /* stat cards */
 .stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px,1fr)); gap: 12px; margin-bottom: 18px; }
+/* 3 คอลัมน์คงที่ 2 แถว — คอลัมน์ตรงกันบน/ล่าง (ช่องแรกแถวล่างเว้นว่าง) */
+.stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 18px; }
+.stat-empty { visibility: hidden; }
+@media (max-width: 640px) { .stat-grid { grid-template-columns: repeat(2, 1fr); } .stat-empty { display: none; } }
 .stat { text-align: center; transition: box-shadow .18s ease, border-color .18s; }
 .stat:hover { box-shadow: var(--glow); border-color: var(--line-strong); }
 .stat .num { font-size: 2.1rem; font-weight: 500; font-family: var(--font-display); letter-spacing: -0.02em; }
