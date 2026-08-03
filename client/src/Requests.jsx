@@ -275,7 +275,13 @@ function RequestCard({ r, me, onDone }) {
           <button className="btn small" onClick={() => call('cancel')}>ยกเลิก</button>
         )}
         {isAdmin && r.status === 'received' && (
-          <button className="btn small u-return" onClick={() => call('return')}>✓ รับของคืนแล้ว</button>
+          <button className="btn small u-return" onClick={async () => {
+            if (!(await confirm({
+              title: `รับคืน ${r.item_name} ×${r.qty}?`,
+              message: `ยืนยันว่าได้รับของคืนจาก ${r.person || r.requester_fullname || r.requester_name} แล้ว — ของจะกลับเข้าคลัง`,
+            }))) return;
+            call('return');
+          }}>✓ รับของคืนแล้ว</button>
         )}
       </div>
 
