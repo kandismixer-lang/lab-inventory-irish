@@ -181,21 +181,48 @@ const ITEM_SELECT = `
     (SELECT COUNT(*) FROM units u WHERE u.item_id = i.id AND u.active = 1 AND u.status IN ('repair','lost')) AS units_dead,
     (SELECT COALESCE(SUM(CASE kind WHEN 'borrow' THEN qty WHEN 'return' THEN -qty ELSE 0 END),0)
        FROM transactions t WHERE t.item_id = i.id) AS borrowed_net,
-    (SELECT COALESCE(SUM(qty),0) FROM transactions t WHERE t.item_id = i.id AND kind='issue') AS issued_total
+    (SELECT COALESCE(SUM(qty),0) FROM transactions t WHERE t.item_id = i.id AND kind='issue') AS issued_total,
+    -- component ไม่ track รายตัว: กันไว้ในหุ่นที่ "ยังไม่ถูกยืม" (ki.qty>=1) = ยังอยู่ในคลัง
+    (SELECT COALESCE(SUM(kc.qty),0) FROM kit_components kc JOIN items ki ON ki.id = kc.kit_id
+       WHERE kc.item_id = i.id AND kc.unit_id IS NULL AND ki.active = 1 AND ki.qty >= 1) AS in_kit_qty_direct,
+    -- component ไม่ track รายตัว: กันไว้ในหุ่นที่ "ถูกยืมออกไปแล้ว" (ki.qty=0) = นับเป็นถูกยืม
+    (SELECT COALESCE(SUM(kc.qty),0) FROM kit_components kc JOIN items ki ON ki.id = kc.kit_id
+       WHERE kc.item_id = i.id AND kc.unit_id IS NULL AND ki.active = 1 AND ki.qty = 0) AS borrowed_via_kit_direct,
+    -- component track รายตัว (ผูกหน่วยเจาะจง): เหมือนกันแต่นับเป็นจำนวนหน่วย
+    (SELECT COUNT(*) FROM units u2 JOIN kit_components kc ON kc.unit_id = u2.id JOIN items ki ON ki.id = kc.kit_id
+       WHERE u2.item_id = i.id AND u2.active = 1 AND u2.status = 'reserved' AND ki.active = 1 AND ki.qty >= 1) AS in_kit_units,
+    (SELECT COUNT(*) FROM units u2 JOIN kit_components kc ON kc.unit_id = u2.id JOIN items ki ON ki.id = kc.kit_id
+       WHERE u2.item_id = i.id AND u2.active = 1 AND u2.status = 'reserved' AND ki.active = 1 AND ki.qty = 0) AS borrowed_via_kit_units
   FROM items i`;
 
-// คำนวณ มี / ถูกยืม / คงเหลือ
+// คำนวณ 5 ช่อง: มีทั้งหมด / ถูกยืม / ถูกนำไปประกอบ(กันไว้ในหุ่นที่ยังไม่ถูกยืม) / คงเหลือในคลัง / คงเหลือหลังประกอบ
+// ของที่ถูกนำไปประกอบเข้าหุ่น "ไม่ถูกตัดออกจากคลัง" — แค่กันไว้ (units.status='reserved' / kit_components แถวที่ยังไม่ตัด items.qty)
+// จนกว่าหุ่นตัวนั้นจะถูกยืมออกจริง (kit.qty=0) ถึงนับเป็น "ถูกยืม" (derive สดจากสถานะหุ่น ไม่มี logic แยกตอนยืม/คืนหุ่น)
 // ของ track รายตัว: หน่วยที่ "พัง/หาย" ถือว่าตัดออกจากคลังแล้ว ไม่นับใน "มีทั้งหมด"
-// หุ่นยนต์ (kit) ตั้งแต่โมเดลใหม่ = ของชิ้นเดียวเหมือน tool ปกติ (qty 0/1, ยืม-คืนผ่าน borrowed_net)
-// ของที่ใช้ประกอบถูก "จอง" ตัดออกจากคลังไปแล้วตอนสร้าง/แก้หุ่น ไม่ต้องคำนวณ buildable อีก
 function decorateItem(i) {
-  const remaining = i.qty;
-  let out; // ถูกยืมออกไป ณ ตอนนี้ (สำหรับสิ้นเปลือง = ยอดที่เบิกใช้ไปสะสม)
-  if (i.tracked) out = i.units_borrowed;                         // เฉพาะที่ถูกยืม (ไม่รวมพัง/หาย)
-  else if (i.type === 'tool') out = Math.max(0, i.borrowed_net); // ยืมค้างอยู่ (รวมหุ่นยนต์)
-  else out = i.issued_total;                                     // วัสดุสิ้นเปลือง = เบิกไปแล้วรวม
+  let directOut; // ยืม/เบิกตรงๆ (ไม่ผ่านหุ่น)
+  if (i.tracked) directOut = i.units_borrowed;
+  else if (i.type === 'tool') directOut = Math.max(0, i.borrowed_net);
+  else directOut = i.issued_total;
+
+  const inKit = i.tracked ? i.in_kit_units : i.in_kit_qty_direct;               // กันไว้ในหุ่น (หุ่นยังไม่ถูกยืม) — ยังอยู่ในคลัง
+  const borrowedViaKit = i.tracked ? i.borrowed_via_kit_units : i.borrowed_via_kit_direct; // กันไว้ในหุ่นที่ถูกยืมออกไปแล้ว
+  const out = directOut + borrowedViaKit; // ถูกยืมรวม (แดง)
+
+  let freeStock, stock, total;
+  if (i.tracked) {
+    // items.qty (recalcTracked) = จำนวนหน่วย available เท่านั้น (reserved ไม่ถูกนับอยู่แล้ว) = คงเหลือหลังประกอบ
+    freeStock = i.qty;
+    stock = freeStock + inKit;   // คงเหลือในคลัง (นับของที่กันในหุ่นว่ายังอยู่)
+    total = stock + out;
+  } else {
+    // items.qty ไม่เคยถูกตัดตอน "กันของเข้าหุ่น" แล้ว (สูตรเดิมก่อนมี kit): total = qty + directOut
+    total = i.qty + directOut;
+    stock = total - out;         // คงเหลือในคลัง
+    freeStock = stock - inKit;   // คงเหลือหลังประกอบ (หยิบใช้ได้จริง)
+  }
   const extra = i.is_kit ? { components: kitComponents(i.id) } : {};
-  return { ...i, out_qty: out, total_qty: remaining + out, ...extra };
+  return { ...i, out_qty: out, total_qty: total, in_kit_qty: inKit, qty: stock, free_qty: freeStock, ...extra };
 }
 
 // หุ่นถูกยืมออกไปจริงไหม (out_qty>0) — ใช้กันแก้/ลบตอนถูกยืม (ไม่ใช้ qty<1 เพราะหุ่นเปล่าเก่า qty=0 แต่ไม่ถูกยืม)
@@ -216,10 +243,11 @@ function kitComponents(kitId) {
   ).all(kitId);
 }
 
-// จองของเข้าหุ่นยนต์จริง (ตัดออกจากคลังทันที) — comps = [{item_id, qty, unit_id?}]
-// tracked มีหน่วยผูกเจาะจง → หน่วยนั้นเป็น borrowed, ไม่ผูก → auto เลือกหน่วยว่างมา (ขยายเป็นแถวละ 1 หน่วย)
-// tool ไม่ track → บันทึกยืมค้าง (borrow), consumable → เบิกออกถาวร (issue)
-// ของไม่พอจองข้อไหน throw Error ทันที (ให้ db.tx rollback ทั้งหมด)
+// จองของเข้าหุ่นยนต์ (กันไว้ ไม่ตัดออกจากคลัง — ของยังอยู่ในแลป) — comps = [{item_id, qty, unit_id?}]
+// tracked มีหน่วยผูกเจาะจง → หน่วยนั้นเป็น reserved, ไม่ผูก → auto เลือกหน่วยว่างมา (ขยายเป็นแถวละ 1 หน่วย)
+// tool/consumable ไม่ track → แค่บันทึกแถว kit_components (ไม่แตะ items.qty) — จะถูกนับเป็น "ถูกยืม" อัตโนมัติ
+// ตอนหุ่นถูกยืมออกจริง (derive จาก kit.qty ตอนอ่าน ไม่มี logic แยก)
+// ของไม่พอจองข้อไหน throw Error ทันที (ให้ db.tx rollback ทั้งหมด) — เช็คจาก freeStock จริง (หัก inKit ของหุ่นอื่นแล้ว)
 function reserveKitComponents(kitId, comps, kitName, userId) {
   if (!Array.isArray(comps)) comps = [];
   const merged = new Map(); // รวม component ซ้ำ (item เดียวกัน+หน่วยเดียวกัน) เป็นก้อนเดียว
@@ -254,63 +282,54 @@ function reserveKitComponents(kitId, comps, kitName, userId) {
           throw new Error(`${compItem.name} มีไม่พอสำหรับประกอบ (ต้องการ ${n}, ว่าง ${avail.length})`);
         for (const u of avail) rows.push({ item_id: compItem.id, unit_id: u.id, code: u.code });
       }
-    } else if (compItem.type === 'tool') {
-      if (compItem.qty < n)
-        throw new Error(`${compItem.name} มีไม่พอสำหรับประกอบ (ต้องการ ${n}, มี ${compItem.qty})`);
-      rows.push({ item_id: compItem.id, qty: n, kind: 'borrow' });
     } else {
-      if (compItem.qty < n)
-        throw new Error(`${compItem.name} มีไม่พอสำหรับประกอบ (ต้องการ ${n}, มี ${compItem.qty})`);
-      rows.push({ item_id: compItem.id, qty: n, kind: 'issue' });
+      const dec = decorateItem(db.prepare(`${ITEM_SELECT} WHERE i.id=?`).get(compItem.id));
+      if (dec.free_qty < n)
+        throw new Error(`${compItem.name} มีไม่พอสำหรับประกอบ (ต้องการ ${n}, เหลือใช้ได้จริง ${dec.free_qty})`);
+      rows.push({ item_id: compItem.id, qty: n });
     }
   }
 
-  // ผ่านทุกข้อแล้ว — จองจริง
+  // ผ่านทุกข้อแล้ว — จองจริง (กันไว้เฉยๆ ไม่ตัดออกจากคลัง)
   const insKC = db.prepare('INSERT INTO kit_components (kit_id, item_id, qty, unit_id) VALUES (?,?,?,?)');
   for (const row of rows) {
     if (row.unit_id) {
       insKC.run(kitId, row.item_id, 1, row.unit_id);
-      db.prepare("UPDATE units SET status='borrowed', holder=? WHERE id=?").run(`หุ่น: ${kitName}`, row.unit_id);
+      db.prepare("UPDATE units SET status='reserved', holder=? WHERE id=?").run(`หุ่น: ${kitName}`, row.unit_id);
       db.prepare(
         `INSERT INTO transactions (item_id, unit_id, user_id, kind, qty, delta, person, note)
-         VALUES (?,?,?, 'borrow', 1, -1, '', ?)`
-      ).run(row.item_id, row.unit_id, userId, `🤖 ประกอบเข้า ${kitName} (${row.code})`);
-      db.recalcTracked(row.item_id);
+         VALUES (?,?,?, 'reserve', 1, 0, '', ?)`
+      ).run(row.item_id, row.unit_id, userId, `🤖 กันไว้ในหุ่น ${kitName} (${row.code})`);
+      db.recalcTracked(row.item_id); // reserved ไม่นับใน available — คงเหลือหลังประกอบลดลง
     } else {
       insKC.run(kitId, row.item_id, row.qty, null);
-      db.prepare('UPDATE items SET qty = qty - ? WHERE id=?').run(row.qty, row.item_id);
       db.prepare(
         `INSERT INTO transactions (item_id, user_id, kind, qty, delta, person, note)
-         VALUES (?,?,?,?,?,'', ?)`
-      ).run(row.item_id, userId, row.kind, row.qty, -row.qty, `🤖 ประกอบเข้า ${kitName}`);
+         VALUES (?,?, 'reserve', ?, 0, '', ?)`
+      ).run(row.item_id, userId, row.qty, `🤖 กันไว้ในหุ่น ${kitName}`);
     }
   }
 }
 
-// คืนของที่จองให้หุ่นยนต์กลับคลัง (แก้/ลบหุ่น) — tool/tracked คืนกลับ available, consumable ถือว่าใช้ไปแล้วไม่คืน
+// ปลดของที่กันไว้ให้หุ่นยนต์กลับคลัง (แก้/ลบหุ่น) — ของไม่เคยถูกตัดออกจากคลังจริง แค่ปลดสถานะ/ลบแถวจอง
 function releaseKitReservation(kitId, userId, reason) {
   const rows = db.prepare('SELECT * FROM kit_components WHERE kit_id=?').all(kitId);
   for (const row of rows) {
     if (row.unit_id) {
       const u = db.prepare('SELECT * FROM units WHERE id=?').get(row.unit_id);
-      if (u && u.status === 'borrowed') {
+      if (u && u.status === 'reserved') {
         db.prepare("UPDATE units SET status='available', holder='' WHERE id=?").run(row.unit_id);
         db.prepare(
           `INSERT INTO transactions (item_id, unit_id, user_id, kind, qty, delta, person, note)
-           VALUES (?,?,?, 'return', 1, 1, '', ?)`
-        ).run(row.item_id, row.unit_id, userId, `${reason}: คืน ${u.code}`);
+           VALUES (?,?,?, 'release', 1, 0, '', ?)`
+        ).run(row.item_id, row.unit_id, userId, `${reason}: ปลดหน่วย ${u.code}`);
         db.recalcTracked(row.item_id);
       }
     } else {
-      const compItem = db.prepare('SELECT * FROM items WHERE id=?').get(row.item_id);
-      if (compItem && compItem.type === 'tool') {
-        db.prepare('UPDATE items SET qty = qty + ? WHERE id=?').run(row.qty, row.item_id);
-        db.prepare(
-          `INSERT INTO transactions (item_id, user_id, kind, qty, delta, person, note)
-           VALUES (?,?, 'return', ?, ?, '', ?)`
-        ).run(row.item_id, userId, row.qty, row.qty, reason);
-      }
-      // consumable ใช้ไปแล้ว ไม่คืน
+      db.prepare(
+        `INSERT INTO transactions (item_id, user_id, kind, qty, delta, person, note)
+         VALUES (?,?, 'release', ?, 0, '', ?)`
+      ).run(row.item_id, userId, row.qty, reason);
     }
   }
   db.prepare('DELETE FROM kit_components WHERE kit_id=?').run(kitId);
@@ -545,6 +564,12 @@ app.post('/api/items/:id/move', requireAuth, requireAdmin, (req, res) => {
     delta = KINDS[kind] * amount;
   }
 
+  // ห้ามเบิก/ยืมเกินของที่ "ใช้ได้จริง" (หัก inKit ที่กันไว้ในหุ่นออกแล้ว)
+  if (delta < 0) {
+    const free = decorateItem(db.prepare(`${ITEM_SELECT} WHERE i.id = ?`).get(item.id)).free_qty;
+    if (free + delta < 0)
+      return res.status(400).json({ error: `คงเหลือไม่พอ (ใช้ได้จริง ${free} ${item.unit})` });
+  }
   if (item.qty + delta < 0)
     return res.status(400).json({ error: `คงเหลือไม่พอ (มี ${item.qty} ${item.unit})` });
 
@@ -667,6 +692,8 @@ app.post('/api/units/:id/move', requireAuth, requireAdmin, (req, res) => {
 app.delete('/api/units/:id', requireAuth, requireAdmin, (req, res) => {
   const unit = db.prepare('SELECT * FROM units WHERE id = ?').get(req.params.id);
   if (!unit) return res.status(404).json({ error: 'ไม่พบหน่วยนี้' });
+  if (unit.status === 'reserved')
+    return res.status(400).json({ error: 'หน่วยนี้อยู่ในหุ่นยนต์อยู่ — ต้องรื้อออกจากหุ่นก่อนถึงจะเลิกใช้ได้' });
   db.tx(() => {
     db.prepare('UPDATE units SET active = 0 WHERE id = ?').run(unit.id);
     db.recalcTracked(unit.item_id);
@@ -862,8 +889,9 @@ app.post('/api/requests/:id/approve', requireAuth, requireAdmin, (req, res) => {
       const unit = db.prepare("SELECT * FROM units WHERE id = ? AND item_id = ? AND active=1 AND status='available'").get(id, item.id);
       if (!unit) return res.status(400).json({ error: 'มีหน่วยที่เลือกไม่ว่างแล้ว' });
     }
-  } else if (item.qty < r.qty) {
-    return res.status(400).json({ error: `คงเหลือไม่พอ (มี ${item.qty})` });
+  } else {
+    const free = decorateItem(db.prepare(`${ITEM_SELECT} WHERE i.id = ?`).get(item.id)).free_qty;
+    if (free < r.qty) return res.status(400).json({ error: `คงเหลือไม่พอ (ใช้ได้จริง ${free})` });
   }
 
   try {
@@ -1074,13 +1102,17 @@ app.get('/api/dashboard', requireAuth, (req, res) => {
   // หุ่นยนต์ (kit) นับรวมด้วยตามปกติ — มีสต็อกจริงของตัวเอง (1 ชิ้น) ตั้งแต่โมเดลใหม่ ของประกอบข้างในถูกตัดออกจากคลังไปแล้ว ไม่นับซ้ำ
   const real = db.prepare(`${ITEM_SELECT} WHERE i.active=1`).all().map(decorateItem);
   const borrowedReal = real.filter((i) => i.type === 'tool').reduce((s, i) => s + i.out_qty, 0);
-  const remain = real.reduce((s, i) => s + i.qty, 0);   // คงเหลือในคลัง
+  const remain = real.reduce((s, i) => s + i.qty, 0);   // คงเหลือในคลัง (นับของที่กันในหุ่นด้วย)
+  const inKit = real.reduce((s, i) => s + i.in_kit_qty, 0);        // ถูกนำไปประกอบ (ยังไม่ถูกยืม)
+  const freeStock = real.reduce((s, i) => s + i.free_qty, 0);      // คงเหลือหลังประกอบ (หยิบใช้ได้จริง)
   const totals = {
     items: real.length,
-    // จำนวนรวม = ของในคลัง + ของที่ยืมค้าง (จะกลับมา) — ไม่นับของเบิกที่ใช้ไปแล้ว
+    // จำนวนรวม = ของในคลัง (รวมที่กันในหุ่น) + ของที่ยืมค้าง (จะกลับมา) — ไม่นับของเบิกที่ใช้ไปแล้ว
     total: remain + borrowedReal,
     borrowed: borrowedReal,
     remain,
+    inKit,
+    freeStock,
   };
   // กำหนดคืน — คำขอที่ยังยืมอยู่ (received) และมีวันคืน (โชว์ทั้งที่ยังไม่ถึง+เกินแล้ว)
   // days_over > 0 = เกินมาแล้ว, = 0 คือครบวันนี้, < 0 คือเหลืออีกกี่วัน

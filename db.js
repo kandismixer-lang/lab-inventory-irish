@@ -190,6 +190,26 @@ addColumn('requests', 'due_date', "TEXT NOT NULL DEFAULT ''");  // กำหน�
 addColumn('kit_components', 'unit_id', 'INTEGER');  // ผูกหน่วยเจาะจง (เฉพาะ component ที่ tracked + ใช้ทีละ 1 ชิ้น) — ว่าง = หน่วยไหนก็ได้
 addColumn('requests', 'want_unit_id', 'INTEGER');   // หน่วยที่จองไว้ล่วงหน้าจาก kit component ผูกหน่วย — admin ไม่ต้องเลือกซ้ำตอนอนุมัติ
 
+// migration: หุ่นยนต์โมเดลใหม่ — "กันของไว้ ไม่ตัดออกจากคลัง" (เดิมตัด/borrowed จริงตอนประกอบ)
+// รันครั้งเดียว (เช็ค _migrations กันรันซ้ำตอน restart — ไม่งั้นคืน qty component ซ้ำทุกครั้ง)
+db.exec('CREATE TABLE IF NOT EXISTS _migrations (name TEXT PRIMARY KEY)');
+if (!db.prepare("SELECT 1 FROM _migrations WHERE name='kit_reserve_model_v2'").get()) {
+  // หน่วย tracked ที่เคยถูกตัดเข้าหุ่น (status='borrowed', holder ขึ้นต้น 'หุ่น:') → ปลดเป็น 'reserved' (กันไว้ ไม่ใช่ถูกยืมจริง)
+  const units = db.prepare("SELECT id, item_id FROM units WHERE status='borrowed' AND holder LIKE 'หุ่น:%'").all();
+  for (const u of units) db.prepare("UPDATE units SET status='reserved' WHERE id=?").run(u.id);
+  const touched = [...new Set(units.map((u) => u.item_id))];
+  // component ไม่ track รายตัว ที่เคยถูกตัด items.qty ตอนประกอบเข้าหุ่น (โมเดลเก่า) — คืนกลับตามที่จองไว้ใน kit_components
+  const rows = db.prepare(
+    `SELECT kc.item_id, kc.qty FROM kit_components kc JOIN items ki ON ki.id = kc.kit_id
+     WHERE kc.unit_id IS NULL AND ki.active = 1`
+  ).all();
+  for (const r of rows) db.prepare('UPDATE items SET qty = qty + ? WHERE id = ?').run(r.qty, r.item_id);
+  db.prepare("INSERT INTO _migrations (name) VALUES ('kit_reserve_model_v2')").run();
+  if (units.length || rows.length)
+    console.log(`migration kit_reserve_model_v2: ปลด ${units.length} หน่วย + คืน qty ${rows.length} component ที่เคยถูกตัดเข้าหุ่น`);
+  global.__pendingRecalcTracked = touched; // recalcTracked ของ item ที่ถูกแก้ — ทำหลังประกาศฟังก์ชัน (เลื่อนไปข้างล่าง)
+}
+
 // ตั้งค่า category เริ่มต้นจาก type เดิม (ครั้งแรกที่ยังว่าง)
 db.prepare("UPDATE items SET category='เครื่องมือ' WHERE category='' AND type='tool'").run();
 db.prepare("UPDATE items SET category='วัสดุสิ้นเปลือง' WHERE category='' AND type='consumable'").run();
@@ -233,5 +253,11 @@ db.recalcTracked = (itemId) => {
   db.prepare('UPDATE items SET qty = ? WHERE id = ?').run(avail, itemId);
   return avail;
 };
+
+// migration kit_reserve_model_v2 (ด้านบน) ต้องรอ recalcTracked ประกาศก่อนถึงจะเรียกได้
+if (global.__pendingRecalcTracked) {
+  global.__pendingRecalcTracked.forEach((id) => db.recalcTracked(id));
+  delete global.__pendingRecalcTracked;
+}
 
 module.exports = db;

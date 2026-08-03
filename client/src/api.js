@@ -14,7 +14,7 @@ export const KIND_LABEL = {
   repair: 'แจ้งพัง', ready: 'ซ่อมเสร็จ/พร้อมใช้', lost: 'แจ้งหาย',
 };
 export const TYPE_LABEL = { tool: 'เครื่องมือ', consumable: 'วัสดุสิ้นเปลือง' };
-export const STATUS_LABEL = { available: 'ว่าง', borrowed: 'ถูกยืม', repair: 'พัง', lost: 'หาย' };
+export const STATUS_LABEL = { available: 'ว่าง', borrowed: 'ถูกยืม', reserved: 'อยู่ในหุ่น', repair: 'พัง', lost: 'หาย' };
 
 // หมวดหมู่ย่อย แบ่งตามพฤติกรรม (tool = ยืม-คืน, consumable = เบิกหมด)
 export const CATEGORY_GROUPS = [

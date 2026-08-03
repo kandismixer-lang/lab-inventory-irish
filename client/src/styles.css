@@ -252,6 +252,8 @@ tbody tr:hover > td { background: var(--wash-blue); }
 .col-total  { color: var(--primary); font-weight: 600; }
 .col-out    { color: var(--danger); font-weight: 600; }
 .col-remain { color: var(--ok); font-weight: 700; }
+.col-inkit  { color: var(--warn); font-weight: 600; } /* ถูกนำไปประกอบ (กันไว้ในหุ่นที่ยังไม่ถูกยืม) */
+.col-free   { color: #2dd4bf; font-weight: 700; } /* คงเหลือหลังประกอบ (เขียวคนละโทน — teal) */
 
 .badge { display: inline-block; padding: 3px 10px; border-radius: var(--pill); font-size: 0.74rem; font-weight: 500; border: 1px solid transparent; }
 .badge.tool { background: rgba(96,165,250,.12); color: var(--primary); }
@@ -273,6 +275,7 @@ tbody tr:hover > td { background: var(--wash-blue); }
 .badge.st-borrowed { background: rgba(250,204,21,.14); color: #facc15; }
 .badge.st-repair { background: rgba(251,146,60,.14); color: #fb923c; }
 .badge.st-lost { background: rgba(248,113,113,.14); color: #f87171; }
+.badge.st-reserved { background: rgba(45,212,191,.14); color: #2dd4bf; }
 
 /* ---- Stock Check popup ---- */
 .modal-box:has(.stock-summary) { width: 1040px; }
@@ -373,6 +376,7 @@ tr.row-active > td { background: rgba(34,211,238,.10); }
 .stock-col.sc-ok > header { color: #4ade80; }
 .stock-col.sc-warn > header { color: #facc15; }
 .stock-col.sc-bad > header { color: #f87171; }
+.stock-col.sc-kit > header { color: #2dd4bf; }
 .stock-list { overflow: auto; max-height: 52vh; }
 .stock-list .unit-row { flex-wrap: wrap; }
 @media (max-width: 900px) { .stock-list { max-height: 34vh; } }
@@ -474,6 +478,7 @@ tr.expand-row > td { background: var(--bg-2); padding: 0; border-right: none; }
 /* สีตามสถานะ: ยืม=เหลือง · พัง=ส้ม · หาย=แดง */
 .bstat { font-size: 0.82rem; font-weight: 600; }
 .bstat-borrowed { color: #facc15; }
+.bstat-kit      { color: #2dd4bf; }
 .bstat-repair   { color: #fb923c; }
 .bstat-lost     { color: #f87171; }
 

@@ -78,7 +78,9 @@ export default function Dashboard({ go, me }) {
       <div className="stat-row">
         <div className="card stat"><div className="num col-total">{d.totals.total}</div><div className="lbl">จำนวนรวม</div></div>
         <div className="card stat"><div className="num col-out">{d.totals.borrowed}</div><div className="lbl">ถูกยืม </div></div>
+        <div className="card stat"><div className="num col-inkit">{d.totals.inKit || 0}</div><div className="lbl">ถูกนำไปประกอบ</div></div>
         <div className="card stat"><div className="num col-remain">{d.totals.remain}</div><div className="lbl">คงเหลือในคลัง</div></div>
+        <div className="card stat"><div className="num col-free">{d.totals.freeStock ?? d.totals.remain}</div><div className="lbl">คงเหลือหลังประกอบ</div></div>
       </div>
 
       {(() => {

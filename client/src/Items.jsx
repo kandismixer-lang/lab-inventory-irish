@@ -80,12 +80,12 @@ export default function Items({ me, focusItem, onFocused }) {
       <table>
         <thead>
           <tr>
-            {['รายการ', 'มีทั้งหมด', 'ถูกใช้/ยืม', 'คงเหลือ'].map((h, i) => <th key={i}>{h}</th>)}
+            {['รายการ', 'มีทั้งหมด', 'ถูกใช้/ยืม', 'ถูกนำไปประกอบ', 'คงเหลือในคลัง', 'คงเหลือหลังประกอบ'].map((h, i) => <th key={i}>{h}</th>)}
           </tr>
         </thead>
         <tbody>
           {shown.length === 0 && (
-            <tr><td colSpan={4} className="muted">— ไม่มีข้อมูล —</td></tr>
+            <tr><td colSpan={6} className="muted">— ไม่มีข้อมูล —</td></tr>
           )}
           {shown.map((i) => {
             const low = i.type === 'consumable' && i.min_qty > 0 && i.qty <= i.min_qty;
@@ -126,7 +126,7 @@ export default function Items({ me, focusItem, onFocused }) {
                               ดูตัวที่ถูกยืม <span className="caret">{isOpen ? '▲' : '▼'}</span>
                             </button>
                           )}
-                          <button className="btn small primary" disabled={i.qty <= 0} onClick={(e) => { e.stopPropagation(); setRequesting(i); }}>
+                          <button className="btn small primary" disabled={i.free_qty <= 0} onClick={(e) => { e.stopPropagation(); setRequesting(i); }}>
                             {i.type === 'consumable' ? 'ขอเบิก' : 'ขอยืม'}
                           </button>
                         </>
@@ -139,7 +139,13 @@ export default function Items({ me, focusItem, onFocused }) {
                       {i.out_qty > 0 ? `${outLabel} ${i.out_qty}` : '—'}
                     </span>
                   </td>
+                  <td>
+                    <span className={i.in_kit_qty > 0 ? 'col-inkit' : 'muted'}>
+                      {i.in_kit_qty > 0 ? `${i.in_kit_qty} ${i.unit}` : '—'}
+                    </span>
+                  </td>
                   <td><span className={low ? 'badge low' : 'col-remain'}>{i.qty} {i.unit}</span></td>
+                  <td><span className="col-free">{i.free_qty} {i.unit}</span></td>
                 </tr>
               </React.Fragment>
             );
@@ -232,7 +238,8 @@ export function RequestForm({ item, defaultPerson, onClose, onAdd, onNow }) {
   return (
     <Modal title={(item.type === 'consumable' ? 'ขอเบิก' : 'ขอยืม') + ' — ' + item.name} onClose={onClose}>
       <div className="muted" style={{ marginBottom: 8 }}>
-        คงเหลือให้ขอได้ {item.qty} {item.unit}{item.tracked ? ' (Admin จะเลือกหน่วยให้)' : ''}
+        คงเหลือให้ขอได้ {item.free_qty} {item.unit}{item.tracked ? ' (Admin จะเลือกหน่วยให้)' : ''}
+        {item.in_kit_qty > 0 && <span className="hint"> (มี {item.in_kit_qty} {item.unit} ถูกนำไปประกอบเข้าหุ่นไว้แล้ว)</span>}
       </div>
       <form onSubmit={submit}>
         <label>ชื่อผู้ยืม <span className="col-out">*</span>
@@ -240,7 +247,7 @@ export function RequestForm({ item, defaultPerson, onClose, onAdd, onNow }) {
         </label>
         {!defaultPerson && <div className="hint">กรุณาใส่ชื่อผู้ยืม เพื่อให้ตามของคืนได้</div>}
         <label>จำนวน ({item.unit})
-          <input name="qty" type="number" min="1" max={item.qty} defaultValue="1" required />
+          <input name="qty" type="number" min="1" max={item.free_qty} defaultValue="1" required />
         </label>
         {!!item.tracked && <div className="hint">ของ track รายตัว — Admin จะเลือกหน่วยจริงให้ครบตามจำนวนตอนอนุมัติ</div>}
         {isTool && <label>คืนภายใน (ไม่บังคับ)<input name="due_date" type="date" /></label>}
@@ -262,11 +269,13 @@ export function groupByCategory(items) {
   const groups = {};
   for (const i of items) {
     const key = catLabel(i);
-    const g = (groups[key] ||= { type: i.type, kinds: 0, total: 0, out: 0, remain: 0 });
+    const g = (groups[key] ||= { type: i.type, kinds: 0, total: 0, out: 0, inKit: 0, remain: 0, free: 0 });
     g.kinds += 1;
     g.total += i.total_qty;
     g.out += i.out_qty;
+    g.inKit += i.in_kit_qty;
     g.remain += i.qty;
+    g.free += i.free_qty;
   }
   const keys = Object.keys(groups).sort((a, b) => groups[b].kinds - groups[a].kinds);
   return { groups, keys };
@@ -299,7 +308,7 @@ function Summary({ items, cat, onPick }) {
       <div className="section-title">สรุปตามหมวดหมู่</div>
       <div className="hint" style={{ marginBottom: 6 }}>กดที่หมวดเพื่อกรองรายการด้านล่าง</div>
       <Table
-        headers={['หมวดหมู่', 'จำนวนชนิด', 'มีทั้งหมด', 'ถูกใช้/ยืม', 'คงเหลือ']}
+        headers={['หมวดหมู่', 'จำนวนชนิด', 'มีทั้งหมด', 'ถูกใช้/ยืม', 'ถูกนำไปประกอบ', 'คงเหลือในคลัง', 'คงเหลือหลังประกอบ']}
         rows={keys.map((k) => ({
           key: k,
           onClick: () => onPick(cat === k ? '' : k),
@@ -309,7 +318,9 @@ function Summary({ items, cat, onPick }) {
             `${groups[k].kinds} ชนิด`,
             <span className="col-total">{groups[k].total}</span>,
             <span className={groups[k].out > 0 ? 'col-out' : 'muted'}>{groups[k].out}</span>,
+            <span className={groups[k].inKit > 0 ? 'col-inkit' : 'muted'}>{groups[k].inKit || '—'}</span>,
             <span className="col-remain">{groups[k].remain}</span>,
+            <span className="col-free">{groups[k].free}</span>,
           ],
         }))}
       />
@@ -727,11 +738,13 @@ function UnitsPanel({ item, me, onChanged, onClose, onRequest }) {
   const match = (u) => !kw || u.code.toLowerCase().includes(kw) || (u.holder || '').toLowerCase().includes(kw);
   const avail = units.filter((u) => u.status === 'available' && match(u));
   const borrowed = units.filter((u) => u.status === 'borrowed' && match(u));
+  const reserved = units.filter((u) => u.status === 'reserved' && match(u));
   const dead = units.filter((u) => (u.status === 'repair' || u.status === 'lost') && match(u));
   // user ไม่เห็นคอลัมน์ "ว่าง"
   const cols = [
     ...(isAdmin ? [{ key: 'a', title: 'ว่าง', cls: 'ok', list: avail, empty: 'ไม่มีตัวว่าง' }] : []),
     { key: 'b', title: 'ถูกยืม', cls: 'warn', list: borrowed, empty: 'ไม่มีตัวถูกยืม' },
+    { key: 'k', title: 'อยู่ในหุ่น', cls: 'kit', list: reserved, empty: 'ไม่มี' },
     { key: 'd', title: 'พัง / หาย', cls: 'bad', list: dead, empty: 'ไม่มี' },
   ];
 
@@ -741,9 +754,10 @@ function UnitsPanel({ item, me, onChanged, onClose, onRequest }) {
         <span>ทั้งหมด <b>{units.length}</b></span>
         <span className="col-remain">ว่าง <b>{counts.available || 0}</b></span>
         <span className="bstat-borrowed">ยืม <b>{counts.borrowed || 0}</b></span>
+        {counts.reserved ? <span className="bstat-kit">อยู่ในหุ่น <b>{counts.reserved}</b></span> : null}
         {counts.repair ? <span className="bstat-repair">พัง <b>{counts.repair}</b></span> : null}
         {counts.lost ? <span className="bstat-lost">หาย <b>{counts.lost}</b></span> : null}
-        {onRequest && item.qty > 0 && (
+        {onRequest && item.free_qty > 0 && (
           <button className="btn small u-borrow stock-req" onClick={onRequest}>
             🛒 {item.type === 'consumable' ? 'ขอเบิก' : 'ขอยืม'}ของนี้
           </button>
