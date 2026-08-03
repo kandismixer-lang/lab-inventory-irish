@@ -221,7 +221,10 @@ function decorateItem(i) {
     stock = total - out;         // คงเหลือในคลัง
     freeStock = stock - inKit;   // คงเหลือหลังประกอบ (หยิบใช้ได้จริง)
   }
-  const extra = i.is_kit ? { components: kitComponents(i.id) } : {};
+  // หุ่นยนต์: ใครยืมอยู่ (ชื่อคนที่ยืมค้าง) — โชว์ในป็อปอัป/แดชบอร์ด
+  const extra = i.is_kit
+    ? { components: kitComponents(i.id), holder: out > 0 ? borrowersOf(i).map((b) => b.person).filter(Boolean).join(', ') : '' }
+    : {};
   return { ...i, out_qty: out, total_qty: total, in_kit_qty: inKit, qty: stock, free_qty: freeStock, ...extra };
 }
 

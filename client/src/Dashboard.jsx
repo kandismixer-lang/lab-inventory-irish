@@ -153,7 +153,8 @@ export default function Dashboard({ go, me }) {
               key: i.id,
               onClick: () => go && go('items', { itemId: i.id }),
               cells: [
-                <span>{i.name}<span className={'badge ' + i.type} style={{ marginLeft: 8 }}>{catLabel(i)}</span></span>,
+                <span>{i.name}<span className={'badge ' + i.type} style={{ marginLeft: 8 }}>{catLabel(i)}</span>
+                  {i.is_kit && i.holder && <span className="hint" style={{ color: 'var(--danger)' }}>🙍 {i.holder}</span>}</span>,
                 <span className="col-total">{i.total_qty} {i.unit}</span>,
                 <span className="col-out">{i.out_qty} {i.unit}</span>,
                 <span className="badge low">0 {i.unit}</span>,
@@ -193,7 +194,7 @@ export default function Dashboard({ go, me }) {
         </>
       ) : (
         <Table
-          headers={['หุ่นยนต์', 'มีทั้งหมด', 'ถูกยืม', 'คงเหลือ']}
+          headers={['หุ่นยนต์', 'มีทั้งหมด', 'ถูกยืม', 'คงเหลือ', 'ผู้ยืม']}
           rows={list.map((i) => ({
             key: i.id,
             onClick: () => go && go('items', { itemId: i.id }),
@@ -204,6 +205,7 @@ export default function Dashboard({ go, me }) {
                 ? <span className="col-out">{i.out_qty} {i.unit}</span>
                 : <span className="muted">—</span>,
               <span className="col-remain">{i.qty} {i.unit}</span>,
+              i.holder ? <span style={{ color: 'var(--danger)' }}>🙍 {i.holder}</span> : <span className="muted">—</span>,
             ],
           }))}
         />

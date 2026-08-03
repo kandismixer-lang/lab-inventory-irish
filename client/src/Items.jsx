@@ -665,6 +665,10 @@ function MoveForm({ item, me, onClose, onDone }) {
   return (
     <Modal title="เคลื่อนไหวสต็อก" onClose={onClose}>
       <div className="muted" style={{ marginBottom: 6 }}>{item.name} — คงเหลือ <strong>{item.qty} {item.unit}</strong></div>
+      {/* หุ่นยนต์ที่ถูกยืมอยู่ — โชว์ว่าใครยืม */}
+      {item.is_kit && item.out_qty > 0 && item.holder && (
+        <div className="hint" style={{ marginBottom: 8, color: 'var(--danger)', fontWeight: 600 }}>🙍 ยืมโดย: {item.holder}</div>
+      )}
       {/* หุ่นยนต์: โชว์รายละเอียดว่าประกอบด้วยอะไร (ยืมหุ่น = ยืมของทั้งชุดในนี้) */}
       {item.is_kit && item.components && (
         <div className="kit-box" style={{ marginBottom: 10 }}>
