@@ -221,9 +221,14 @@ function decorateItem(i) {
     stock = total - out;         // คงเหลือในคลัง
     freeStock = stock - inKit;   // คงเหลือหลังประกอบ (หยิบใช้ได้จริง)
   }
-  // หุ่นยนต์: ใครยืมอยู่ (ชื่อคนที่ยืมค้าง) — โชว์ในป็อปอัป/แดชบอร์ด
+  // หุ่นยนต์: ใครยืมอยู่ — หุ่นมี 1 ตัว คนถือคนเดียว ใช้ "คนที่ยืมล่าสุด" (กันชื่อค้างซ้ำจากการเน็ต borrow-return ต่อคน)
   const extra = i.is_kit
-    ? { components: kitComponents(i.id), holder: out > 0 ? borrowersOf(i).map((b) => b.person).filter(Boolean).join(', ') : '' }
+    ? {
+        components: kitComponents(i.id),
+        holder: out > 0
+          ? (db.prepare("SELECT person FROM transactions WHERE item_id=? AND kind='borrow' AND person<>'' ORDER BY id DESC LIMIT 1").get(i.id)?.person || '')
+          : '',
+      }
     : {};
   return { ...i, out_qty: out, total_qty: total, in_kit_qty: inKit, qty: stock, free_qty: freeStock, ...extra };
 }
