@@ -154,13 +154,11 @@ function Shell({ me, onMe, guestName, onGuestName }) {
 
   // guest ยืนยันตัวตน (ชื่อ หรือ รหัสบัตร) → จำลง session (ดึงของที่ตรงกันกลับมา แม้ cookie ถูกล้าง)
   const confirmId = async () => {
-    const body = idMode === 'card' ? { card: guestCard.trim() } : { name: (guestName || '').trim() };
+    const q = (idMode === 'card' ? guestCard : guestName).trim();
     try {
-      const r = await api('/api/guest/name', { method: 'POST', body });
-      if (idMode === 'card') {
-        localStorage.setItem('guestCard', guestCard.trim());
-        if (r?.name) onGuestName(r.name); // ตั้งชื่อจากบัตร → หน้าที่อิงชื่อ (แดชบอร์ด "ของที่คุณยืม") sync ตรงกัน
-      }
+      const r = await api('/api/guest/name', { method: 'POST', body: { q } });
+      if (idMode === 'card') localStorage.setItem('guestCard', guestCard.trim());
+      if (r?.name && r.name !== guestName) onGuestName(r.name); // ตั้งชื่อจริง → หน้าที่อิงชื่อ (แดชบอร์ด "ของที่คุณยืม") sync ตรงกัน
       loadBadge();
       setRefreshKey((k) => k + 1); // รีโหลดหน้าปัจจุบัน
       setView('requests'); // พาไปดูของที่ยืมอยู่เลย
@@ -169,8 +167,8 @@ function Shell({ me, onMe, guestName, onGuestName }) {
   // เปิดเว็บมาถ้ามีตัวตนเก่าค้างอยู่ (localStorage) sync เข้า session ให้อัตโนมัติ
   useEffect(() => {
     if (!isGuest) return;
-    if (guestCard) api('/api/guest/name', { method: 'POST', body: { card: guestCard } }).then(() => setRefreshKey((k) => k + 1)).catch(() => {});
-    else if (guestName) api('/api/guest/name', { method: 'POST', body: { name: guestName } }).then(() => setRefreshKey((k) => k + 1)).catch(() => {});
+    const q = (guestCard || guestName || '').trim();
+    if (q) api('/api/guest/name', { method: 'POST', body: { q } }).then((r) => { if (r?.name && r.name !== guestName) onGuestName(r.name); setRefreshKey((k) => k + 1); }).catch(() => {});
   }, []);
 
   // เปลี่ยนหน้า + สั่งโฟกัสของ (จากแดชบอร์ด)
