@@ -1101,18 +1101,25 @@ app.get('/api/dashboard', requireAuth, (req, res) => {
   // ยอดรวม — คิดจากรายการทั้งหมดด้วยสูตรเดียวกับหน้ารายการของ (ตัวเลข sync กัน)
   // หุ่นยนต์ (kit) นับรวมด้วยตามปกติ — มีสต็อกจริงของตัวเอง (1 ชิ้น) ตั้งแต่โมเดลใหม่ ของประกอบข้างในถูกตัดออกจากคลังไปแล้ว ไม่นับซ้ำ
   const real = db.prepare(`${ITEM_SELECT} WHERE i.active=1`).all().map(decorateItem);
-  const borrowedReal = real.filter((i) => i.type === 'tool').reduce((s, i) => s + i.out_qty, 0);
-  const remain = real.reduce((s, i) => s + i.qty, 0);   // คงเหลือในคลัง (นับของที่กันในหุ่นด้วย)
-  const inKit = real.reduce((s, i) => s + i.in_kit_qty, 0);        // ถูกนำไปประกอบ (ยังไม่ถูกยืม)
-  const freeStock = real.reduce((s, i) => s + i.free_qty, 0);      // คงเหลือหลังประกอบ (หยิบใช้ได้จริง)
+  // แยกอุปกรณ์ทั่วไป (ไม่รวมหุ่นยนต์) ออกจากหุ่นยนต์ — โชว์คนละแถวบนแดชบอร์ด
+  const parts = real.filter((i) => !i.is_kit);
+  const kits = real.filter((i) => i.is_kit);
+  const borrowedReal = parts.filter((i) => i.type === 'tool').reduce((s, i) => s + i.out_qty, 0);
+  const remain = parts.reduce((s, i) => s + i.qty, 0);   // คงเหลือในคลัง (นับของที่กันในหุ่นด้วย)
+  const inKit = parts.reduce((s, i) => s + i.in_kit_qty, 0);        // ถูกนำไปประกอบ (ยังไม่ถูกยืม)
+  const freeStock = parts.reduce((s, i) => s + i.free_qty, 0);      // คงเหลือหลังประกอบ (หยิบใช้ได้จริง)
   const totals = {
-    items: real.length,
-    // จำนวนรวม = ของในคลัง (รวมที่กันในหุ่น) + ของที่ยืมค้าง (จะกลับมา) — ไม่นับของเบิกที่ใช้ไปแล้ว
+    items: parts.length,
+    // จำนวนรวม (ไม่รวมหุ่น) = ของในคลัง (รวมที่กันในหุ่น) + ของที่ยืมค้าง (จะกลับมา) — ไม่นับของเบิกที่ใช้ไปแล้ว
     total: remain + borrowedReal,
     borrowed: borrowedReal,
     remain,
     inKit,
     freeStock,
+    // หุ่นยนต์ (นับแยก) — จำนวนหุ่น / ถูกยืมออกไป / คงเหลือในคลัง
+    kitCount: kits.length,
+    kitBorrowed: kits.reduce((s, i) => s + i.out_qty, 0),
+    kitRemain: kits.reduce((s, i) => s + i.qty, 0),
   };
   // กำหนดคืน — คำขอที่ยังยืมอยู่ (received) และมีวันคืน (โชว์ทั้งที่ยังไม่ถึง+เกินแล้ว)
   // days_over > 0 = เกินมาแล้ว, = 0 คือครบวันนี้, < 0 คือเหลืออีกกี่วัน

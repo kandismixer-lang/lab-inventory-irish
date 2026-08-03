@@ -75,14 +75,20 @@ export default function Dashboard({ go, me }) {
 
   return (
     <>
-      {/* 3 คอลัมน์ 2 แถว — แถวบน: รวม/ยืม/คงเหลือ · แถวล่าง: (เว้น)/ประกอบ/คงเหลือหลังประกอบ (ตรงคอลัมน์กัน) */}
+      {/* 3 คอลัมน์ 2 แถว — บน: อุปกรณ์ (ไม่รวมหุ่น) · ล่าง: หุ่นยนต์นับแยก (คอลัมน์ตรงกัน) */}
       <div className="stat-grid">
-        <div className="card stat"><div className="num col-total">{d.totals.total}</div><div className="lbl">จำนวนรวม</div></div>
-        <div className="card stat"><div className="num col-out">{d.totals.borrowed}</div><div className="lbl">ถูกยืม</div></div>
-        <div className="card stat"><div className="num col-remain">{d.totals.remain}</div><div className="lbl">คงเหลือในคลัง</div></div>
-        <div className="stat-empty" aria-hidden="true" />
-        <div className="card stat"><div className="num col-inkit">{d.totals.inKit || 0}</div><div className="lbl">ถูกนำไปประกอบ</div></div>
-        <div className="card stat"><div className="num col-free">{d.totals.freeStock ?? d.totals.remain}</div><div className="lbl">คงเหลือหลังประกอบ</div></div>
+        <div className="card stat"><div className="num col-total">{d.totals.total}</div><div className="lbl">จำนวนรวม (ไม่รวมหุ่น)</div></div>
+        <div className="card stat">
+          <div className="num"><span className="col-out">{d.totals.borrowed}</span><span className="muted"> / </span><span className="col-inkit">{d.totals.inKit || 0}</span></div>
+          <div className="lbl">ถูกยืม / ถูกนำไปประกอบ</div>
+        </div>
+        <div className="card stat">
+          <div className="num"><span className="col-remain">{d.totals.remain}</span><span className="muted"> / </span><span className="col-free">{d.totals.freeStock ?? d.totals.remain}</span></div>
+          <div className="lbl">คงเหลือในคลัง / หลังประกอบ</div>
+        </div>
+        <div className="card stat"><div className="num col-total">{d.totals.kitCount || 0}</div><div className="lbl">🤖 จำนวนหุ่นยนต์</div></div>
+        <div className="card stat"><div className="num col-out">{d.totals.kitBorrowed || 0}</div><div className="lbl">ถูกยืม</div></div>
+        <div className="card stat"><div className="num col-remain">{d.totals.kitRemain || 0}</div><div className="lbl">คงเหลือ</div></div>
       </div>
 
       {(() => {
