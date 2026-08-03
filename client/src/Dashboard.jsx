@@ -55,6 +55,7 @@ export default function Dashboard({ go, me }) {
   const [d, setD] = useState(null);
   const [cat, setCat] = useState('');
   const [q, setQ] = useState('');
+  const [tab, setTab] = useState('parts'); // parts = รายการของ (ไม่รวมหุ่น) · kits = หุ่นยนต์
   useEffect(() => { api('/api/dashboard').then(setD); }, []);
   if (!d) return <p className="muted">กำลังโหลด...</p>;
 
@@ -69,7 +70,9 @@ export default function Dashboard({ go, me }) {
   // ยืม/ใช้จนไม่เหลือในคลัง (แต่ยังมีของในระบบ) — เตือนแยกจากของสิ้นเปลืองใกล้หมด
   const outOfStock = d.borrowedOut.filter((i) => i.qty <= 0 && i.total_qty > 0);
   const kw = q.trim().toLowerCase();
-  const list = d.borrowedOut.filter(
+  // แยกตาราง: รายการของ (ไม่รวมหุ่น) / หุ่นยนต์ — กดสลับที่หัวข้อ
+  const base = d.borrowedOut.filter((i) => (tab === 'kits' ? i.is_kit : !i.is_kit));
+  const list = base.filter(
     (i) => (!cat || catLabel(i) === cat) && (!kw || i.name.toLowerCase().includes(kw) || (i.location || '').toLowerCase().includes(kw))
   );
 
@@ -160,27 +163,51 @@ export default function Dashboard({ go, me }) {
         </>
       )}
 
-      <div className="section-title">📦 รายการของ </div>
-      <div className="hint" style={{ marginBottom: 6 }}>กดที่แถวเพื่อไปหน้ารายการของ (ยืม/จัดการ) · กดหมวดเพื่อกรอง</div>
+      {/* แท็บสลับ: รายการของ (ไม่รวมหุ่น) / หุ่นยนต์ — กดที่หัวข้อ */}
+      <div className="tab-titles">
+        <span className={'tab-title' + (tab === 'parts' ? ' on' : '')} onClick={() => { setTab('parts'); setCat(''); }}>📦 รายการของ</span>
+        <span className={'tab-title' + (tab === 'kits' ? ' on' : '')} onClick={() => { setTab('kits'); setCat(''); }}>🤖 หุ่นยนต์</span>
+      </div>
+      <div className="hint" style={{ marginBottom: 6 }}>กดที่แถวเพื่อไปหน้ารายการของ (ยืม/จัดการ){tab === 'parts' ? ' · กดหมวดเพื่อกรอง' : ''}</div>
       <input type="search" className="stock-search" placeholder="ค้นหาชื่อ / ที่เก็บ…"
         value={q} onChange={(e) => setQ(e.target.value)} />
-      <CategoryBar items={d.borrowedOut} cat={cat} onPick={setCat} />
-      <Table
-        headers={['ชื่อ', 'มีทั้งหมด', 'ถูกใช้/ยืม', 'คงเหลือในคลัง', 'คงเหลือหลังประกอบ']}
-        rows={list.map((i) => ({
-          key: i.id,
-          onClick: () => go && go('items', { itemId: i.id }),
-          cells: [
-            <span>{i.name}<span className={'badge ' + i.type} style={{ marginLeft: 8 }}>{catLabel(i)}</span></span>,
-            <span className="col-total">{i.total_qty} {i.unit}</span>,
-            i.out_qty > 0
-              ? <span className="col-out">{i.out_qty} {i.unit}</span>
-              : <span className="muted">—</span>,
-            <span className="col-remain">{i.qty} {i.unit}</span>,
-            <span className="col-free">{i.free_qty ?? i.qty} {i.unit}</span>,
-          ],
-        }))}
-      />
+      {tab === 'parts' ? (
+        <>
+          <CategoryBar items={base} cat={cat} onPick={setCat} />
+          <Table
+            headers={['ชื่อ', 'มีทั้งหมด', 'ถูกใช้/ยืม', 'คงเหลือในคลัง', 'คงเหลือหลังประกอบ']}
+            rows={list.map((i) => ({
+              key: i.id,
+              onClick: () => go && go('items', { itemId: i.id }),
+              cells: [
+                <span>{i.name}<span className={'badge ' + i.type} style={{ marginLeft: 8 }}>{catLabel(i)}</span></span>,
+                <span className="col-total">{i.total_qty} {i.unit}</span>,
+                i.out_qty > 0
+                  ? <span className="col-out">{i.out_qty} {i.unit}</span>
+                  : <span className="muted">—</span>,
+                <span className="col-remain">{i.qty} {i.unit}</span>,
+                <span className="col-free">{i.free_qty ?? i.qty} {i.unit}</span>,
+              ],
+            }))}
+          />
+        </>
+      ) : (
+        <Table
+          headers={['หุ่นยนต์', 'มีทั้งหมด', 'ถูกยืม', 'คงเหลือ']}
+          rows={list.map((i) => ({
+            key: i.id,
+            onClick: () => go && go('items', { itemId: i.id }),
+            cells: [
+              <span>{i.name}<span className="badge tool" style={{ marginLeft: 8 }}>{catLabel(i)}</span></span>,
+              <span className="col-total">{i.total_qty} {i.unit}</span>,
+              i.out_qty > 0
+                ? <span className="col-out">{i.out_qty} {i.unit}</span>
+                : <span className="muted">—</span>,
+              <span className="col-remain">{i.qty} {i.unit}</span>,
+            ],
+          }))}
+        />
+      )}
 
       {d.unitsOut && d.unitsOut.length > 0 && (
         <>
