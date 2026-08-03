@@ -147,18 +147,17 @@ function Shell({ me, onMe, guestName, onGuestName }) {
   const [badge, setBadge] = useState(0);
   const [focusItem, setFocusItem] = useState(null); // id ของของที่จะให้หน้ารายการเปิดรอ
   const [refreshKey, setRefreshKey] = useState(0); // บั๊มพ์เพื่อรีโหลดข้อมูลหน้าปัจจุบัน
-  const [idMode, setIdMode] = useState('name'); // ยืนยันตัวตน guest ด้วย 'name' หรือ 'card'
   const [guestCard, setGuestCard] = useState(() => localStorage.getItem('guestCard') || '');
   const isGuest = me.role === 'guest';
   const Comp = VIEWS[view].comp;
 
   // guest ยืนยันตัวตน (ชื่อ หรือ รหัสบัตร) → จำลง session (ดึงของที่ตรงกันกลับมา แม้ cookie ถูกล้าง)
   const confirmId = async () => {
-    const q = (idMode === 'card' ? guestCard : guestName).trim();
+    const card = guestCard.trim();
     try {
-      const r = await api('/api/guest/name', { method: 'POST', body: { q } });
-      if (idMode === 'card') localStorage.setItem('guestCard', guestCard.trim());
-      if (r?.name && r.name !== guestName) onGuestName(r.name); // ตั้งชื่อจริง → หน้าที่อิงชื่อ (แดชบอร์ด "ของที่คุณยืม") sync ตรงกัน
+      const r = await api('/api/guest/name', { method: 'POST', body: { card } });
+      localStorage.setItem('guestCard', card);
+      if (r?.name && r.name !== guestName) onGuestName(r.name); // ตั้งชื่อจริงจากบัตร → แดชบอร์ด "ของที่คุณยืม" sync
       loadBadge();
       setRefreshKey((k) => k + 1); // รีโหลดหน้าปัจจุบัน
       setView('requests'); // พาไปดูของที่ยืมอยู่เลย
@@ -167,8 +166,8 @@ function Shell({ me, onMe, guestName, onGuestName }) {
   // เปิดเว็บมาถ้ามีตัวตนเก่าค้างอยู่ (localStorage) sync เข้า session ให้อัตโนมัติ
   useEffect(() => {
     if (!isGuest) return;
-    const q = (guestCard || guestName || '').trim();
-    if (q) api('/api/guest/name', { method: 'POST', body: { q } }).then((r) => { if (r?.name && r.name !== guestName) onGuestName(r.name); setRefreshKey((k) => k + 1); }).catch(() => {});
+    const card = (guestCard || '').trim();
+    if (card) api('/api/guest/name', { method: 'POST', body: { card } }).then((r) => { if (r?.name && r.name !== guestName) onGuestName(r.name); setRefreshKey((k) => k + 1); }).catch(() => {});
   }, []);
 
   // เปลี่ยนหน้า + สั่งโฟกัสของ (จากแดชบอร์ด)
@@ -217,37 +216,22 @@ function Shell({ me, onMe, guestName, onGuestName }) {
           <div className="userbox">
             {isGuest ? (
               <>
-                <div className="id-toggle">
-                  <button type="button" className={'id-tab' + (idMode === 'name' ? ' on' : '')} onClick={() => setIdMode('name')}>ชื่อ</button>
-                  <button type="button" className={'id-tab' + (idMode === 'card' ? ' on' : '')} onClick={() => setIdMode('card')}>รหัสบัตร</button>
-                </div>
-                {idMode === 'name' ? (
-                  <label className="guest-name">
-                    <span className="hint">ชื่อของคุณ (ไม่บังคับ)</span>
-                    <input
-                      value={guestName}
-                      onChange={(e) => onGuestName(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && guestName.trim() && confirmId()}
-                      placeholder="เช่น มิกซ์ — ไม่ตั้ง = ผู้เยี่ยมชม"
-                    />
-                  </label>
-                ) : (
-                  <label className="guest-name">
-                    <span className="hint">รหัสบัตร (ปชช./นักศึกษา)</span>
-                    <input
-                      value={guestCard}
-                      inputMode="numeric"
-                      onChange={(e) => setGuestCard(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && guestCard.trim() && confirmId()}
-                      placeholder="เลขบัตรที่ใช้ตอนยืม"
-                    />
-                  </label>
-                )}
+                <label className="guest-name">
+                  <span className="hint">รหัสบัตร (ปชช./นักศึกษา)</span>
+                  <input
+                    value={guestCard}
+                    inputMode="numeric"
+                    onChange={(e) => setGuestCard(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && guestCard.trim() && confirmId()}
+                    placeholder="รหัสบัตรที่ใช้ตอนยืม"
+                  />
+                </label>
+                <div className="hint" style={{ margin: '2px 0 6px' }}>ใส่รหัสบัตรของตัวเองเพื่อดึงของที่ยืม (คนอื่นดูของเราไม่ได้)</div>
                 <button
                   className="btn small primary guest-confirm-btn"
-                  disabled={idMode === 'card' ? !guestCard.trim() : !guestName.trim()}
+                  disabled={!guestCard.trim()}
                   onClick={confirmId}
-                  title="ยืนยันตัวตน / ดึงของที่ยืม"
+                  title="ยืนยันด้วยรหัสบัตร / ดึงของที่ยืม"
                 >
                   <span className="confirm-text-full">✓ ยืนยัน / ดึงของที่ยืม</span>
                   <span className="confirm-text-short">✓ ยืนยัน</span>

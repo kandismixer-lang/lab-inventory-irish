@@ -119,15 +119,15 @@ app.get('/api/me', (req, res) => {
 // guest ยืนยันชื่อ — จำลง session เพื่อดึงคำขอที่ชื่อตรงกันกลับมา (แม้ cookie ถูกล้าง/คนละเครื่อง)
 // ตัวตนแบบเบา ไม่ต้อง login: "ชื่อเดิม = ของเดิม"
 app.post('/api/guest/name', requireAuth, (req, res) => {
-  // รับค่าเดียว (ชื่อ หรือ รหัสบัตร ก็ได้) — ใช้ค้นทั้ง person และ card ยืดหยุ่น ไม่ต้องแยกช่องเป๊ะ
-  const q = (req.body?.q || req.body?.name || req.body?.card || '').trim();
-  req.session.gident = q; // ตัวตน guest: ค้น person=q หรือ card=q
-  // หาชื่อจริงมาโชว์ (ถ้า q เป็นรหัสบัตร → ดึงชื่อคนที่ยืมด้วยบัตรนั้น) เพื่อให้แดชบอร์ด "ของที่คุณยืม" (อิงชื่อ) sync
-  let name = q;
-  const row = db.prepare("SELECT person FROM requests WHERE (card=? OR person=? COLLATE NOCASE) AND person<>'' ORDER BY id DESC LIMIT 1").get(q, q);
+  // ยืนยันตัวตนด้วย "รหัสบัตร" เท่านั้น — บัตรเป็นความลับ (คนอื่นมองไม่เห็น) กันสวมรอยด้วยการเดาชื่อ
+  const card = (req.body?.card || req.body?.q || '').trim();
+  req.session.gcard = card;
+  // ดึงชื่อจริงที่ผูกกับบัตรนี้มาโชว์ (ให้แดชบอร์ด "ของที่คุณยืม" ที่อิงชื่อ sync)
+  let name = '';
+  const row = db.prepare("SELECT person FROM requests WHERE card=? AND person<>'' ORDER BY id DESC LIMIT 1").get(card);
   if (row?.person) name = row.person;
   req.session.gname = name;
-  res.json({ ok: true, name, ident: q });
+  res.json({ ok: true, name, card });
 });
 
 app.post('/api/change-password', requireAuth, requireUser, (req, res) => {
@@ -836,10 +836,10 @@ app.get('/api/requests', requireAuth, (req, res) => {
   if (req.user.role === 'guest') {
     // guest ใช้ id ร่วมกันทุกคน — แยกตัวตนด้วย "ชื่อที่ยืนยัน" (ถ้ามี) ไม่งั้น fallback guest_key ของเบราว์เซอร์
     // ชื่อ = ตัวตนถาวร (พิมพ์ชื่อเดิม cookie ใหม่ก็เห็นของเดิม) · guest_key = ตัวตนต่อเบราว์เซอร์
-    const gid = (req.session?.gident || '').trim();
+    const gcard = (req.session?.gcard || '').trim();
     const gk = req.session?.gkey;
-    // ยืนยันด้วยชื่อ หรือ รหัสบัตร (ค่าเดียว ค้นทั้งสองคอลัมน์) → ดึงของที่ยืม · ไม่งั้น fallback guest_key ของเบราว์เซอร์
-    if (gid) { where.push('(r.person = ? COLLATE NOCASE OR r.card = ?)'); args.push(gid, gid); }
+    // ยืนยันด้วยรหัสบัตร (ความลับ กันสวมรอย) → ดึงของที่ยืมด้วยบัตรนั้น · ไม่งั้น fallback guest_key ของเบราว์เซอร์
+    if (gcard) { where.push('r.card = ?'); args.push(gcard); }
     else if (gk) { where.push('r.guest_key = ?'); args.push(gk); }
     else return res.json([]); // ยังไม่ยืนยันตัวตน + ยังไม่เคยส่งคำขอ = ไม่มีอะไรให้เห็น
   } else if (req.user.role !== 'admin' || scope === 'mine') {
@@ -867,8 +867,8 @@ app.get('/api/requests/counts', requireAuth, (req, res) => {
     // guest/staff — นับเฉพาะของตัวเอง (guest ใช้ชื่อที่ยืนยัน, staff ใช้ id) ให้ badge ตรงกับลิสต์
     let cond = 'r.requester_id = ?', arg = [req.user.id];
     if (req.user.role === 'guest') {
-      const gid = (req.session?.gident || '').trim();
-      if (gid) { cond = '(r.person = ? COLLATE NOCASE OR r.card = ?)'; arg = [gid, gid]; }
+      const gcard = (req.session?.gcard || '').trim();
+      if (gcard) { cond = 'r.card = ?'; arg = [gcard]; }
       else { cond = 'r.guest_key = ?'; arg = [req.session?.gkey || ' ']; }
     }
     const borrowedOrders = db.prepare(
