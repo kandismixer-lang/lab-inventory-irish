@@ -22,14 +22,14 @@ export default function Items({ me, focusItem, onFocused }) {
     : cat ? items.filter((i) => catLabel(i) === cat) : items;
   const expandedItem = items.find((x) => x.id === expanded) || null;
   const { addToCart } = useCart();
-  const onAddToCart = (item, qty, note, person, due) => { addToCart(item, qty, note, person, due); setRequesting(null); };
+  const onAddToCart = (item, qty, note, person, due, card) => { addToCart(item, qty, note, person, due, card); setRequesting(null); };
   // ยืมเลย — optimistic: ปิด+เด้ง toast ทันที ยิง API เบื้องหลัง
-  const onBorrowNow = (item, qty, note, person, due) => {
+  const onBorrowNow = (item, qty, note, person, due, card) => {
     setRequesting(null);
     toast('ส่งคำขอแล้ว — รอแอดมินอนุมัติ');
     api('/api/orders', {
       method: 'POST',
-      body: { person: person || me.fullname || me.username, items: [{ item_id: item.id, qty, note, due_date: due }] },
+      body: { person: person || me.fullname || me.username, card, items: [{ item_id: item.id, qty, note, due_date: due, card }] },
     }).then(load).catch((e) => { toast('ส่งคำขอไม่สำเร็จ: ' + e.message); load(); });
   };
   const timer = useRef();
@@ -220,20 +220,20 @@ export function RequestForm({ item, defaultPerson, onClose, onAdd, onNow }) {
   const [busy, setBusy] = useState(false);
   const read = (form) => {
     const b = Object.fromEntries(new FormData(form));
-    return [Math.max(1, parseInt(b.qty, 10) || 1), (b.note || '').trim(), (b.person || '').trim(), b.due_date || ''];
+    return [Math.max(1, parseInt(b.qty, 10) || 1), (b.note || '').trim(), (b.person || '').trim(), b.due_date || '', (b.card || '').trim()];
   };
   const submit = (e) => {
     e.preventDefault();
-    const [qty, note, person, due] = read(e.target);
-    onAdd(item, qty, note, person, due);
+    const [qty, note, person, due, card] = read(e.target);
+    onAdd(item, qty, note, person, due, card);
   };
   // ยืมเลย — ส่งคำขอทันที ไม่ผ่านตะกร้า (สำหรับยืมรายการเดียว)
   const submitNow = async (e) => {
     const form = e.target.closest('form');
     if (!form.reportValidity()) return;
-    const [qty, note, person, due] = read(form);
+    const [qty, note, person, due, card] = read(form);
     setBusy(true);
-    try { await onNow(item, qty, note, person, due); } finally { setBusy(false); }
+    try { await onNow(item, qty, note, person, due, card); } finally { setBusy(false); }
   };
   const isTool = item.type !== 'consumable';
   return (
@@ -247,6 +247,10 @@ export function RequestForm({ item, defaultPerson, onClose, onAdd, onNow }) {
           <input name="person" defaultValue={defaultPerson || ''} placeholder="ใส่ชื่อผู้ยืม" required autoFocus={!defaultPerson} />
         </label>
         {!defaultPerson && <div className="hint">กรุณาใส่ชื่อผู้ยืม เพื่อให้ตามของคืนได้</div>}
+        <label>รหัสบัตร (ปชช./นักศึกษา) <span className="col-out">*</span>
+          <input name="card" placeholder="เลขบัตรประชาชน หรือ รหัสนักศึกษา" required inputMode="numeric" />
+        </label>
+        <div className="hint">ใช้ยืนยันตัวตน + ดึงของที่ยืมกลับมาได้แม้ไม่ล็อกอิน</div>
         <label>จำนวน ({item.unit})
           <input name="qty" type="number" min="1" max={item.free_qty} defaultValue="1" required />
         </label>

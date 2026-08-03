@@ -13,12 +13,12 @@ export function CartProvider({ children, person }) {
   const [open, setOpen] = useState(false);
   const toast = useToast();
 
-  const addToCart = (item, qty, note, who, due) => {
+  const addToCart = (item, qty, note, who, due, card) => {
     setCart((p) => {
       const ex = p.find((c) => c.item.id === item.id);
       if (ex) return p.map((c) => c.item.id === item.id
-        ? { ...c, qty: Math.min(item.qty, c.qty + qty), note: note || c.note, who: who || c.who, due: due || c.due } : c);
-      return [...p, { item, qty, note, who, due }];
+        ? { ...c, qty: Math.min(item.qty, c.qty + qty), note: note || c.note, who: who || c.who, due: due || c.due, card: card || c.card } : c);
+      return [...p, { item, qty, note, who, due, card }];
     });
     toast('เพิ่มลงตะกร้าแล้ว');
   };
@@ -61,8 +61,9 @@ function CartModal({ cart, setCart, person, onClose }) {
   const submit = () => {
     if (cart.length === 0) return;
     const who = cart.find((c) => c.who && c.who.trim())?.who?.trim() || person;
+    const anyCard = cart.find((c) => c.card && c.card.trim())?.card?.trim() || '';
     const snapshot = cart; // เก็บไว้เผื่อต้อง restore
-    const body = { note, person: who, items: cart.map((c) => ({ item_id: c.item.id, qty: c.qty, note: c.note, due_date: c.due || '', person: c.who || '' })) };
+    const body = { note, person: who, card: anyCard, items: cart.map((c) => ({ item_id: c.item.id, qty: c.qty, note: c.note, due_date: c.due || '', person: c.who || '', card: c.card || '' })) };
     setCart([]);
     onClose();
     toast(`ส่งคำขอแล้ว ${snapshot.length} รายการ — รอแอดมินอนุมัติ`);
@@ -87,6 +88,7 @@ function CartModal({ cart, setCart, person, onClose }) {
                   <strong>{c.item.name}</strong>
                   <span className="badge">{label(c.item)}</span>
                   {c.who ? <span className="hint">👤 {c.who}</span> : null}
+                  {c.card ? <span className="hint">🪪 {c.card}</span> : null}
                   {c.due ? <span className="hint">📅 คืน {c.due}</span> : null}
                   {c.note ? <span className="hint">📝 {c.note}</span> : null}
                 </div>

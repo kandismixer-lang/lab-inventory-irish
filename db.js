@@ -189,6 +189,7 @@ addColumn('requests', 'guest_key', "TEXT NOT NULL DEFAULT ''"); // แยกเ�
 addColumn('requests', 'due_date', "TEXT NOT NULL DEFAULT ''");  // กำหนดคืน (YYYY-MM-DD) — เตือนเกินกำหนด
 addColumn('kit_components', 'unit_id', 'INTEGER');  // ผูกหน่วยเจาะจง (เฉพาะ component ที่ tracked + ใช้ทีละ 1 ชิ้น) — ว่าง = หน่วยไหนก็ได้
 addColumn('requests', 'want_unit_id', 'INTEGER');   // หน่วยที่จองไว้ล่วงหน้าจาก kit component ผูกหน่วย — admin ไม่ต้องเลือกซ้ำตอนอนุมัติ
+addColumn('requests', 'card', "TEXT NOT NULL DEFAULT ''"); // รหัสบัตร (ปชช/นักศึกษา) ของผู้ยืม — ใช้ยืนยันตัวตน/ดึงของที่ยืม
 
 // migration: หุ่นยนต์โมเดลใหม่ — "กันของไว้ ไม่ตัดออกจากคลัง" (เดิมตัด/borrowed จริงตอนประกอบ)
 // รันครั้งเดียว (เช็ค _migrations กันรันซ้ำตอน restart — ไม่งั้นคืน qty component ซ้ำทุกครั้ง)

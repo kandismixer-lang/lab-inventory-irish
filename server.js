@@ -120,8 +120,11 @@ app.get('/api/me', (req, res) => {
 // ตัวตนแบบเบา ไม่ต้อง login: "ชื่อเดิม = ของเดิม"
 app.post('/api/guest/name', requireAuth, (req, res) => {
   const name = (req.body?.name || '').trim();
+  const cardId = (req.body?.card || '').trim();
+  // ยืนยันตัวตน guest ได้ 2 ทาง: ชื่อ หรือ รหัสบัตร — เก็บลง session เพื่อดึงของที่ยืมกลับมา
   req.session.gname = name;
-  res.json({ ok: true, name });
+  req.session.gcard = cardId;
+  res.json({ ok: true, name, card: cardId });
 });
 
 app.post('/api/change-password', requireAuth, requireUser, (req, res) => {
@@ -469,6 +472,12 @@ app.put('/api/items/:id', requireAuth, requireAdmin, (req, res) => {
   // (เช็ค out_qty ไม่ใช่ qty<1 — หุ่นเปล่าจากโมเดลเก่า qty=0 แต่ไม่ได้ถูกยืม ต้องแก้/ลบได้)
   if (item.is_kit && kitBorrowedOut(item.id))
     return res.status(400).json({ error: 'หุ่นตัวนี้ถูกยืมออกไปอยู่ — ต้องรอคืนก่อนถึงจะแก้ไข/ยกเลิกได้' });
+  // กันแปลงของ track รายตัว (ที่มีหน่วยผูกอยู่) → หุ่นยนต์ ตรงๆ — หน่วยเดิมจะกลายเป็นข้อมูลกำพร้า ยอดเพี้ยน
+  if (wantKit && !item.is_kit && item.tracked) {
+    const nUnits = db.prepare('SELECT COUNT(*) n FROM units WHERE item_id=? AND active=1').get(item.id).n;
+    if (nUnits > 0)
+      return res.status(400).json({ error: 'ของ track รายตัวที่มีหน่วยอยู่ เปลี่ยนเป็นหุ่นยนต์ไม่ได้ — ต้องลบหน่วยทั้งหมดก่อน หรือสร้างหุ่นเป็นรายการใหม่' });
+  }
 
   try {
     db.tx(() => {
@@ -704,6 +713,8 @@ app.delete('/api/units/:id', requireAuth, requireAdmin, (req, res) => {
   if (!unit) return res.status(404).json({ error: 'ไม่พบหน่วยนี้' });
   if (unit.status === 'reserved')
     return res.status(400).json({ error: 'หน่วยนี้อยู่ในหุ่นยนต์อยู่ — ต้องรื้อออกจากหุ่นก่อนถึงจะเลิกใช้ได้' });
+  if (unit.status === 'borrowed')
+    return res.status(400).json({ error: 'หน่วยนี้ถูกยืมอยู่ — ต้องรับคืนก่อนถึงจะเลิกใช้ได้ (กันยอดเพี้ยน)' });
   db.tx(() => {
     db.prepare('UPDATE units SET active = 0 WHERE id = ?').run(unit.id);
     db.recalcTracked(unit.item_id);
@@ -780,7 +791,7 @@ function guestKey(req) {
 app.post('/api/orders', requireAuth, (req, res) => {
   const block = guestThrottle(req);
   if (block) return res.status(429).json({ error: block });
-  const { note, items, person } = req.body || {};
+  const { note, items, person, card } = req.body || {};
   const who = (person || '').trim() || req.user.fullname || req.user.username;
   if (!Array.isArray(items) || items.length === 0)
     return res.status(400).json({ error: 'ตะกร้าว่าง' });
@@ -792,9 +803,11 @@ app.post('/api/orders', requireAuth, (req, res) => {
     const n = Math.max(1, parseInt(it.qty, 10) || 1);
     const due = /^\d{4}-\d{2}-\d{2}$/.test(it.due_date || '') ? it.due_date : '';
     const linePerson = (it.person || '').trim() || who; // ชื่อผู้ยืมต่อรายการ (เผื่อขอแทนหลายคน)
+    const lineCard = (it.card || card || '').trim();     // รหัสบัตรผู้ยืม (บังคับกรอก)
+    if (!lineCard) return res.status(400).json({ error: `กรุณากรอกรหัสบัตรผู้ยืมของ ${item.name}` });
     // หุ่นยนต์ (kit) ตั้งแต่โมเดลใหม่ = ของชิ้นเดียวเหมือน tool ปกติ (อุปกรณ์ข้างในถูกจองตอนสร้างหุ่นแล้ว)
     // ยืมหุ่น = ยืมของชิ้นเดียว ไม่ต้องขยาย component ซ้ำ
-    lines.push({ item, qty: n, note: (it.note || '').trim(), due, person: linePerson, kind: item.type === 'consumable' ? 'issue' : 'borrow' });
+    lines.push({ item, qty: n, note: (it.note || '').trim(), due, person: linePerson, card: lineCard, kind: item.type === 'consumable' ? 'issue' : 'borrow' });
   }
   const gkey = guestKey(req);
   const orderId = db.tx(() => {
@@ -802,10 +815,10 @@ app.post('/api/orders', requireAuth, (req, res) => {
       .run(req.user.id, (note || '').trim(), who);
     const oid = Number(oi.lastInsertRowid);
     const ins = db.prepare(
-      `INSERT INTO requests (item_id, requester_id, kind, qty, note, status, order_id, person, guest_key, due_date, want_unit_id)
-       VALUES (?,?,?,?,?, 'pending', ?, ?, ?, ?, ?)`
+      `INSERT INTO requests (item_id, requester_id, kind, qty, note, status, order_id, person, guest_key, due_date, want_unit_id, card)
+       VALUES (?,?,?,?,?, 'pending', ?, ?, ?, ?, ?, ?)`
     );
-    lines.forEach((l) => ins.run(l.item.id, req.user.id, l.kind, l.qty, l.note, oid, l.person, gkey, l.due, l.wantUnitId || null));
+    lines.forEach((l) => ins.run(l.item.id, req.user.id, l.kind, l.qty, l.note, oid, l.person, gkey, l.due, l.wantUnitId || null, l.card || ''));
     return oid;
   });
   res.json({ id: orderId, lines: lines.length });
@@ -820,10 +833,13 @@ app.get('/api/requests', requireAuth, (req, res) => {
     // guest ใช้ id ร่วมกันทุกคน — แยกตัวตนด้วย "ชื่อที่ยืนยัน" (ถ้ามี) ไม่งั้น fallback guest_key ของเบราว์เซอร์
     // ชื่อ = ตัวตนถาวร (พิมพ์ชื่อเดิม cookie ใหม่ก็เห็นของเดิม) · guest_key = ตัวตนต่อเบราว์เซอร์
     const gname = (req.session?.gname || '').trim();
+    const gcard = (req.session?.gcard || '').trim();
     const gk = req.session?.gkey;
-    if (gname) { where.push('r.person = ? COLLATE NOCASE'); args.push(gname); }
+    // ยืนยันด้วยชื่อ หรือ รหัสบัตร (อย่างใดอย่างหนึ่ง) → ดึงของที่ยืมของตัวตนนั้น · ไม่งั้น fallback guest_key ของเบราว์เซอร์
+    if (gcard) { where.push('r.card = ?'); args.push(gcard); }
+    else if (gname) { where.push('r.person = ? COLLATE NOCASE'); args.push(gname); }
     else if (gk) { where.push('r.guest_key = ?'); args.push(gk); }
-    else return res.json([]); // ยังไม่ตั้งชื่อ + ยังไม่เคยส่งคำขอ = ไม่มีอะไรให้เห็น
+    else return res.json([]); // ยังไม่ยืนยันตัวตน + ยังไม่เคยส่งคำขอ = ไม่มีอะไรให้เห็น
   } else if (req.user.role !== 'admin' || scope === 'mine') {
     where.push('r.requester_id = ?');
     args.push(req.user.id);
@@ -850,7 +866,9 @@ app.get('/api/requests/counts', requireAuth, (req, res) => {
     let cond = 'r.requester_id = ?', arg = req.user.id;
     if (req.user.role === 'guest') {
       const gname = (req.session?.gname || '').trim();
-      if (gname) { cond = 'r.person = ? COLLATE NOCASE'; arg = gname; }
+      const gcard = (req.session?.gcard || '').trim();
+      if (gcard) { cond = 'r.card = ?'; arg = gcard; }
+      else if (gname) { cond = 'r.person = ? COLLATE NOCASE'; arg = gname; }
       else { cond = 'r.guest_key = ?'; arg = req.session?.gkey || ' '; }
     }
     const borrowedOrders = db.prepare(

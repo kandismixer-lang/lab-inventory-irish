@@ -386,6 +386,11 @@ tbody tr:hover > td { background: var(--wash-blue); }
 .cat-bar.cat-sub { flex-basis: 100%; margin: 4px 0 0 14px; padding-left: 12px; border-left: 2px solid var(--line-strong); }
 .cat-chip.fix.active .sub { color: rgba(255,255,255,.8); }
 /* dropdown ผูกหน่วย: "หน่วยไหนก็ได้" (auto) = teal จางบอกว่าไม่ระบุ · เลือกหน่วยแล้ว = ปกติ */
+/* toggle ยืนยันตัวตน guest: ชื่อ / รหัสบัตร */
+.id-toggle { display: flex; gap: 6px; margin-bottom: 6px; }
+.id-tab { flex: 1; padding: 5px 8px; border-radius: 8px; font: inherit; font-size: .82rem; cursor: pointer;
+  border: 1px solid var(--line-strong); background: var(--card-2); color: var(--muted); }
+.id-tab.on { background: var(--primary); border-color: var(--primary); color: #fff; font-weight: 600; }
 select.unit-any { color: #2dd4bf; font-style: italic; }
 select.unit-pinned { color: var(--text); font-weight: 600; }
 tr.row-active > td { background: rgba(34,211,238,.10); }

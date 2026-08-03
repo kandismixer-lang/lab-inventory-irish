@@ -147,21 +147,27 @@ function Shell({ me, onMe, guestName, onGuestName }) {
   const [badge, setBadge] = useState(0);
   const [focusItem, setFocusItem] = useState(null); // id ของของที่จะให้หน้ารายการเปิดรอ
   const [refreshKey, setRefreshKey] = useState(0); // บั๊มพ์เพื่อรีโหลดข้อมูลหน้าปัจจุบัน
+  const [idMode, setIdMode] = useState('name'); // ยืนยันตัวตน guest ด้วย 'name' หรือ 'card'
+  const [guestCard, setGuestCard] = useState(() => localStorage.getItem('guestCard') || '');
   const isGuest = me.role === 'guest';
   const Comp = VIEWS[view].comp;
 
-  // guest ยืนยันชื่อ → จำลง session (ดึงของที่ชื่อตรงกันกลับมา แม้ cookie ถูกล้าง)
-  const confirmName = async () => {
+  // guest ยืนยันตัวตน (ชื่อ หรือ รหัสบัตร) → จำลง session (ดึงของที่ตรงกันกลับมา แม้ cookie ถูกล้าง)
+  const confirmId = async () => {
+    const body = idMode === 'card' ? { card: guestCard.trim() } : { name: (guestName || '').trim() };
     try {
-      await api('/api/guest/name', { method: 'POST', body: { name: guestName || '' } });
+      await api('/api/guest/name', { method: 'POST', body });
+      if (idMode === 'card') localStorage.setItem('guestCard', guestCard.trim());
       loadBadge();
       setRefreshKey((k) => k + 1); // รีโหลดหน้าปัจจุบัน
       setView('requests'); // พาไปดูของที่ยืมอยู่เลย
     } catch {}
   };
-  // เปิดเว็บมาถ้ามีชื่อเก่าค้างอยู่ (localStorage) sync เข้า session ให้อัตโนมัติ
+  // เปิดเว็บมาถ้ามีตัวตนเก่าค้างอยู่ (localStorage) sync เข้า session ให้อัตโนมัติ
   useEffect(() => {
-    if (isGuest && guestName) api('/api/guest/name', { method: 'POST', body: { name: guestName } }).then(() => setRefreshKey((k) => k + 1)).catch(() => {});
+    if (!isGuest) return;
+    if (guestCard) api('/api/guest/name', { method: 'POST', body: { card: guestCard } }).then(() => setRefreshKey((k) => k + 1)).catch(() => {});
+    else if (guestName) api('/api/guest/name', { method: 'POST', body: { name: guestName } }).then(() => setRefreshKey((k) => k + 1)).catch(() => {});
   }, []);
 
   // เปลี่ยนหน้า + สั่งโฟกัสของ (จากแดชบอร์ด)
@@ -210,22 +216,39 @@ function Shell({ me, onMe, guestName, onGuestName }) {
           <div className="userbox">
             {isGuest ? (
               <>
-                <label className="guest-name">
-                  <span className="hint">ชื่อของคุณ (ไม่บังคับ)</span>
-                  <input
-                    value={guestName}
-                    onChange={(e) => onGuestName(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && guestName.trim() && confirmName()}
-                    placeholder="เช่น มิกซ์ — ไม่ตั้ง = ผู้เยี่ยมชม"
-                  />
-                </label>
+                <div className="id-toggle">
+                  <button type="button" className={'id-tab' + (idMode === 'name' ? ' on' : '')} onClick={() => setIdMode('name')}>ชื่อ</button>
+                  <button type="button" className={'id-tab' + (idMode === 'card' ? ' on' : '')} onClick={() => setIdMode('card')}>รหัสบัตร</button>
+                </div>
+                {idMode === 'name' ? (
+                  <label className="guest-name">
+                    <span className="hint">ชื่อของคุณ (ไม่บังคับ)</span>
+                    <input
+                      value={guestName}
+                      onChange={(e) => onGuestName(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && guestName.trim() && confirmId()}
+                      placeholder="เช่น มิกซ์ — ไม่ตั้ง = ผู้เยี่ยมชม"
+                    />
+                  </label>
+                ) : (
+                  <label className="guest-name">
+                    <span className="hint">รหัสบัตร (ปชช./นักศึกษา)</span>
+                    <input
+                      value={guestCard}
+                      inputMode="numeric"
+                      onChange={(e) => setGuestCard(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && guestCard.trim() && confirmId()}
+                      placeholder="เลขบัตรที่ใช้ตอนยืม"
+                    />
+                  </label>
+                )}
                 <button
                   className="btn small primary guest-confirm-btn"
-                  disabled={!guestName.trim()}
-                  onClick={confirmName}
-                  title="ยืนยันชื่อ / ดึงของที่ยืม"
+                  disabled={idMode === 'card' ? !guestCard.trim() : !guestName.trim()}
+                  onClick={confirmId}
+                  title="ยืนยันตัวตน / ดึงของที่ยืม"
                 >
-                  <span className="confirm-text-full">✓ ยืนยันชื่อ / ดึงของที่ยืม</span>
+                  <span className="confirm-text-full">✓ ยืนยัน / ดึงของที่ยืม</span>
                   <span className="confirm-text-short">✓ ยืนยัน</span>
                 </button>
                 <button className="btn small" onClick={() => setLoggingIn(true)}>🔑 Admin</button>
