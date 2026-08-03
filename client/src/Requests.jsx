@@ -145,7 +145,7 @@ function OrderCard({ lines, me, onDone }) {
             <strong>{lines.length} รายการ · {totalQty} ชิ้น</strong>
           </div>
           <div className="req-sub">
-            <span>👤 {first.requester_fullname || first.requester_name}</span>
+            <span>👤 {[...new Set(lines.map((l) => l.person).filter(Boolean))].join(', ') || first.requester_fullname || first.requester_name}</span>
             <span className="hint">🕑 {first.created_at}</span>
             <span className="muted">{summary}</span>
           </div>
