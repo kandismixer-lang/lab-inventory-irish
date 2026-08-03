@@ -160,7 +160,7 @@ export default function Dashboard({ go, me }) {
         value={q} onChange={(e) => setQ(e.target.value)} />
       <CategoryBar items={d.borrowedOut} cat={cat} onPick={setCat} />
       <Table
-        headers={['ชื่อ', 'มีทั้งหมด', 'ถูกใช้/ยืม', 'คงเหลือ']}
+        headers={['ชื่อ', 'มีทั้งหมด', 'ถูกใช้/ยืม', 'คงเหลือในคลัง', 'คงเหลือหลังประกอบ']}
         rows={list.map((i) => ({
           key: i.id,
           onClick: () => go && go('items', { itemId: i.id }),
@@ -171,6 +171,7 @@ export default function Dashboard({ go, me }) {
               ? <span className="col-out">{i.out_qty} {i.unit}</span>
               : <span className="muted">—</span>,
             <span className="col-remain">{i.qty} {i.unit}</span>,
+            <span className="col-free">{i.free_qty ?? i.qty} {i.unit}</span>,
           ],
         }))}
       />

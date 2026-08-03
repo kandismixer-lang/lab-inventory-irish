@@ -546,11 +546,11 @@ app.post('/api/items/:id/move', requireAuth, requireAdmin, (req, res) => {
   if (!item) return res.status(404).json({ error: 'ไม่พบรายการ' });
   if (item.tracked)
     return res.status(400).json({ error: 'ของนี้ track รายตัว — ให้จัดการที่หน่วยย่อยแทน' });
-  if (item.is_kit)
-    return res.status(400).json({ error: 'หุ่นยนต์ยืม-คืนผ่านหน้าคำขอเท่านั้น (แก้ไขอุปกรณ์ที่ประกอบได้ที่ฟอร์มแก้ไขรายการ)' });
-
   const { kind, qty, person, note, target } = req.body || {};
   if (!(kind in KINDS)) return res.status(400).json({ error: 'ประเภทการเคลื่อนไหวไม่ถูกต้อง' });
+  // หุ่นยนต์ = ของชิ้นเดียว ยืม-คืนได้เท่านั้น (รับเข้า/ปรับยอด/เบิกไม่มีความหมาย — แก้อุปกรณ์ที่ฟอร์มแก้ไข)
+  if (item.is_kit && kind !== 'borrow' && kind !== 'return')
+    return res.status(400).json({ error: 'หุ่นยนต์ทำได้แค่ ยืม/คืน — จัดการอุปกรณ์ที่ประกอบได้ที่ฟอร์มแก้ไขรายการ' });
 
   const amount = Math.abs(parseInt(qty, 10) || 0);
   let delta;

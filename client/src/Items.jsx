@@ -619,8 +619,10 @@ function MoveForm({ item, me, onClose, onDone }) {
   // tool = ตั้งต้นที่ "ยืม" (first choice), consumable = "เบิก"
   const [kind, setKind] = useState(isTool ? 'borrow' : 'issue');
 
-  // ยืม/เบิก มาก่อน แล้วค่อย คืน/รับเข้า/ปรับยอด
-  const kinds = [...(isTool ? ['borrow', 'return'] : ['issue']), 'add', ...(me.role === 'admin' ? ['adjust'] : [])];
+  // หุ่นยนต์ = ของชิ้นเดียว ทำได้แค่ ยืม/คืน · ของทั่วไป: ยืม/เบิก มาก่อน แล้ว คืน/รับเข้า/ปรับยอด
+  const kinds = item.is_kit
+    ? ['borrow', 'return']
+    : [...(isTool ? ['borrow', 'return'] : ['issue']), 'add', ...(me.role === 'admin' ? ['adjust'] : [])];
   const needPerson = kind === 'issue' || kind === 'borrow' || kind === 'return';
 
   // optimistic: ปิด+เด้ง toast ทันที ยิง API เบื้องหลัง
@@ -638,6 +640,21 @@ function MoveForm({ item, me, onClose, onDone }) {
   return (
     <Modal title="เคลื่อนไหวสต็อก" onClose={onClose}>
       <div className="muted" style={{ marginBottom: 6 }}>{item.name} — คงเหลือ <strong>{item.qty} {item.unit}</strong></div>
+      {/* หุ่นยนต์: โชว์รายละเอียดว่าประกอบด้วยอะไร (ยืมหุ่น = ยืมของทั้งชุดในนี้) */}
+      {item.is_kit && item.components && (
+        <div className="kit-box" style={{ marginBottom: 10 }}>
+          <div className="kit-head">🤖 ประกอบด้วย</div>
+          <div className="kit-list">
+            {item.components.length === 0 ? <div className="muted">— ยังไม่ได้กำหนดอุปกรณ์ —</div>
+              : item.components.map((c) => (
+                <div className="kit-line" key={`${c.item_id}-${c.unit_id || 0}`}>
+                  <span>{c.name}{c.unit_code ? ` (${c.unit_code})` : ''}</span>
+                  <span className="muted">×{c.qty} {c.unit}</span>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
       <div className="movebtns">
         {kinds.map((k) => (
           <button key={k} className={`btn k-${k}` + (k === kind ? ' active' : '')} onClick={() => setKind(k)}>
