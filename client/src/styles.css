@@ -233,11 +233,19 @@ main { flex: 1; min-width: 0; max-width: 1120px; margin: 24px auto; padding: 0 2
 /* 3 คอลัมน์คงที่ 2 แถว — คอลัมน์ตรงกันบน/ล่าง (ช่องแรกแถวล่างเว้นว่าง) */
 .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 18px; }
 .stat-empty { visibility: hidden; }
-/* แท็บหัวข้อกดสลับตาราง (รายการของ / หุ่นยนต์) */
-.tab-titles { display: flex; gap: 18px; align-items: baseline; margin: 8px 0 4px; flex-wrap: wrap; }
-.tab-title { font-family: var(--font-display); font-size: 1.15rem; font-weight: 600; color: var(--muted); cursor: pointer; padding-bottom: 4px; border-bottom: 2px solid transparent; transition: color .15s, border-color .15s; }
-.tab-title:hover { color: var(--text); }
-.tab-title.on { color: var(--text); border-bottom-color: var(--primary); }
+/* แท็บหัวข้อกดสลับตาราง (รายการของ / หุ่นยนต์) — ปุ่มสี่เหลี่ยมมนมีพื้นสี เห็นชัดว่ากดได้ */
+.tab-titles { display: flex; gap: 12px; align-items: center; margin: 10px 0 6px; flex-wrap: wrap; }
+.tab-title {
+  font-family: var(--font-display); font-size: 1.08rem; font-weight: 600; cursor: pointer;
+  padding: 10px 20px; border-radius: 14px;
+  color: var(--muted); background: var(--card-2, rgba(255,255,255,.04));
+  border: 2px solid var(--line); transition: all .15s;
+}
+.tab-title:hover { color: var(--text); border-color: var(--line-strong); }
+.tab-title.on {
+  color: #fff; background: var(--primary);
+  border-color: var(--primary); box-shadow: var(--glow);
+}
 @media (max-width: 640px) { .stat-grid { grid-template-columns: repeat(2, 1fr); } .stat-empty { display: none; } }
 .stat { text-align: center; transition: box-shadow .18s ease, border-color .18s; }
 .stat:hover { box-shadow: var(--glow); border-color: var(--line-strong); }
