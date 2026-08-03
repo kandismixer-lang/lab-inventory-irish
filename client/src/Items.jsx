@@ -543,12 +543,14 @@ function ItemForm({ item, me, onClose, onSaved }) {
               const compItem = allItems.find((x) => String(x.id) === c.item_id);
               const qtyN = Math.max(1, parseInt(c.qty, 10) || 1);
               const opts = compUnits[c.item_id] || [];
+              // ซ่อนอุปกรณ์ที่ถูกเลือกในแถวอื่นไปแล้ว (ยังโชว์ตัวที่แถวนี้เลือกอยู่)
+              const usedElsewhere = new Set(comps.filter((_, j) => j !== i).map((cc) => cc.item_id).filter(Boolean));
               return (
                 <div key={i}>
                   <div className="kit-row">
                     <select value={c.item_id} onChange={(e) => { setComp(i, 'item_id', e.target.value); loadCompUnits(e.target.value); }}>
                       <option value="">— เลือกอุปกรณ์ —</option>
-                      {allItems.map((x) => <option key={x.id} value={x.id}>{x.name} (เหลือ {x.qty})</option>)}
+                      {allItems.filter((x) => !usedElsewhere.has(String(x.id))).map((x) => <option key={x.id} value={x.id}>{x.name} (เหลือ {x.qty})</option>)}
                     </select>
                     <input type="number" min="1" value={c.qty} onChange={(e) => setComp(i, 'qty', e.target.value)} style={{ width: 70 }} title="ใช้กี่ชิ้น" />
                     <button type="button" className="btn small danger" onClick={() => rmComp(i)}>ลบ</button>
