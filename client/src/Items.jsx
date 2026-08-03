@@ -553,7 +553,7 @@ function ItemForm({ item, me, onClose, onSaved }) {
                     return (
                       <div className="kit-row" style={{ marginTop: 4 }} key={k}>
                         <select className={val ? 'unit-pinned' : 'unit-any'} value={val} onChange={(e) => setUnitAt(i, k, e.target.value)} style={{ flex: 1 }}>
-                          <option value="">— หน่วยไหนก็ได้ —</option>
+                          <option value="">เลือกอุปกรณ์</option>
                           {opts.filter((u) => !usedOther.includes(String(u.id))).map((u) => <option key={u.id} value={u.id}>{u.code}</option>)}
                           {/* หน่วยที่ผูกไว้อยู่แล้ว (สถานะ borrowed อยู่ในหุ่น ไม่อยู่ในลิสต์ว่าง) */}
                           {val && !opts.some((u) => String(u.id) === val) && (
