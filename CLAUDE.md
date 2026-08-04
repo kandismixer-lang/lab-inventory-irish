@@ -29,8 +29,8 @@ cd client && npm run build
 - `Dashboard.jsx`, `Log.jsx`, `Users.jsx`, `components.jsx` (Modal/Table/Toast), `api.js`, `ErrorBoundary.jsx`
 
 ## Domain model
-- **items**: มี `type` (tool=ยืม-คืน / consumable=เบิกหมด) + `category` (หมวดย่อย 7 แบบ) + `tracked` (track รายตัว)
-  - หมวดใช้แล้วคืน→tool: เครื่องมือ, บอร์ด, หุ่นยนต์, สาย USB (ไม่ตัด)
+- **items**: มี `type` (tool=ยืม-คืน / consumable=เบิกหมด) + `category` (หมวดย่อย) + `tracked` (track รายตัว) — รายชื่อหมวดอยู่ที่ `CATEGORY_GROUPS` ใน [client/src/api.js](client/src/api.js)
+  - หมวดใช้แล้วคืน→tool: เครื่องมือ, ชิ้นส่วน/อุปกรณ์, บอร์ด, แบตเตอรี่, หน่วยความจำ/การ์ด, หุ่นยนต์, สาย USB (ไม่ตัด)
   - หมวดใช้แล้วทิ้ง→consumable: สายไฟ, วัสดุสิ้นเปลือง, สาย USB (ใช้ตัด)
 - **units**: หน่วยย่อยรายตัว (code + status: available/borrowed/repair/lost) สำหรับ item ที่ `tracked=1`
 - **transactions**: ประวัติทุกการเคลื่อนไหว (add/issue/borrow/return/repair/ready/lost)
