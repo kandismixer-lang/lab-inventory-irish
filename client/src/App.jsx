@@ -239,7 +239,7 @@ function Shell({ me, onMe, guestName, onGuestName }) {
                     placeholder="รหัสบัตรที่ใช้ตอนยืม"
                   />
                 </label>
-                <div className="hint" style={{ margin: '2px 0 6px' }}>ใส่รหัสบัตรของตัวเองเพื่อดึงของที่ยืม · รหัสบัตรกันคนอื่นสวมสิทธิ์ยืม/ยกเลิกแทนเรา (ดูรายชื่อคนยืมยังเห็นได้ปกติ)</div>
+                <div className="hint" style={{ margin: '2px 0 6px' }}>รหัสบัตรนักศึกษา/ประชาชน</div>
                 <button
                   className="btn small primary guest-confirm-btn"
                   disabled={!guestCard.trim()}
