@@ -284,6 +284,7 @@ function RequestCard({ r, me, onDone }) {
             if (!(await confirm({
               title: `รับคืน ${r.item_name} ×${r.qty}?`,
               message: `ยืนยันว่าได้รับของคืนจาก ${r.person || r.requester_fullname || r.requester_name} แล้ว — ของจะกลับเข้าคลัง`,
+              danger: false, okClass: 'ok', // รับคืนเป็นเรื่องดี ปุ่มเขียว ไม่ใช่แดง
             }))) return;
             call('return');
           }}>✓ รับของคืนแล้ว</button>

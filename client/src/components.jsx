@@ -48,7 +48,7 @@ export function DialogProvider({ children }) {
           )}
           <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
             <button className="btn" style={{ flex: 1 }} onClick={() => close(dlg.kind === 'prompt' ? null : false)}>ยกเลิก</button>
-            <button className={'btn ' + (dlg.danger ? 'danger' : 'primary')} style={{ flex: 1 }}
+            <button className={'btn ' + (dlg.okClass || (dlg.danger ? 'danger' : 'primary'))} style={{ flex: 1 }}
               onClick={() => close(dlg.kind === 'prompt' ? dlg.value : true)}>{dlg.okText}</button>
           </div>
         </Modal>
