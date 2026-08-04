@@ -196,6 +196,8 @@ function RequestCard({ r, me, onDone }) {
     if (!(await confirm({
       title: `อนุมัติ ${r.item_name} ×${r.qty}?`,
       message: `จะตัดออกจากคลังทันที (${r.type === 'consumable' || r.kind === 'issue' ? 'เบิกจบ' : 'ยืม'}) ให้ ${r.person || r.requester_fullname || r.requester_name}`,
+      danger: false,
+      okClass: 'primary',
     }))) return;
     call('approve', body);
   };
