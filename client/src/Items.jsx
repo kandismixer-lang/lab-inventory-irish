@@ -163,6 +163,7 @@ export default function Items({ me, focusItem, onFocused }) {
           item={requesting}
           // guest ที่ยังไม่ตั้งชื่อจริง (ยังเป็น "ผู้เยี่ยมชม") = เว้นว่างบังคับให้พิมพ์ชื่อเอง
           defaultPerson={me.fullname && me.fullname !== 'ผู้เยี่ยมชม' ? me.fullname : (me.role === 'guest' ? '' : me.username)}
+          needCard={me.role === 'guest'}
           onClose={() => setRequesting(null)}
           onAdd={onAddToCart}
           onNow={onBorrowNow}
@@ -216,7 +217,7 @@ function DetailModal({ item, onClose }) {
 }
 
 // Staff ขอยืม/ขอเบิก — เลือกจำนวน แล้วเพิ่มลงตะกร้า (ส่งเป็น 1 ออเดอร์ทีเดียว)
-export function RequestForm({ item, defaultPerson, onClose, onAdd, onNow }) {
+export function RequestForm({ item, defaultPerson, needCard, onClose, onAdd, onNow }) {
   const [busy, setBusy] = useState(false);
   const read = (form) => {
     const b = Object.fromEntries(new FormData(form));
@@ -247,10 +248,14 @@ export function RequestForm({ item, defaultPerson, onClose, onAdd, onNow }) {
           <input name="person" defaultValue={defaultPerson || ''} placeholder="ใส่ชื่อผู้ยืม" required autoFocus={!defaultPerson} />
         </label>
         {!defaultPerson && <div className="hint">กรุณาใส่ชื่อผู้ยืม เพื่อให้ตามของคืนได้</div>}
-        <label>รหัสบัตร (ปชช./นักศึกษา) <span className="col-out">*</span>
-          <input name="card" placeholder="เลขบัตรประชาชน หรือ รหัสนักศึกษา" required inputMode="numeric" />
-        </label>
-        <div className="hint">ใช้ยืนยันตัวตน + ดึงของที่ยืมกลับมาได้แม้ไม่ล็อกอิน</div>
+        {needCard && (
+          <>
+            <label>รหัสบัตร (ปชช./นักศึกษา) <span className="col-out">*</span>
+              <input name="card" placeholder="เลขบัตรประชาชน หรือ รหัสนักศึกษา" required inputMode="numeric" />
+            </label>
+            <div className="hint">ใช้ยืนยันตัวตนเท่านั้น (ไม่แชร์ต่อ) — เห็นได้แค่แอดมิน · ใช้ดึงของที่ยืมกลับมาได้แม้ไม่ล็อกอิน</div>
+          </>
+        )}
         <label>จำนวน ({item.unit})
           <input name="qty" type="number" min="1" max={item.free_qty} defaultValue="1" required />
         </label>

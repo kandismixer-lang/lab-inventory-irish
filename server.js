@@ -118,7 +118,19 @@ app.get('/api/me', (req, res) => {
 
 // guest ยืนยันชื่อ — จำลง session เพื่อดึงคำขอที่ชื่อตรงกันกลับมา (แม้ cookie ถูกล้าง/คนละเครื่อง)
 // ตัวตนแบบเบา ไม่ต้อง login: "ชื่อเดิม = ของเดิม"
+// กันเดารหัสบัตรวนลูป (brute-force) — จำกัดการยืนยันตัวตนต่อ IP
+const _idHits = new Map();
+function idThrottle(req) {
+  const now = Date.now();
+  const ip = req.ip || 'unknown';
+  const hits = (_idHits.get(ip) || []).filter((t) => now - t < 60000);
+  if (hits.length >= 15) return 'ยืนยันตัวตนถี่เกินไป พัก 1 นาทีแล้วลองใหม่';
+  hits.push(now); _idHits.set(ip, hits);
+  return null;
+}
 app.post('/api/guest/name', requireAuth, (req, res) => {
+  const block = idThrottle(req);
+  if (block) return res.status(429).json({ error: block });
   // ยืนยันตัวตนด้วย "รหัสบัตร" เท่านั้น — บัตรเป็นความลับ (คนอื่นมองไม่เห็น) กันสวมรอยด้วยการเดาชื่อ
   const card = (req.body?.card || req.body?.q || '').trim();
   req.session.gcard = card;
@@ -806,9 +818,9 @@ app.post('/api/orders', requireAuth, (req, res) => {
     const n = Math.max(1, parseInt(it.qty, 10) || 1);
     const due = /^\d{4}-\d{2}-\d{2}$/.test(it.due_date || '') ? it.due_date : '';
     const linePerson = (it.person || person || '').trim(); // ชื่อผู้ยืมต่อรายการ (บังคับกรอก)
-    const lineCard = (it.card || card || '').trim();       // รหัสบัตรผู้ยืม (บังคับกรอก)
+    const lineCard = (it.card || card || '').trim();       // รหัสบัตรผู้ยืม (บังคับเฉพาะ guest ที่ไม่มีบัญชี)
     if (!linePerson) return res.status(400).json({ error: `กรุณากรอกชื่อผู้ยืมของ ${item.name}` });
-    if (!lineCard) return res.status(400).json({ error: `กรุณากรอกรหัสบัตรผู้ยืมของ ${item.name}` });
+    if (req.user.role === 'guest' && !lineCard) return res.status(400).json({ error: `กรุณากรอกรหัสบัตรผู้ยืมของ ${item.name}` });
     // หุ่นยนต์ (kit) ตั้งแต่โมเดลใหม่ = ของชิ้นเดียวเหมือน tool ปกติ (อุปกรณ์ข้างในถูกจองตอนสร้างหุ่นแล้ว)
     // ยืมหุ่น = ยืมของชิ้นเดียว ไม่ต้องขยาย component ซ้ำ
     lines.push({ item, qty: n, note: (it.note || '').trim(), due, person: linePerson, card: lineCard, kind: item.type === 'consumable' ? 'issue' : 'borrow' });
