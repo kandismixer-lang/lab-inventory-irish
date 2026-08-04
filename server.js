@@ -856,6 +856,11 @@ app.post('/api/orders', requireAuth, (req, res) => {
     lines.forEach((l) => ins.run(l.item.id, req.user.id, l.kind, l.qty, l.note, oid, l.person, gkey, l.due, l.wantUnitId || null, l.card || ''));
     return oid;
   });
+  // guest: จำรหัสบัตรที่เพิ่งยืมลง session เลย — จะได้เห็น "ของที่คุณยืม" ทันทีโดยไม่ต้องไปกรอกซ้ำที่ช่องดึงของ
+  if (req.user.role === 'guest') {
+    const firstCard = lines.find((l) => l.card)?.card;
+    if (firstCard) req.session.gcard = firstCard;
+  }
   res.json({ id: orderId, lines: lines.length });
 });
 

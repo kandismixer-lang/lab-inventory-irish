@@ -110,7 +110,8 @@ function OrderCard({ lines, me, onDone }) {
   const approveAll = async () => {
     setApproving(true);
     const used = {}; // item_id -> Set(unit_id) กันหยิบหน่วยซ้ำข้ามรายการ
-    let ok = 0, skip = 0;
+    let ok = 0;
+    const skipped = []; // ชื่อรายการที่ข้าม (บอกให้ชัดว่าตัวไหนยังไม่ได้)
     for (const l of approvable) {
       try {
         let body = {};
@@ -122,18 +123,20 @@ function OrderCard({ lines, me, onDone }) {
           } else {
             const us = await api(`/api/items/${l.item_id}/units`);
             const free = us.filter((u) => u.status === 'available' && !set.has(u.id)).slice(0, l.qty);
-            if (free.length < l.qty) { skip++; continue; } // หน่วยว่างไม่พอ ข้ามไว้ค้าง pending
+            if (free.length < l.qty) { skipped.push(l.item_name); continue; } // หน่วยว่างไม่พอ ข้ามไว้ค้าง pending
             free.forEach((u) => set.add(u.id));
             body = { unit_ids: free.map((u) => u.id) };
           }
         }
         await api(`/api/requests/${l.id}/approve`, { method: 'POST', body });
         ok++;
-      } catch { skip++; }
+      } catch { skipped.push(l.item_name); }
     }
     setApproving(false);
     onDone();
-    toast(skip ? `อนุมัติ ${ok} รายการ · ข้าม ${skip} (หน่วยไม่พอ/ผิดพลาด)` : `อนุมัติครบ ${ok} รายการ`);
+    toast(skipped.length
+      ? `อนุมัติ ${ok} รายการ · ข้าม (หน่วยไม่พอ/ผิดพลาด): ${skipped.join(', ')}`
+      : `อนุมัติครบ ${ok} รายการ`);
   };
 
   return (
