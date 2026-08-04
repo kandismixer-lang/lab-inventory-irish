@@ -560,8 +560,11 @@ app.delete('/api/items/:id', requireAuth, requireAdmin, (req, res) => {
   // (out_qty = ถูกยืมจริง รวม non-tracked tool ที่ยืมค้างผ่าน borrowed_net + tracked + หุ่น · in_kit_qty = ถูกจองเข้าหุ่น)
   // เขียนเป็นเงื่อนไขเดียว กัน guard ตกหล่นแบบแยกสาขา (บั๊กเดิม: ลืม non-tracked tool)
   const dec = decorateItem(db.prepare(`${ITEM_SELECT} WHERE i.id = ?`).get(item.id));
-  // consumable เบิกแล้วจบ ไม่มีวันคืน = ลบได้ (เช็คแค่ที่กันในหุ่น) · ของอื่นเช็คทั้งถูกยืม + กันในหุ่น
-  const tied = item.type === 'consumable' ? dec.in_kit_qty : (dec.out_qty + dec.in_kit_qty);
+  // consumable: out_qty รวม "เบิกตรงจบแล้ว" (issued_total ลบได้) + "ยืมออกพร้อมหุ่น" (borrowed_via_kit ยังคืนได้ ต้องกัน)
+  // จึงเช็ค in_kit (กันในหุ่นที่ยังไม่ยืม) + borrowed_via_kit (กันในหุ่นที่ยืมออกแล้ว) แต่ไม่รวม issued_total
+  // ของอื่น (tool/tracked/kit): out_qty + in_kit ครอบครบ (out_qty ไม่รวมของเบิกจบ)
+  const kitTied = item.tracked ? dec.borrowed_via_kit_units : dec.borrowed_via_kit_direct;
+  const tied = item.type === 'consumable' ? (dec.in_kit_qty + kitTied) : (dec.out_qty + dec.in_kit_qty);
   if (tied > 0)
     return res.status(400).json({ error: `ยังมีของถูกยืม/จองเข้าหุ่นอยู่ ${tied} ${item.unit} — ต้องรับคืน/รื้อออกจากหุ่นก่อนถึงจะลบได้` });
   db.tx(() => {
