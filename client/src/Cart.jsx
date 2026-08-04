@@ -8,7 +8,7 @@ const CartCtx = createContext({ cart: [], addToCart: () => {} });
 export const useCart = () => useContext(CartCtx);
 
 // เก็บตะกร้าไว้ระดับ global (คงข้ามการเปลี่ยนแท็บ) + แถบลอย + modal
-export function CartProvider({ children, person }) {
+export function CartProvider({ children, person, onGuestIdentity }) {
   const [cart, setCart] = useState([]);
   const [open, setOpen] = useState(false);
   const toast = useToast();
@@ -27,7 +27,7 @@ export function CartProvider({ children, person }) {
     <CartCtx.Provider value={{ cart, addToCart }}>
       {children}
       <CartBar cart={cart} onOpen={() => setOpen(true)} />
-      {open && <CartModal cart={cart} setCart={setCart} person={person} onClose={() => setOpen(false)} />}
+      {open && <CartModal cart={cart} setCart={setCart} person={person} onGuestIdentity={onGuestIdentity} onClose={() => setOpen(false)} />}
     </CartCtx.Provider>
   );
 }
@@ -42,7 +42,7 @@ function CartBar({ cart, onOpen }) {
   );
 }
 
-function CartModal({ cart, setCart, person, onClose }) {
+function CartModal({ cart, setCart, person, onGuestIdentity, onClose }) {
   const toast = useToast();
   const confirm = useConfirm();
   const [note, setNote] = useState('');
@@ -64,6 +64,8 @@ function CartModal({ cart, setCart, person, onClose }) {
     const anyCard = cart.find((c) => c.card && c.card.trim())?.card?.trim() || '';
     const snapshot = cart; // เก็บไว้เผื่อต้อง restore
     const body = { note, person: who, card: anyCard, items: cart.map((c) => ({ item_id: c.item.id, qty: c.qty, note: c.note, due_date: c.due || '', person: c.who || '', card: c.card || '' })) };
+    // guest: จำชื่อ+บัตรเป็นตัวตนเลย (เหมือนเส้น "ยืมเลย") จะได้เห็น "ของที่คุณยืม" ทันทีไม่ต้องกรอกซ้ำที่ sidebar
+    if (anyCard) onGuestIdentity?.(who, anyCard);
     setCart([]);
     onClose();
     toast(`ส่งคำขอแล้ว ${snapshot.length} รายการ — รอแอดมินอนุมัติ`);

@@ -212,7 +212,7 @@ function Shell({ me, onMe, guestName, onGuestName }) {
   };
 
   return (
-    <CartProvider person={me.fullname || me.username}>
+    <CartProvider person={me.fullname || me.username} onGuestIdentity={isGuest ? setGuestIdentity : undefined}>
       <div className="shell">
         <aside className="sidebar">
           <div className="brand"><span className="brand-logo" aria-hidden="true" /> คลัง IRiSH LAB</div>
