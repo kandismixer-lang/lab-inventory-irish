@@ -644,4 +644,13 @@ form textarea { resize: vertical; min-height: 90px; font-family: inherit; }
   .modal-box { width: 100%; }
   .row-actions { flex-wrap: wrap; }
   .cart-bar { left: 16px; right: 16px; justify-content: center; }
+  /* toast อยู่ระดับเดียวกับ cart-bar เต็มความกว้างบนมือถือ — ยกขึ้นกันบัง */
+  .toast { bottom: 78px; max-width: calc(100% - 32px); }
+  /* การ์ดสถิติแดชบอร์ด — เลขยาว (เช่น "25 / 130") ล้นได้บนจอแคบ ลดระยะ/ฟอนต์ */
+  .stat { padding: 14px 8px; }
+  .stat .num { font-size: 1.5rem; word-break: break-word; }
+  .stat .lbl { font-size: 0.68rem; }
+  /* ปุ่มเล็ก (badge/action ต่างๆ) กดยากด้วยนิ้วบนมือถือ — เพิ่มพื้นที่แตะขั้นต่ำ */
+  .btn.small { padding: 8px 13px; min-height: 36px; }
+  .unit-select, .id-tab, .cat-chip { min-height: 36px; }
 }
