@@ -148,6 +148,7 @@ function Shell({ me, onMe, guestName, onGuestName }) {
   const [focusItem, setFocusItem] = useState(null); // id ของของที่จะให้หน้ารายการเปิดรอ
   const [refreshKey, setRefreshKey] = useState(0); // บั๊มพ์เพื่อรีโหลดข้อมูลหน้าปัจจุบัน
   const [guestCard, setGuestCard] = useState(() => localStorage.getItem('guestCard') || '');
+  const toast = useToast();
   const isGuest = me.role === 'guest';
   const Comp = VIEWS[view].comp;
 
