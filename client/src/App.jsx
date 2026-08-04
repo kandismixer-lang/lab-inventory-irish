@@ -131,7 +131,7 @@ const VIEWS = {
   dashboard: { label: 'Dashboard', comp: Dashboard },
   items: { label: 'Stock', comp: Items },
   requests: { label: 'Requests', comp: Requests },
-  broken: { label: 'Broken', comp: Broken, needLogin: true },
+  broken: { label: 'Broken', comp: Broken },
   people: { label: 'People', comp: People, adminOnly: true },
   log: { label: 'History', comp: Log, adminOnly: true },
   users: { label: 'Users', comp: Users, adminOnly: true },

@@ -1041,7 +1041,7 @@ app.post('/api/requests/:id/return', requireAuth, requireAdmin, (req, res) => {
 });
 
 // หน่วยที่พัง/หาย ทั้งหมด (หน้าเมนู "ของพัง/หาย")
-app.get('/api/broken', requireAuth, requireUser, (req, res) => {
+app.get('/api/broken', requireAuth, (req, res) => {
   res.json(
     db
       .prepare(
