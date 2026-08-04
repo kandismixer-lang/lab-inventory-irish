@@ -558,6 +558,12 @@ app.delete('/api/items/:id', requireAuth, requireAdmin, (req, res) => {
   if (!item) return res.status(404).json({ error: 'ไม่พบรายการ' });
   if (item.is_kit && kitBorrowedOut(item.id))
     return res.status(400).json({ error: 'หุ่นตัวนี้ถูกยืมออกไปอยู่ — ต้องรอคืนก่อนถึงจะลบได้' });
+  // ของ track รายตัว: กันลบตอนมีหน่วยถูกยืม/จองเข้าหุ่นอยู่ (ไม่งั้นหน่วยค้างกำพร้า ยอด/ของหายถาวร)
+  if (item.tracked) {
+    const stuck = db.prepare("SELECT COUNT(*) n FROM units WHERE item_id=? AND active=1 AND status IN ('borrowed','reserved')").get(item.id).n;
+    if (stuck > 0)
+      return res.status(400).json({ error: `ยังมีหน่วยถูกยืม/จองเข้าหุ่นอยู่ ${stuck} ตัว — ต้องรับคืน/รื้อออกจากหุ่นก่อนถึงจะลบรายการได้` });
+  }
   db.tx(() => {
     if (item.is_kit) releaseKitReservation(item.id, req.user.id, `รื้อหุ่น ${item.name} คืนของ`);
     db.prepare('UPDATE items SET active = 0 WHERE id = ?').run(item.id);
@@ -766,6 +772,16 @@ const REQ_SELECT = `
   LEFT JOIN users apr ON apr.id = r.approver_id
 `;
 
+// เงื่อนไข SQL "คำขอของ guest คนนี้" — ยืนยันด้วยรหัสบัตร (ความลับ กันสวมรอย) ไม่งั้น fallback guest_key ต่อเบราว์เซอร์
+// คืน null = ยังไม่ยืนยันตัวตน + ไม่มี guest_key (ไม่มีอะไรให้เห็น) · ใช้ร่วมทุกที่ที่กรองคำขอของ guest กันแก้ไม่ครบ
+function guestReqCond(req) {
+  const gcard = (req.session?.gcard || '').trim();
+  if (gcard) return { sql: 'r.card = ?', args: [gcard] };
+  const gk = req.session?.gkey;
+  if (gk) return { sql: 'r.guest_key = ?', args: [gk] };
+  return null;
+}
+
 // เก็บรูปเป็น data URL ใน DB (ไป Turso ด้วย) — ไม่เก็บเป็นไฟล์บน disk เพราะ host แบบ ephemeral
 // ล้าง disk ทุก redeploy แล้วรูปจะหายทั้งที่ DB ยังจำ path ไว้ (ภาพแตก)
 // รูปเก่าที่เป็น path /uploads/... ยังเสิร์ฟได้ถ้าไฟล์ยังอยู่ (backward compatible)
@@ -846,14 +862,9 @@ app.get('/api/requests', requireAuth, (req, res) => {
   const where = [];
   const args = [];
   if (req.user.role === 'guest') {
-    // guest ใช้ id ร่วมกันทุกคน — แยกตัวตนด้วย "ชื่อที่ยืนยัน" (ถ้ามี) ไม่งั้น fallback guest_key ของเบราว์เซอร์
-    // ชื่อ = ตัวตนถาวร (พิมพ์ชื่อเดิม cookie ใหม่ก็เห็นของเดิม) · guest_key = ตัวตนต่อเบราว์เซอร์
-    const gcard = (req.session?.gcard || '').trim();
-    const gk = req.session?.gkey;
-    // ยืนยันด้วยรหัสบัตร (ความลับ กันสวมรอย) → ดึงของที่ยืมด้วยบัตรนั้น · ไม่งั้น fallback guest_key ของเบราว์เซอร์
-    if (gcard) { where.push('r.card = ?'); args.push(gcard); }
-    else if (gk) { where.push('r.guest_key = ?'); args.push(gk); }
-    else return res.json([]); // ยังไม่ยืนยันตัวตน + ยังไม่เคยส่งคำขอ = ไม่มีอะไรให้เห็น
+    const g = guestReqCond(req);
+    if (!g) return res.json([]); // ยังไม่ยืนยันตัวตน + ยังไม่เคยส่งคำขอ = ไม่มีอะไรให้เห็น
+    where.push(g.sql); args.push(...g.args);
   } else if (req.user.role !== 'admin' || scope === 'mine') {
     where.push('r.requester_id = ?');
     args.push(req.user.id);
@@ -879,9 +890,8 @@ app.get('/api/requests/counts', requireAuth, (req, res) => {
     // guest/staff — นับเฉพาะของตัวเอง (guest ใช้ชื่อที่ยืนยัน, staff ใช้ id) ให้ badge ตรงกับลิสต์
     let cond = 'r.requester_id = ?', arg = [req.user.id];
     if (req.user.role === 'guest') {
-      const gcard = (req.session?.gcard || '').trim();
-      if (gcard) { cond = 'r.card = ?'; arg = [gcard]; }
-      else { cond = 'r.guest_key = ?'; arg = [req.session?.gkey || ' ']; }
+      const g = guestReqCond(req);
+      cond = g ? g.sql : 'r.guest_key = ?'; arg = g ? g.args : [' ']; // ไม่มีตัวตน → นับ 0
     }
     const borrowedOrders = db.prepare(
       `SELECT COUNT(*) n FROM (SELECT COALESCE(r.order_id, -r.id) AS k FROM requests r WHERE r.status='received' AND ${cond} GROUP BY k)`
@@ -988,10 +998,11 @@ app.post('/api/requests/:id/reject', requireAuth, requireAdmin, (req, res) => {
 app.post('/api/requests/:id/cancel', requireAuth, (req, res) => {
   const r = getReq(req.params.id);
   if (!r || r.status !== 'pending') return res.status(400).json({ error: 'ยกเลิกไม่ได้' });
-  // เจ้าของ = admin, หรือผู้ล็อกอินที่เป็นคนขอ, หรือ guest ที่ key ตรงกัน (เบราว์เซอร์เดียวกัน)
+  // เจ้าของ = admin, ผู้ล็อกอินที่เป็นคนขอ, หรือ guest ที่ยืนยันด้วยรหัสบัตรตรง / key เบราว์เซอร์ตรง
+  const gcard = (req.session?.gcard || '').trim();
   const isOwner = req.user.role === 'admin'
     || (req.user.role !== 'guest' && r.requester_id === req.user.id)
-    || (req.user.role === 'guest' && r.guest_key && r.guest_key === req.session?.gkey);
+    || (req.user.role === 'guest' && ((gcard && r.card === gcard) || (r.guest_key && r.guest_key === req.session?.gkey)));
   if (!isOwner) return res.status(403).json({ error: 'ยกเลิกได้เฉพาะผู้ขอ' });
   db.prepare("UPDATE requests SET status='cancelled', closed_at=datetime('now','localtime') WHERE id=?").run(r.id);
   res.json({ ok: true });
@@ -1030,7 +1041,7 @@ app.post('/api/requests/:id/return', requireAuth, requireAdmin, (req, res) => {
 });
 
 // หน่วยที่พัง/หาย ทั้งหมด (หน้าเมนู "ของพัง/หาย")
-app.get('/api/broken', requireAuth, (req, res) => {
+app.get('/api/broken', requireAuth, requireUser, (req, res) => {
   res.json(
     db
       .prepare(
@@ -1180,7 +1191,7 @@ app.get('/api/dashboard', requireAuth, (req, res) => {
 });
 
 // ---------- log รวม ----------
-app.get('/api/transactions', requireAuth, (req, res) => {
+app.get('/api/transactions', requireAuth, requireAdmin, (req, res) => {
   const rows = db
     .prepare(
       `SELECT t.*, i.name AS item_name, i.unit, u.username AS by_user, un.code AS unit_code
