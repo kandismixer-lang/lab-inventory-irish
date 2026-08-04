@@ -556,14 +556,14 @@ app.post('/api/locations', requireAuth, requireAdmin, (req, res) => {
 app.delete('/api/items/:id', requireAuth, requireAdmin, (req, res) => {
   const item = db.prepare('SELECT * FROM items WHERE id = ?').get(req.params.id);
   if (!item) return res.status(404).json({ error: 'ไม่พบรายการ' });
-  if (item.is_kit && kitBorrowedOut(item.id))
-    return res.status(400).json({ error: 'หุ่นตัวนี้ถูกยืมออกไปอยู่ — ต้องรอคืนก่อนถึงจะลบได้' });
-  // ของ track รายตัว: กันลบตอนมีหน่วยถูกยืม/จองเข้าหุ่นอยู่ (ไม่งั้นหน่วยค้างกำพร้า ยอด/ของหายถาวร)
-  if (item.tracked) {
-    const stuck = db.prepare("SELECT COUNT(*) n FROM units WHERE item_id=? AND active=1 AND status IN ('borrowed','reserved')").get(item.id).n;
-    if (stuck > 0)
-      return res.status(400).json({ error: `ยังมีหน่วยถูกยืม/จองเข้าหุ่นอยู่ ${stuck} ตัว — ต้องรับคืน/รื้อออกจากหุ่นก่อนถึงจะลบรายการได้` });
-  }
+  // กันลบรายการที่ยังมีของ "ผูกอยู่" (ถูกยืม/จองเข้าหุ่น) — ครอบทุกประเภทด้วยสูตรกลาง decorateItem
+  // (out_qty = ถูกยืมจริง รวม non-tracked tool ที่ยืมค้างผ่าน borrowed_net + tracked + หุ่น · in_kit_qty = ถูกจองเข้าหุ่น)
+  // เขียนเป็นเงื่อนไขเดียว กัน guard ตกหล่นแบบแยกสาขา (บั๊กเดิม: ลืม non-tracked tool)
+  const dec = decorateItem(db.prepare(`${ITEM_SELECT} WHERE i.id = ?`).get(item.id));
+  // consumable เบิกแล้วจบ ไม่มีวันคืน = ลบได้ (เช็คแค่ที่กันในหุ่น) · ของอื่นเช็คทั้งถูกยืม + กันในหุ่น
+  const tied = item.type === 'consumable' ? dec.in_kit_qty : (dec.out_qty + dec.in_kit_qty);
+  if (tied > 0)
+    return res.status(400).json({ error: `ยังมีของถูกยืม/จองเข้าหุ่นอยู่ ${tied} ${item.unit} — ต้องรับคืน/รื้อออกจากหุ่นก่อนถึงจะลบได้` });
   db.tx(() => {
     if (item.is_kit) releaseKitReservation(item.id, req.user.id, `รื้อหุ่น ${item.name} คืนของ`);
     db.prepare('UPDATE items SET active = 0 WHERE id = ?').run(item.id);
