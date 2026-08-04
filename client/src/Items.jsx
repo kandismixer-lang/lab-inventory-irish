@@ -5,7 +5,7 @@ import { useCart } from './Cart.jsx';
 
 export const catLabel = (i) => i.category || TYPE_LABEL[i.type];
 
-export default function Items({ me, focusItem, onFocused }) {
+export default function Items({ me, focusItem, onFocused, guestCard, onGuestIdentity }) {
   // จัดการคลังได้เฉพาะ admin — คนอื่นกดได้แค่ "ขอยืม/ขอเบิก" (ลงตะกร้า) แล้วรออนุมัติ
   const isAdmin = me.role === 'admin';
   const [q, setQ] = useState('');
@@ -27,6 +27,8 @@ export default function Items({ me, focusItem, onFocused }) {
   const onBorrowNow = (item, qty, note, person, due, card) => {
     setRequesting(null);
     toast('ส่งคำขอแล้ว — รอแอดมินอนุมัติ');
+    // guest: จำชื่อ+บัตรเป็นตัวตนเลย จะได้เห็น "ของที่คุณยืม" โดยไม่ต้องกรอกซ้ำที่ sidebar
+    if (me.role === 'guest') onGuestIdentity?.(person, card);
     api('/api/orders', {
       method: 'POST',
       body: { person: person || me.fullname || me.username, card, items: [{ item_id: item.id, qty, note, due_date: due, card }] },
@@ -164,6 +166,7 @@ export default function Items({ me, focusItem, onFocused }) {
           // guest ที่ยังไม่ตั้งชื่อจริง (ยังเป็น "ผู้เยี่ยมชม") = เว้นว่างบังคับให้พิมพ์ชื่อเอง
           defaultPerson={me.fullname && me.fullname !== 'ผู้เยี่ยมชม' ? me.fullname : (me.role === 'guest' ? '' : me.username)}
           needCard={me.role === 'guest'}
+          defaultCard={guestCard || ''}
           onClose={() => setRequesting(null)}
           onAdd={onAddToCart}
           onNow={onBorrowNow}
@@ -217,7 +220,7 @@ function DetailModal({ item, onClose }) {
 }
 
 // Staff ขอยืม/ขอเบิก — เลือกจำนวน แล้วเพิ่มลงตะกร้า (ส่งเป็น 1 ออเดอร์ทีเดียว)
-export function RequestForm({ item, defaultPerson, needCard, onClose, onAdd, onNow }) {
+export function RequestForm({ item, defaultPerson, needCard, defaultCard, onClose, onAdd, onNow }) {
   const [busy, setBusy] = useState(false);
   const read = (form) => {
     const b = Object.fromEntries(new FormData(form));
@@ -251,7 +254,7 @@ export function RequestForm({ item, defaultPerson, needCard, onClose, onAdd, onN
         {needCard && (
           <>
             <label>รหัสบัตร (ปชช./นักศึกษา) <span className="col-out">*</span>
-              <input name="card" placeholder="เลขบัตรประชาชน หรือ รหัสนักศึกษา" required inputMode="numeric" />
+              <input name="card" defaultValue={defaultCard || ''} placeholder="เลขบัตรประชาชน หรือ รหัสนักศึกษา" required inputMode="numeric" />
             </label>
             <div className="hint">ใช้ยืนยันตัวตนเท่านั้น (ไม่แชร์ต่อ) — เห็นได้แค่แอดมิน · ใช้ดึงของที่ยืมกลับมาได้แม้ไม่ล็อกอิน</div>
           </>

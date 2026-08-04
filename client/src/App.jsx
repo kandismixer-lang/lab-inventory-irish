@@ -168,6 +168,14 @@ function Shell({ me, onMe, guestName, onGuestName }) {
       toast('ยืนยันไม่สำเร็จ: ' + (e?.message || 'ลองใหม่อีกครั้ง'));
     }
   };
+  // guest ยืมของเสร็จ → จำชื่อ+บัตรที่กรอกในฟอร์มเป็นตัวตนเลย (server ก็ set session.gcard ให้แล้ว)
+  // ผลคือเห็น "ของที่คุณยืม" ทันที ไม่ต้องไปกรอกบัตรซ้ำที่ sidebar
+  const setGuestIdentity = (name, card) => {
+    if (card) { setGuestCard(card); localStorage.setItem('guestCard', card); }
+    if (name) onGuestName(name);
+    loadBadge();
+    setRefreshKey((k) => k + 1);
+  };
   // เปิดเว็บมาถ้ามีตัวตนเก่าค้างอยู่ (localStorage) sync เข้า session ให้อัตโนมัติ
   useEffect(() => {
     if (!isGuest) return;
@@ -231,7 +239,7 @@ function Shell({ me, onMe, guestName, onGuestName }) {
                     placeholder="รหัสบัตรที่ใช้ตอนยืม"
                   />
                 </label>
-                <div className="hint" style={{ margin: '2px 0 6px' }}>ใส่รหัสบัตรของตัวเองเพื่อดึงของที่ยืม (คนอื่นดูของเราไม่ได้)</div>
+                <div className="hint" style={{ margin: '2px 0 6px' }}>ใส่รหัสบัตรของตัวเองเพื่อดึงของที่ยืม · รหัสบัตรกันคนอื่นสวมสิทธิ์ยืม/ยกเลิกแทนเรา (ดูรายชื่อคนยืมยังเห็นได้ปกติ)</div>
                 <button
                   className="btn small primary guest-confirm-btn"
                   disabled={!guestCard.trim()}
@@ -253,7 +261,8 @@ function Shell({ me, onMe, guestName, onGuestName }) {
           </div>
         </aside>
         <main>
-          <Comp key={view + '-' + refreshKey} me={me} go={go} focusItem={focusItem} onFocused={() => setFocusItem(null)} />
+          <Comp key={view + '-' + refreshKey} me={me} go={go} focusItem={focusItem} onFocused={() => setFocusItem(null)}
+            guestCard={isGuest ? guestCard : ''} onGuestIdentity={isGuest ? setGuestIdentity : undefined} />
         </main>
         {view !== 'items' && (
           <button className="borrow-fab" onClick={() => setView('items')}>
