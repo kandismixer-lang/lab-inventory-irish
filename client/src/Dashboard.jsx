@@ -69,7 +69,8 @@ export default function Dashboard({ go, me }) {
   }));
 
   // ยืม/ใช้จนไม่เหลือในคลัง (แต่ยังมีของในระบบ) — เตือนแยกจากของสิ้นเปลืองใกล้หมด
-  const outOfStock = d.borrowedOut.filter((i) => i.qty <= 0 && i.total_qty > 0);
+  // หมดคลัง = เตือนเฉพาะอุปกรณ์ทั่วไป · หุ่นยนต์ถูกยืม = ปกติ ไม่ต้องเตือน
+  const outOfStock = d.borrowedOut.filter((i) => i.qty <= 0 && i.total_qty > 0 && !i.is_kit);
   const kw = q.trim().toLowerCase();
   // แยกตาราง: รายการของ (ไม่รวมหุ่น) / หุ่นยนต์ — กดสลับที่หัวข้อ
   const base = d.borrowedOut.filter((i) => (tab === 'kits' ? i.is_kit : !i.is_kit));
