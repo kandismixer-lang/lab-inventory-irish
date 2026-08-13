@@ -282,14 +282,37 @@ function RequestCard({ r, me, onDone }) {
           <button className="btn small" onClick={() => call('cancel')}>ยกเลิก</button>
         )}
         {isAdmin && r.status === 'received' && (
-          <button className="btn small u-return" onClick={async () => {
-            if (!(await confirm({
-              title: `รับคืน ${r.item_name} ×${r.qty}?`,
-              message: `ยืนยันว่าได้รับของคืนจาก ${r.person || r.requester_fullname || r.requester_name} แล้ว — ของจะกลับเข้าคลัง`,
-              danger: false, okClass: 'ok', // รับคืนเป็นเรื่องดี ปุ่มเขียว ไม่ใช่แดง
-            }))) return;
-            call('return');
-          }}>✓ รับของคืนแล้ว</button>
+          <>
+            <button className="btn small u-return" onClick={async () => {
+              if (!(await confirm({
+                title: `รับคืน ${r.item_name} ×${r.qty}?`,
+                message: `ยืนยันว่าได้รับของคืนจาก ${r.person || r.requester_fullname || r.requester_name} แล้ว — ของจะกลับเข้าคลัง`,
+                danger: false, okClass: 'ok', // รับคืนเป็นเรื่องดี ปุ่มเขียว ไม่ใช่แดง
+              }))) return;
+              call('return');
+            }}>✓ รับของคืนแล้ว</button>
+            {/* พัง/หาย เฉพาะของ track รายตัว (ระบบพัง/หายเป็นราย unit) */}
+            {r.tracked && (
+              <>
+                <button className="btn small u-repair" onClick={async () => {
+                  if (!(await confirm({
+                    title: `แจ้งพัง ${r.item_name} ×${r.qty}?`,
+                    message: `${r.person || r.requester_fullname || r.requester_name} คืนของในสภาพพัง — ตัดออกจากคลัง (ไปอยู่หน้า Broken รอซ่อม)`,
+                    okClass: 'warn',
+                  }))) return;
+                  call('return', { condition: 'repair' });
+                }}>🛠️ แจ้งพัง</button>
+                <button className="btn small u-lost" onClick={async () => {
+                  if (!(await confirm({
+                    title: `แจ้งหาย ${r.item_name} ×${r.qty}?`,
+                    message: `${r.person || r.requester_fullname || r.requester_name} ทำของหาย — ตัดออกจากคลังถาวร (กู้คืนได้ที่ Broken ถ้าเจอ)`,
+                    okClass: 'danger',
+                  }))) return;
+                  call('return', { condition: 'lost' });
+                }}>❓ แจ้งหาย</button>
+              </>
+            )}
+          </>
         )}
       </div>
 

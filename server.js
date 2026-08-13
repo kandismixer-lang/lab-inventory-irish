@@ -1026,15 +1026,30 @@ app.post('/api/requests/:id/return', requireAuth, requireAdmin, (req, res) => {
     return res.status(403).json({ error: 'ไม่มีสิทธิ์' });
   const item = db.prepare('SELECT * FROM items WHERE id = ?').get(r.item_id);
   const who = reqPerson(r);
+  // สภาพตอนคืน: ok=คืนปกติ · repair=แจ้งพัง · lost=แจ้งหาย (พัง/หาย เฉพาะของ track รายตัว — ระบบพัง/หายเป็นราย unit)
+  const condition = ['repair', 'lost'].includes(req.body?.condition) ? req.body.condition : 'ok';
+  if (condition !== 'ok' && !item.tracked)
+    return res.status(400).json({ error: 'ของนี้ไม่ track รายตัว — แจ้งพัง/หายไม่ได้ ต้องจัดการที่รายการโดยตรง' });
   db.tx(() => {
     const ids = item.tracked ? reqUnitIds(r) : [];
     if (item.tracked && ids.length) {
       for (const uid of ids) {
-        db.prepare("UPDATE units SET status='available', holder='' WHERE id=?").run(uid);
-        db.prepare(
-          `INSERT INTO transactions (item_id, unit_id, user_id, kind, qty, delta, person, note)
-           VALUES (?,?,?, 'return', 1, 1, ?, ?)`
-        ).run(item.id, uid, req.user.id, who, `คืนตามคำขอ #${r.id}`);
+        const unit = db.prepare('SELECT code FROM units WHERE id=?').get(uid);
+        if (condition === 'ok') {
+          db.prepare("UPDATE units SET status='available', holder='' WHERE id=?").run(uid);
+          db.prepare(
+            `INSERT INTO transactions (item_id, unit_id, user_id, kind, qty, delta, person, note)
+             VALUES (?,?,?, 'return', 1, 1, ?, ?)`
+          ).run(item.id, uid, req.user.id, who, `คืนตามคำขอ #${r.id}`);
+        } else {
+          // แจ้งพัง/หาย ตอนคืน — unit ตัดออกจากคลัง (repair/lost) ไปอยู่หน้า Broken, ของไม่กลับเข้าสต็อก
+          const st = condition === 'lost' ? 'lost' : 'repair';
+          db.prepare("UPDATE units SET status=?, holder='' WHERE id=?").run(st, uid);
+          db.prepare(
+            `INSERT INTO transactions (item_id, unit_id, user_id, kind, qty, delta, person, note)
+             VALUES (?,?,?,?, 1, 0, ?, ?)`
+          ).run(item.id, uid, req.user.id, st, who, `${condition === 'lost' ? 'แจ้งหาย' : 'แจ้งพัง'}ตอนคืน #${r.id}: ${unit?.code || ''}`);
+        }
       }
       db.recalcTracked(item.id);
     } else if (item.type === 'tool') {

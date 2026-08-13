@@ -428,6 +428,9 @@ tr.row-active > td { background: rgba(34,211,238,.10); }
 /* ปุ่มยืนยันสีเขียว (เช่น รับของคืน — เป็นการกระทำเชิงบวก ไม่ใช่ทำลาย) */
 .btn.ok { background: var(--ok); border-color: var(--ok); color: var(--on-primary); font-weight: 600; }
 .btn.ok:hover { filter: brightness(1.08); }
+/* ปุ่มยืนยันสีส้ม (แจ้งพัง — เตือนแต่ไม่ถึงกับลบถาวร) */
+.btn.warn { background: #fb923c; border-color: #fb923c; color: var(--on-primary); font-weight: 600; }
+.btn.warn:hover { filter: brightness(1.08); }
 
 /* ปุ่ม action หน่วยย่อย — สีตามการกระทำ (outline สี ตัวอักษรสี) */
 .btn.u-borrow { color: #facc15; border-color: rgba(250,204,21,.4); }   /* ยืม — เหลือง */
