@@ -60,7 +60,7 @@ export function DialogProvider({ children }) {
 function normalize(opts) { return typeof opts === 'string' ? { title: opts } : (opts || {}); }
 
 // ---------- Modal ----------
-export function Modal({ title, onClose, children }) {
+export function Modal({ title, onClose, children, wide }) {
   // ปิดเฉพาะตอน "กดเริ่ม" บนพื้นหลังจริง — กันปิดพลาดตอนลากเลือกข้อความในฟอร์มแล้วปล่อยเมาส์นอกกล่อง
   const downOnBackdrop = useRef(false);
   // ล็อกสกอลพื้นหลังระหว่างเปิด modal — พื้นหลังนิ่ง รู้สึกเหมือนแยกหน้า
@@ -77,7 +77,7 @@ export function Modal({ title, onClose, children }) {
       onMouseDown={(e) => { downOnBackdrop.current = e.target.classList.contains('modal'); }}
       onMouseUp={(e) => { if (downOnBackdrop.current && e.target.classList.contains('modal')) onClose(); downOnBackdrop.current = false; }}
     >
-      <div className="modal-box card">
+      <div className={'modal-box card' + (wide ? ' wide' : '')}>
         <div className="modal-head">
           <h3>{title}</h3>
           <button className="btn small" onClick={onClose}>✕</button>

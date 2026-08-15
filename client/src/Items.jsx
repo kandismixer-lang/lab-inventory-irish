@@ -241,7 +241,7 @@ export function RequestForm({ item, defaultPerson, needCard, defaultCard, onClos
   };
   const isTool = item.type !== 'consumable';
   return (
-    <Modal title={(item.type === 'consumable' ? 'ขอเบิก' : 'ขอยืม') + ' — ' + item.name} onClose={onClose}>
+    <Modal wide title={(item.type === 'consumable' ? 'ขอเบิก' : 'ขอยืม') + ' — ' + item.name} onClose={onClose}>
       <div className="muted" style={{ marginBottom: 8 }}>
         คงเหลือให้ขอได้ {item.free_qty} {item.unit}{item.tracked ? ' (Admin จะเลือกหน่วยให้)' : ''}
         {item.in_kit_qty > 0 && <span className="hint"> (มี {item.in_kit_qty} {item.unit} ถูกนำไปประกอบเข้าหุ่นไว้แล้ว)</span>}
@@ -265,11 +265,11 @@ export function RequestForm({ item, defaultPerson, needCard, defaultCard, onClos
         {!!item.tracked && <div className="hint">ของ track รายตัว — Admin จะเลือกหน่วยจริงให้ครบตามจำนวนตอนอนุมัติ</div>}
         {isTool && <label>คืนภายใน (ไม่บังคับ)<input name="due_date" type="date" /></label>}
         <label>เหตุผล/รายละเอียด (ไม่บังคับ)<input name="note" placeholder="เช่น ใช้ทำโปรเจกต์ ..." /></label>
-        <button className="btn primary" type="button" disabled={busy} onClick={submitNow} style={{ marginTop: 14, width: '100%' }}>
+        <button className="btn ok" type="button" disabled={busy} onClick={submitNow} style={{ marginTop: 14, width: '100%' }}>
           {busy ? 'กำลังส่ง…' : `🚀 ยืมเลย — ส่งคำขอทันที`}
         </button>
         <div className="hint" style={{ margin: '4px 0 0', textAlign: 'center' }}>ขอแค่ของนี้อย่างเดียว จบเลย</div>
-        <button className="btn" type="submit" disabled={busy} style={{ marginTop: 10, width: '100%' }}>🛒 ใส่ตะกร้า — ขอของอื่นเพิ่ม</button>
+        <button className="btn primary" type="submit" disabled={busy} style={{ marginTop: 10, width: '100%' }}>🛒 ใส่ตะกร้า — ขอของอื่นเพิ่ม</button>
         <div className="hint" style={{ margin: '4px 0 0', textAlign: 'center' }}>ยังไม่ส่ง เก็บไว้ขอหลายอย่างพร้อมกันในออเดอร์เดียว</div>
       </form>
     </Modal>
