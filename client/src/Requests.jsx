@@ -19,6 +19,7 @@ export default function Requests({ me }) {
   const [tab, setTab] = useState(isAdmin ? 'pending' : '');
   const [rows, setRows] = useState([]);
   const [counts, setCounts] = useState({});
+  const [direct, setDirect] = useState(false); // modal คีย์ยืมแทนคนนอก
   const toast = useToast();
 
   const load = () => {
@@ -36,7 +37,19 @@ export default function Requests({ me }) {
 
   return (
     <>
-      <div className="section-title">คำขอยืม/เบิก</div>
+      <div className="section-title" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        คำขอยืม/เบิก
+        {isAdmin && (
+          <button className="btn small ok" onClick={() => setDirect(true)}>➕ คีย์ยืมแทน</button>
+        )}
+      </div>
+      {direct && (
+        <DirectBorrowModal
+          me={me}
+          onClose={() => setDirect(false)}
+          onDone={() => { setDirect(false); load(); toast('บันทึกการยืมแล้ว'); }}
+        />
+      )}
       <div className="subtabs wrap">
         {tabs.map(([k, label, countKey]) => {
           const n = countKey ? counts[countKey] : 0;
@@ -318,6 +331,111 @@ function RequestCard({ r, me, onDone }) {
 
       {modal === 'reject' && <RejectModal onClose={() => setModal(null)} onSubmit={(b) => call('reject', b)} />}
     </div>
+  );
+}
+
+// Admin คีย์ยืมแทนคนนอก (ที่ไม่สะดวกกรอกเอง) → สร้างคำขอ + ตัดเป็น "ถูกยืม" ทันที
+function DirectBorrowModal({ me, onClose, onDone }) {
+  const toast = useToast();
+  const [items, setItems] = useState([]);
+  const [itemId, setItemId] = useState('');
+  const [units, setUnits] = useState([]);   // หน่วยว่างของ item ที่เลือก (tracked)
+  const [pick, setPick] = useState([]);      // หน่วยที่เลือก
+  const [qty, setQty] = useState(1);
+  const [person, setPerson] = useState('');
+  const [note, setNote] = useState('');
+  const [due, setDue] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  // โหลดของที่ยืมได้ (มีของว่างจริง)
+  useEffect(() => {
+    api('/api/items').then((list) => setItems(list.filter((i) => (i.free_qty ?? 0) > 0)));
+  }, []);
+  const item = items.find((i) => String(i.id) === String(itemId));
+
+  // เปลี่ยนของ → รีเซ็ตหน่วย/จำนวน แล้วโหลดหน่วยว่างถ้า track รายตัว
+  useEffect(() => {
+    setPick([]); setQty(1); setUnits([]);
+    if (item && item.tracked) {
+      api(`/api/items/${item.id}/units`).then((us) => setUnits(us.filter((u) => u.status === 'available')));
+    }
+  }, [itemId]);
+
+  const toggle = (id) => setPick((p) => p.includes(id) ? p.filter((x) => x !== id) : [...p, id]);
+
+  const submit = (e) => {
+    e.preventDefault();
+    if (!item) return toast('เลือกของก่อน');
+    if (!person.trim()) return toast('กรอกชื่อผู้ยืม');
+    if (item.tracked && pick.length < 1) return toast('เลือกหน่วยที่ยืม');
+    const body = {
+      item_id: item.id,
+      person: person.trim(),
+      note: note.trim(),
+      due_date: due,
+      qty: item.tracked ? pick.length : qty,
+      unit_ids: item.tracked ? pick : undefined,
+    };
+    setBusy(true);
+    api('/api/requests/direct', { method: 'POST', body })
+      .then(onDone)
+      .catch((er) => { toast(er.message); setBusy(false); });
+  };
+
+  return (
+    <Modal wide title="➕ คีย์ยืมแทน (คนนอกไม่สะดวกกรอกเอง)" onClose={onClose}>
+      <form onSubmit={submit}>
+        <label>ของที่ยืม
+          <select value={itemId} onChange={(e) => setItemId(e.target.value)} required>
+            <option value="">— เลือกของ —</option>
+            {items.map((i) => (
+              <option key={i.id} value={i.id}>
+                {i.name} (ว่าง {i.free_qty} {i.unit}){i.tracked ? ' · รายตัว' : ''}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        {item && item.tracked && (
+          <div className="unit-pick" style={{ margin: '4px 0 10px' }}>
+            <div className="hint" style={{ margin: '0 0 4px' }}>เลือกหน่วยที่ให้ยืม (ว่าง {units.length}) — เลือกแล้ว {pick.length}</div>
+            <div className="unit-chips">
+              {units.map((u) => {
+                const on = pick.includes(u.id);
+                return (
+                  <label key={u.id} className={'unit-chip' + (on ? ' on' : '')}>
+                    <input type="checkbox" checked={on} onChange={() => toggle(u.id)} />
+                    {u.code}
+                  </label>
+                );
+              })}
+              {units.length === 0 && <span className="muted">— ไม่มีหน่วยว่าง —</span>}
+            </div>
+          </div>
+        )}
+
+        {item && !item.tracked && (
+          <label>จำนวน ({item.unit})
+            <input type="number" min="1" max={item.free_qty} value={qty}
+              onChange={(e) => setQty(Math.max(1, parseInt(e.target.value, 10) || 1))} required />
+          </label>
+        )}
+
+        <label>ชื่อผู้ยืม (คนนอก)
+          <input value={person} onChange={(e) => setPerson(e.target.value)} placeholder="เช่น อาจารย์สมชาย / นักศึกษาปี 3" required />
+        </label>
+        <label>กำหนดคืน (ไม่บังคับ)
+          <input type="date" value={due} onChange={(e) => setDue(e.target.value)} />
+        </label>
+        <label>หมายเหตุ (ไม่บังคับ)
+          <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="เช่น ยืมทางโทรศัพท์" />
+        </label>
+
+        <button className="btn ok" type="submit" disabled={busy} style={{ marginTop: 12, width: '100%' }}>
+          {busy ? 'กำลังบันทึก…' : '✓ บันทึกว่าถูกยืม'}
+        </button>
+      </form>
+    </Modal>
   );
 }
 

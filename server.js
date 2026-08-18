@@ -927,66 +927,90 @@ function reqUnitIds(r) {
   return r.unit_id ? [r.unit_id] : [];
 }
 
+// แกนกลาง "อนุมัติ = ตัดสต็อกเป็นถูกยืม" — ต้องเรียกภายใน db.tx (โยน Error ถ้าไม่ผ่าน → rollback ทั้งก้อน)
+// ใช้ทั้งตอน admin กดอนุมัติคำขอ และตอน admin คีย์ยืมแทนคนนอก (direct)
+function approveReqInTx(r, unitIdsRaw, userId) {
+  const item = db.prepare('SELECT * FROM items WHERE id = ?').get(r.item_id);
+  const who = reqPerson(r);
+  let ids = [];
+  if (item.tracked) {
+    let raw = Array.isArray(unitIdsRaw) ? unitIdsRaw : (unitIdsRaw != null ? [unitIdsRaw] : []);
+    ids = [...new Set(raw.map((x) => parseInt(x, 10)).filter((x) => x))];
+    // ยังไม่ได้เลือก แต่ตอนสร้างคำขอผูกหน่วยเจาะจงไว้แล้ว (จาก kit component) — ใช้อันนั้นอัตโนมัติ
+    if (ids.length === 0 && r.want_unit_id && r.qty === 1) ids = [r.want_unit_id];
+    if (ids.length !== r.qty) throw new Error(`ต้องเลือกหน่วยว่างให้ครบ ${r.qty} ชิ้น`);
+    for (const id of ids) {
+      const unit = db.prepare("SELECT * FROM units WHERE id = ? AND item_id = ? AND active=1 AND status='available'").get(id, item.id);
+      if (!unit) throw new Error('มีหน่วยที่เลือกไม่ว่างแล้ว');
+    }
+    db.prepare('DELETE FROM request_units WHERE request_id = ?').run(r.id);
+    const insRU = db.prepare('INSERT INTO request_units (request_id, unit_id) VALUES (?,?)');
+    for (const id of ids) {
+      insRU.run(r.id, id);
+      const unit = db.prepare('SELECT * FROM units WHERE id=?').get(id);
+      db.prepare("UPDATE units SET status='borrowed', holder=? WHERE id=?").run(who, id);
+      db.prepare(
+        `INSERT INTO transactions (item_id, unit_id, user_id, kind, qty, delta, person, note)
+         VALUES (?,?,?, 'borrow', 1, -1, ?, ?)`
+      ).run(item.id, id, userId, who, `อนุมัติคำขอ #${r.id}: ${unit.code}`);
+    }
+    db.recalcTracked(item.id);
+  } else {
+    const free = decorateItem(db.prepare(`${ITEM_SELECT} WHERE i.id = ?`).get(item.id)).free_qty;
+    if (free < r.qty) throw new Error(`คงเหลือไม่พอ (ใช้ได้จริง ${free})`);
+    const delta = -r.qty;
+    db.prepare('UPDATE items SET qty = qty + ? WHERE id = ?').run(delta, item.id);
+    db.prepare(
+      `INSERT INTO transactions (item_id, user_id, kind, qty, delta, person, note)
+       VALUES (?,?,?,?,?,?,?)`
+    ).run(item.id, userId, r.kind, r.qty, delta, who, `อนุมัติคำขอ #${r.id}`);
+  }
+  // อนุมัติแล้วถือว่าอยู่กับผู้ขอเลย (ของเบิกหมด = ปิดจบ)
+  const finalStatus = item.type === 'consumable' ? 'returned' : 'received';
+  db.prepare(
+    `UPDATE requests SET status=?, approver_id=?, unit_id=?,
+       approved_at=datetime('now','localtime'), received_at=datetime('now','localtime'),
+       closed_at=CASE WHEN ?='returned' THEN datetime('now','localtime') ELSE NULL END
+     WHERE id=?`
+  ).run(finalStatus, userId, ids[0] ?? null, finalStatus, r.id);
+}
+
 // Admin: อนุมัติ = ตัดของออกจากคลังให้เลย (จบในขั้นตอนเดียว ไม่มีส่งมอบ/ยืนยันรับ)
 // track รายตัว: ต้องเลือกหน่วยจริงให้ครบตามจำนวนที่ขอ
 app.post('/api/requests/:id/approve', requireAuth, requireAdmin, (req, res) => {
   const r = getReq(req.params.id);
   if (!r || r.status !== 'pending') return res.status(400).json({ error: 'คำขอนี้อนุมัติไม่ได้' });
-  const item = db.prepare('SELECT * FROM items WHERE id = ?').get(r.item_id);
-  const who = reqPerson(r);
-
-  // เตรียม/ตรวจหน่วยที่เลือก (เฉพาะของ track รายตัว)
-  let ids = [];
-  if (item.tracked) {
-    let raw = req.body?.unit_ids;
-    if (!Array.isArray(raw)) raw = req.body?.unit_id != null ? [req.body.unit_id] : [];
-    ids = [...new Set(raw.map((x) => parseInt(x, 10)).filter((x) => x))];
-    // ยังไม่ได้เลือก แต่ตอนสร้างคำขอผูกหน่วยเจาะจงไว้แล้ว (จาก kit component) — ใช้อันนั้นอัตโนมัติ
-    if (ids.length === 0 && r.want_unit_id && r.qty === 1) ids = [r.want_unit_id];
-    if (ids.length !== r.qty)
-      return res.status(400).json({ error: `ต้องเลือกหน่วยว่างให้ครบ ${r.qty} ชิ้น` });
-    for (const id of ids) {
-      const unit = db.prepare("SELECT * FROM units WHERE id = ? AND item_id = ? AND active=1 AND status='available'").get(id, item.id);
-      if (!unit) return res.status(400).json({ error: 'มีหน่วยที่เลือกไม่ว่างแล้ว' });
-    }
-  } else {
-    const free = decorateItem(db.prepare(`${ITEM_SELECT} WHERE i.id = ?`).get(item.id)).free_qty;
-    if (free < r.qty) return res.status(400).json({ error: `คงเหลือไม่พอ (ใช้ได้จริง ${free})` });
+  try {
+    db.tx(() => approveReqInTx(r, req.body?.unit_ids ?? req.body?.unit_id, req.user.id));
+    db.flushNow(); // ธุรกรรมสำคัญ — ดันขึ้น Turso ทันที ไม่รอรอบ
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
   }
+});
 
+// Admin: คีย์บันทึกการยืมแทนคนนอกที่ไม่สะดวกกรอกเอง —
+// สร้างคำขอแล้วตัดสต็อกเป็น "ถูกยืม" ทันที (โผล่ใน Request ให้กดรับของคืนได้ปกติ)
+app.post('/api/requests/direct', requireAuth, requireAdmin, (req, res) => {
+  const { item_id, qty, person, note, due_date, unit_ids } = req.body || {};
+  const item = db.prepare('SELECT * FROM items WHERE id = ? AND active = 1').get(item_id);
+  if (!item) return res.status(404).json({ error: 'ไม่พบรายการของ' });
+  const who = (person || '').trim();
+  if (!who) return res.status(400).json({ error: 'กรุณากรอกชื่อผู้ยืม' });
+  const n = Math.max(1, parseInt(qty, 10) || 1);
+  const due = /^\d{4}-\d{2}-\d{2}$/.test(due_date || '') ? due_date : '';
+  const kind = item.type === 'consumable' ? 'issue' : 'borrow';
   try {
     db.tx(() => {
-      if (item.tracked) {
-        db.prepare('DELETE FROM request_units WHERE request_id = ?').run(r.id);
-        const insRU = db.prepare('INSERT INTO request_units (request_id, unit_id) VALUES (?,?)');
-        for (const id of ids) {
-          insRU.run(r.id, id);
-          const unit = db.prepare('SELECT * FROM units WHERE id=?').get(id);
-          db.prepare("UPDATE units SET status='borrowed', holder=? WHERE id=?").run(who, id);
-          db.prepare(
-            `INSERT INTO transactions (item_id, unit_id, user_id, kind, qty, delta, person, note)
-             VALUES (?,?,?, 'borrow', 1, -1, ?, ?)`
-          ).run(item.id, id, req.user.id, who, `อนุมัติคำขอ #${r.id}: ${unit.code}`);
-        }
-        db.recalcTracked(item.id);
-      } else {
-        const delta = -r.qty;
-        db.prepare('UPDATE items SET qty = qty + ? WHERE id = ?').run(delta, item.id);
-        db.prepare(
-          `INSERT INTO transactions (item_id, user_id, kind, qty, delta, person, note)
-           VALUES (?,?,?,?,?,?,?)`
-        ).run(item.id, req.user.id, r.kind, r.qty, delta, who, `อนุมัติคำขอ #${r.id}`);
-      }
-      // อนุมัติแล้วถือว่าอยู่กับผู้ขอเลย (ของเบิกหมด = ปิดจบ)
-      const finalStatus = item.type === 'consumable' ? 'returned' : 'received';
-      db.prepare(
-        `UPDATE requests SET status=?, approver_id=?, unit_id=?,
-           approved_at=datetime('now','localtime'), received_at=datetime('now','localtime'),
-           closed_at=CASE WHEN ?='returned' THEN datetime('now','localtime') ELSE NULL END
-         WHERE id=?`
-      ).run(finalStatus, req.user.id, ids[0] ?? null, finalStatus, r.id);
+      const oi = db.prepare('INSERT INTO orders (requester_id, note, person) VALUES (?,?,?)')
+        .run(req.user.id, (note || '').trim(), who);
+      const info = db.prepare(
+        `INSERT INTO requests (item_id, requester_id, kind, qty, note, status, order_id, person, due_date)
+         VALUES (?,?,?,?,?, 'pending', ?, ?, ?)`
+      ).run(item.id, req.user.id, kind, n, (note || '').trim(), Number(oi.lastInsertRowid), who, due);
+      approveReqInTx(getReq(Number(info.lastInsertRowid)), unit_ids, req.user.id);
     });
-    db.flushNow(); // ธุรกรรมสำคัญ — ดันขึ้น Turso ทันที ไม่รอรอบ
+    db.flushNow();
     res.json({ ok: true });
   } catch (e) {
     res.status(400).json({ error: e.message });
