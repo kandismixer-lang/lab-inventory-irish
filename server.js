@@ -634,6 +634,9 @@ app.post('/api/items/:id/move', requireAuth, requireAdmin, (req, res) => {
         (person || '').trim(),
         (note || '').trim()
       );
+    // mirror → หน้าคำขอ (เฉพาะ tool/kit ที่ไม่ track): ยืม = สร้างคำขอ received · คืน = ปิดคำขอ FIFO
+    if (kind === 'borrow') mirrorBorrowRequest(item, [], amount, (person || '').trim(), req.user.id);
+    else if (kind === 'return') mirrorReturnQty(item.id, amount);
     return Number(info.lastInsertRowid);
   });
   res.json({ id, newQty: item.qty + delta });
@@ -701,6 +704,56 @@ app.post('/api/items/:id/units', requireAuth, requireAdmin, (req, res) => {
   res.json({ ok: true, added: codes.length, available: created });
 });
 
+// ---------- mirror การยืมที่หน้า stock → หน้าคำขอ ----------
+// admin ยืมของที่หน้ารายการ (unit/move หรือ items/move) — สร้าง request สถานะ received ให้ด้วย
+// เพื่อให้ชื่อผู้ยืมไปโผล่ในหน้าคำขอ "ถูกยืมอยู่" เหมือนคำขอที่ผ่าน workflow ปกติ
+// หมายเหตุ: helper พวกนี้ต้องเรียกภายใน db.tx เท่านั้น (unit/qty ถูกตัดโดย endpoint ที่เรียกไปแล้ว)
+function mirrorBorrowRequest(item, unitIds, qty, who, userId) {
+  const kind = item.type === 'consumable' ? 'issue' : 'borrow';
+  const info = db.prepare(
+    `INSERT INTO requests (item_id, requester_id, kind, qty, note, status, person,
+        approver_id, unit_id, approved_at, received_at)
+     VALUES (?,?,?,?, 'คีย์ยืมที่หน้ารายการ', 'received', ?, ?, ?, datetime('now','localtime'), datetime('now','localtime'))`
+  ).run(item.id, userId, kind, qty, who || '', userId, unitIds[0] ?? null);
+  const rid = Number(info.lastInsertRowid);
+  const insRU = db.prepare('INSERT INTO request_units (request_id, unit_id) VALUES (?,?)');
+  for (const uid of unitIds) insRU.run(rid, uid);
+  return rid;
+}
+// ปิดคำขอ received ที่ผูกกับหน่วยนี้ เมื่อคืน/พัง/หายที่หน้า stock —
+// ปิดเฉพาะเมื่อทุกหน่วยของคำขอนั้นไม่ได้ถูกยืมแล้ว (คำขอ qty>1 คืนทีละตัวจะยังไม่ปิด)
+function mirrorCloseByUnit(unitId) {
+  const rows = db.prepare(
+    `SELECT DISTINCT r.id FROM requests r JOIN request_units ru ON ru.request_id = r.id
+     WHERE ru.unit_id = ? AND r.status = 'received'`
+  ).all(unitId);
+  for (const { id } of rows) {
+    const stillOut = db.prepare(
+      `SELECT COUNT(*) n FROM request_units ru JOIN units u ON u.id = ru.unit_id
+       WHERE ru.request_id = ? AND u.status = 'borrowed'`
+    ).get(id).n;
+    if (stillOut === 0)
+      db.prepare("UPDATE requests SET status='returned', closed_at=datetime('now','localtime') WHERE id=?").run(id);
+  }
+}
+// ปิดคำขอ received ของ item ที่ไม่ track (ไม่มี unit) ตามจำนวนที่คืน — FIFO เก่าก่อน
+function mirrorReturnQty(itemId, qty) {
+  let remain = qty;
+  const rows = db.prepare(
+    "SELECT id, qty FROM requests WHERE item_id=? AND status='received' AND unit_id IS NULL ORDER BY id ASC"
+  ).all(itemId);
+  for (const r of rows) {
+    if (remain <= 0) break;
+    if (r.qty <= remain) {
+      db.prepare("UPDATE requests SET status='returned', closed_at=datetime('now','localtime') WHERE id=?").run(r.id);
+      remain -= r.qty;
+    } else {
+      db.prepare("UPDATE requests SET qty = qty - ? WHERE id=?").run(remain, r.id);
+      remain = 0;
+    }
+  }
+}
+
 // เปลี่ยนสถานะหน่วย: borrow / return / repair / ready / lost
 const UNIT_ACTIONS = {
   borrow: { from: ['available'], to: 'borrowed', needPerson: true },
@@ -728,6 +781,9 @@ app.post('/api/units/:id/move', requireAuth, requireAdmin, (req, res) => {
     db.prepare('UPDATE units SET status = ?, holder = ? WHERE id = ?').run(spec.to, holder, unit.id);
     const availAfter = db.recalcTracked(item.id);
     logUnitTx(item.id, unit.id, action, availAfter - availBefore, person, `${unit.code}${note ? ' — ' + note : ''}`, req.user.id);
+    // mirror → หน้าคำขอ: ยืม = สร้างคำขอ received · คืน/พัง/หาย = ปิดคำขอที่ผูกหน่วยนี้
+    if (action === 'borrow') mirrorBorrowRequest(item, [unit.id], 1, holder, req.user.id);
+    else if (['return', 'repair', 'lost'].includes(action)) mirrorCloseByUnit(unit.id);
     return availAfter;
   });
   res.json({ ok: true, available: result });
@@ -983,34 +1039,6 @@ app.post('/api/requests/:id/approve', requireAuth, requireAdmin, (req, res) => {
   try {
     db.tx(() => approveReqInTx(r, req.body?.unit_ids ?? req.body?.unit_id, req.user.id));
     db.flushNow(); // ธุรกรรมสำคัญ — ดันขึ้น Turso ทันที ไม่รอรอบ
-    res.json({ ok: true });
-  } catch (e) {
-    res.status(400).json({ error: e.message });
-  }
-});
-
-// Admin: คีย์บันทึกการยืมแทนคนนอกที่ไม่สะดวกกรอกเอง —
-// สร้างคำขอแล้วตัดสต็อกเป็น "ถูกยืม" ทันที (โผล่ใน Request ให้กดรับของคืนได้ปกติ)
-app.post('/api/requests/direct', requireAuth, requireAdmin, (req, res) => {
-  const { item_id, qty, person, note, due_date, unit_ids } = req.body || {};
-  const item = db.prepare('SELECT * FROM items WHERE id = ? AND active = 1').get(item_id);
-  if (!item) return res.status(404).json({ error: 'ไม่พบรายการของ' });
-  const who = (person || '').trim();
-  if (!who) return res.status(400).json({ error: 'กรุณากรอกชื่อผู้ยืม' });
-  const n = Math.max(1, parseInt(qty, 10) || 1);
-  const due = /^\d{4}-\d{2}-\d{2}$/.test(due_date || '') ? due_date : '';
-  const kind = item.type === 'consumable' ? 'issue' : 'borrow';
-  try {
-    db.tx(() => {
-      const oi = db.prepare('INSERT INTO orders (requester_id, note, person) VALUES (?,?,?)')
-        .run(req.user.id, (note || '').trim(), who);
-      const info = db.prepare(
-        `INSERT INTO requests (item_id, requester_id, kind, qty, note, status, order_id, person, due_date)
-         VALUES (?,?,?,?,?, 'pending', ?, ?, ?)`
-      ).run(item.id, req.user.id, kind, n, (note || '').trim(), Number(oi.lastInsertRowid), who, due);
-      approveReqInTx(getReq(Number(info.lastInsertRowid)), unit_ids, req.user.id);
-    });
-    db.flushNow();
     res.json({ ok: true });
   } catch (e) {
     res.status(400).json({ error: e.message });
