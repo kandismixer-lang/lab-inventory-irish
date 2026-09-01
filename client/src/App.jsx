@@ -230,7 +230,7 @@ function Shell({ me, onMe, guestName, onGuestName }) {
             {isGuest ? (
               <>
                 <label className="guest-name">
-                  <span className="hint">รหัสบัตร (ปชช./นักศึกษา)</span>
+                  <span className="hint">รหัสบัตรนักศึกษา/เบอร์โทร</span>
                   <input
                     value={guestCard}
                     inputMode="numeric"

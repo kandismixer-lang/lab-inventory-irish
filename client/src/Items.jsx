@@ -253,7 +253,7 @@ export function RequestForm({ item, defaultPerson, needCard, defaultCard, onClos
         {!defaultPerson && <div className="hint">กรุณาใส่ชื่อผู้ยืม เพื่อให้ตามของคืนได้</div>}
         {needCard && (
           <>
-            <label>รหัสบัตร (ปชช./นักศึกษา) <span className="col-out">*</span>
+            <label>รหัสบัตรนักศึกษา/เบอร์โทร <span className="col-out">*</span>
               <input name="card" defaultValue={defaultCard || ''} placeholder="เลขบัตรประชาชน หรือ รหัสนักศึกษา" required inputMode="numeric" />
             </label>
             <div className="hint">ใช้ยืนยันตัวตนเท่านั้น (ไม่แชร์ต่อ) — เห็นได้แค่แอดมิน · ใช้ดึงของที่ยืมกลับมาได้แม้ไม่ล็อกอิน</div>
