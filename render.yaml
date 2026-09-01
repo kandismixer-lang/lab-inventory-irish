@@ -8,7 +8,8 @@ services:
     runtime: node
     plan: free
     buildCommand: npm install && npm --prefix client install && npm --prefix client run build
-    startCommand: node scripts/init-db.js && node server.js
+    # init-db ถูกเรียกใน server.js แล้ว เพื่อใช้ Turso sync รอบเดียวตอน cold start
+    startCommand: node server.js
     autoDeploy: true
     envVars:
       - key: NODE_VERSION

@@ -4,9 +4,15 @@ const express = require('express');
 const cookieSession = require('cookie-session');
 const bcrypt = require('bcryptjs');
 const db = require('./db');
+// ใช้ connection เดียวกับ server ระหว่างตั้งข้อมูลเริ่มต้น — ตอน Render ปลุกเว็บจะไม่ sync Turso ซ้ำอีก process
+require('./scripts/init-db');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// endpoint เบามาก: ใช้ตรวจว่าเว็บตื่น และเป็น URL สำหรับ cron keep-alive
+// ไม่แตะ DB เพื่อให้ตอบได้เร็วที่สุดระหว่าง health check
+app.get('/healthz', (_req, res) => res.status(200).send('ok'));
 
 app.set('trust proxy', 1); // อยู่หลัง proxy ของ Render — ให้ req.ip อ่าน X-Forwarded-For ที่ proxy ใส่ (กันปลอม)
 app.use(express.json({ limit: '12mb' })); // เผื่อรูปหลักฐาน (data URL)
