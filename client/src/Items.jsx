@@ -771,6 +771,24 @@ function UnitsPanel({ item, me, onChanged, onClose, onRequest }) {
     api(`/api/units/${unit.id}`, { method: 'DELETE' }).then(load).catch((e) => { setErr(e.message); load(); });
   };
 
+  // ปลดหน่วยที่อยู่ในหุ่นกลับคลัง (หุ่นจะขาดชิ้นนี้ไป หน่วยไม่หาย)
+  const release = async (unit) => {
+    if (busyU.has(unit.id)) return;
+    if (!(await confirm({
+      title: `คืน ${unit.code} กลับคลัง?`,
+      message: `ปลด ${unit.code} ออกจากหุ่น → กลับมาเป็นของว่างในคลัง (หุ่นจะขาดชิ้นนี้ไป จนกว่าจะแก้หุ่นใส่ตัวใหม่)`,
+      danger: false, okClass: 'ok',
+    }))) return;
+    setErr('');
+    setUnits((us) => us.map((u) => u.id === unit.id ? { ...u, status: 'available', holder: '' } : u));
+    setBusyU((s) => new Set(s).add(unit.id));
+    toast(`${unit.code}: คืนคลัง`); onChanged();
+    const done = () => setBusyU((s) => { const n = new Set(s); n.delete(unit.id); return n; });
+    api(`/api/units/${unit.id}/release`, { method: 'POST' })
+      .then(() => { load(); done(); })
+      .catch((e) => { setErr(e.message); load(); done(); });
+  };
+
   const addUnits = async (body) => {
     setErr('');
     try {
@@ -856,10 +874,17 @@ function UnitsPanel({ item, me, onChanged, onClose, onRequest }) {
                         {u.holder && <span className="holder">→ {u.holder}</span>}
                         {isAdmin && (
                           <span className="acts">
-                            {(UNIT_BTNS[u.status] || []).map(([a, label]) => (
-                              <button key={a} className={`btn small u-${a}`} disabled={busyU.has(u.id)} onClick={() => act(u, a)}>{label}</button>
-                            ))}
-                            <button className="btn small danger" disabled={busyU.has(u.id)} onClick={() => del(u)}>ลบ</button>
+                            {u.status === 'reserved' ? (
+                              // อยู่ในหุ่น: ปลดกลับคลังได้ (ลบตรงๆ ไม่ได้อยู่แล้ว ต้องคืนคลังก่อน)
+                              <button className="btn small u-return" disabled={busyU.has(u.id)} onClick={() => release(u)}>↩ คืนคลัง</button>
+                            ) : (
+                              <>
+                                {(UNIT_BTNS[u.status] || []).map(([a, label]) => (
+                                  <button key={a} className={`btn small u-${a}`} disabled={busyU.has(u.id)} onClick={() => act(u, a)}>{label}</button>
+                                ))}
+                                <button className="btn small danger" disabled={busyU.has(u.id)} onClick={() => del(u)}>ลบ</button>
+                              </>
+                            )}
                           </span>
                         )}
                       </div>

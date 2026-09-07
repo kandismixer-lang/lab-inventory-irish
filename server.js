@@ -810,6 +810,32 @@ app.delete('/api/units/:id', requireAuth, requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
+// ปลดหน่วยเดียวออกจากหุ่นกลับคลัง (admin) — ของไม่เคยถูกตัดจริง แค่เลิกกันไว้ให้หุ่น
+// หุ่นจะขาดชิ้นนี้ไป (แถว kit_components ถูกลบ) หน่วยกลับมาเป็น available
+app.post('/api/units/:id/release', requireAuth, requireAdmin, (req, res) => {
+  const unit = db.prepare('SELECT * FROM units WHERE id = ? AND active = 1').get(req.params.id);
+  if (!unit) return res.status(404).json({ error: 'ไม่พบหน่วยนี้' });
+  if (unit.status !== 'reserved')
+    return res.status(400).json({ error: 'หน่วยนี้ไม่ได้อยู่ในหุ่น' });
+  // หาแถวจอง + สถานะหุ่นเจ้าของ (qty=0 = หุ่นถูกยืมออกไปแล้ว ห้ามปลดชิ้นส่วนกลางคัน)
+  const kc = db.prepare(
+    'SELECT kc.unit_id, ki.name AS kit_name, ki.qty AS kit_qty FROM kit_components kc JOIN items ki ON ki.id = kc.kit_id WHERE kc.unit_id = ?'
+  ).get(unit.id);
+  if (kc && kc.kit_qty === 0)
+    return res.status(400).json({ error: `หุ่น "${kc.kit_name}" กำลังถูกยืมอยู่ — ต้องรับคืนหุ่นก่อนถึงจะปลดชิ้นส่วนได้` });
+  db.tx(() => {
+    db.prepare('DELETE FROM kit_components WHERE unit_id = ?').run(unit.id);
+    db.prepare("UPDATE units SET status='available', holder='' WHERE id = ?").run(unit.id);
+    db.prepare(
+      `INSERT INTO transactions (item_id, unit_id, user_id, kind, qty, delta, person, note)
+       VALUES (?,?,?, 'release', 1, 0, '', ?)`
+    ).run(unit.item_id, unit.id, req.user.id, `ปลดหน่วย ${unit.code} ออกจากหุ่น${kc ? ' ' + kc.kit_name : ''} คืนคลัง`);
+    db.recalcTracked(unit.item_id);
+  });
+  db.flushNow();
+  res.json({ ok: true });
+});
+
 // ลบหน่วยทั้งหมดของ item (กรณีสร้างรหัสผิด) — เฉพาะที่ว่าง กันลบตัวที่ถูกยืม/พัง/หายอยู่
 app.delete('/api/items/:id/units', requireAuth, requireAdmin, (req, res) => {
   const id = Number(req.params.id);
