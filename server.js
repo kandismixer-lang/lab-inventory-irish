@@ -1314,6 +1314,19 @@ app.get('/api/transactions', requireAuth, requireAdmin, (req, res) => {
   res.json(rows);
 });
 
+// ---------- อ่านใบสั่งซื้อด้วย AI (โมดูลแยก po.js — ไม่ยุ่งกับลอจิกสต็อก/DB) ----------
+const po = require('./po');
+// เมนูฝั่ง client ใช้เช็คว่าเปิดใช้ได้ไหม (ตั้ง API key แล้วหรือยัง)
+app.get('/api/po/status', requireAuth, requireAdmin, (_req, res) => res.json({ enabled: po.hasKey(), model: po.MODEL }));
+// รับรูปใบ (data URL) → คืนรายการที่ AI ดึงได้ (ยังไม่แตะคลัง — ให้ admin ยืนยันก่อน)
+app.post('/api/po/parse', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    res.json({ items: await po.parsePurchaseOrder(req.body?.image) });
+  } catch (e) {
+    res.status(400).json({ error: e.message || 'อ่านใบไม่สำเร็จ' });
+  }
+});
+
 // SPA fallback
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));

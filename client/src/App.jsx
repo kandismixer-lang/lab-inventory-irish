@@ -10,6 +10,7 @@ import Broken from './Broken.jsx';
 import People from './People.jsx';
 import Users from './Users.jsx';
 import Requests from './Requests.jsx';
+import PurchaseOrder from './PurchaseOrder.jsx';
 
 export default function App() {
   return (
@@ -133,6 +134,7 @@ const VIEWS = {
   requests: { label: 'Requests', comp: Requests },
   broken: { label: 'Broken', comp: Broken },
   people: { label: 'People', comp: People, adminOnly: true },
+  po: { label: '📄 อ่านใบสั่งซื้อ', comp: PurchaseOrder, adminOnly: true },
   log: { label: 'History', comp: Log, adminOnly: true },
   users: { label: 'Users', comp: Users, adminOnly: true },
 };

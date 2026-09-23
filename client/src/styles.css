@@ -666,3 +666,9 @@ form textarea { resize: vertical; min-height: 90px; font-family: inherit; }
   .btn.small { padding: 8px 13px; min-height: 36px; }
   .unit-select, .id-tab, .cat-chip { min-height: 36px; }
 }
+
+/* อ่านใบสั่งซื้อ (AI) */
+.po-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.po-table th, .po-table td { padding: 6px 8px; border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap; }
+.po-table input, .po-table select { width: 100%; min-width: 90px; padding: 6px 8px; }
+.po-table td:first-child input { min-width: 160px; }
