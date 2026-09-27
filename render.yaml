@@ -25,11 +25,13 @@ services:
       - key: TURSO_TOKEN
         sync: false
       # ---- SSO กับเว็บแลปหลัก (Firebase) ----
-      # สวิตช์เปิด/ปิดทั้งระบบ: ใส่ irish-lab ในหน้า Render เมื่อพร้อมใช้จริง
-      # ⚠️ เปิดเมื่อไหร่ = ยืมแบบ guest (กรอกชื่อ+รหัสบัตร) ปิดทันที ทุกคนต้อง login เว็บแลปก่อน
-      #    ต้องให้ทีมเว็บหลักเพิ่มปุ่ม "ยืมของ" เสร็จก่อนค่อยเปิด (ดู FIREBASE_SSO_PLAN.md)
+      # เปิดแล้ว (โหมดเปลี่ยนผ่าน): SSO ทำงาน แต่ยังให้ใช้งานแบบไม่ล็อกอินคู่กันไว้
       - key: FIREBASE_PROJECT_ID
-        sync: false
+        value: irish-lab
+      # ⚠️ ลบ ALLOW_GUEST ออกเมื่อทีมเว็บหลักเปลี่ยนเมนู Equipment Loan เป็นปุ่มส่ง token แล้ว
+      #    ลบเมื่อไหร่ = ทั้งเว็บบังคับ login ทันที · ถ้าลบก่อนที่ปุ่มเขาจะพร้อม ผู้ใช้จะติดวงกลม
+      - key: ALLOW_GUEST
+        value: "1"
       - key: MAIN_SITE_URL
         value: https://irish-tech.com/en
       # คนที่อยู่ใน collection นี้ของเว็บหลัก = admin ของคลัง

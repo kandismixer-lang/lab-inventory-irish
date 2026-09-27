@@ -291,7 +291,7 @@ function Shell({ me, cfg, onMe, guestName, onGuestName }) {
           <div className="userbox">
             {isGuest ? (
               <>
-                {cfg?.sso && cfg.mainSiteUrl && (
+                {cfg?.sso && cfg.mainSiteUrl && cfg.guestBorrow === false && (
                   <>
                     <a className="btn small primary sso-btn" href={cfg.mainSiteUrl}>🔑 เข้าสู่ระบบด้วยบัญชีเว็บแลป</a>
                     <div className="hint" style={{ margin: '0 0 10px' }}>
