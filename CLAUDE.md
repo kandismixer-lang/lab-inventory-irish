@@ -52,7 +52,8 @@ cd client && npm run build
 - cookie-session ส่ง 2 cookie (sess + sess.sig) เวลาเทสต์ต้องเก็บทั้งคู่: `headers.getSetCookie().map(c=>c.split(';')[0]).join('; ')`
 
 ## SSO เว็บแลปหลัก (Firebase)
-โค้ดพร้อมแล้ว (ดู [FIREBASE_SSO_PLAN.md](FIREBASE_SSO_PLAN.md)) — เปิดใช้ด้วย env `FIREBASE_PROJECT_ID=irish-lab` + `MAIN_SITE_URL`
+**อ่าน [SSO.md](SSO.md) ก่อน** (สถานะ+เหตุผลการตัดสินใจ) · คู่มือเทคนิค [FIREBASE_SSO_PLAN.md](FIREBASE_SSO_PLAN.md) · ของส่งทีมเว็บหลัก [SSO_HANDOFF.md](SSO_HANDOFF.md) · เทสต์ `node scripts/test-sso.js` (54 เคส)
+โค้ดพร้อมแล้ว — เปิดใช้ด้วย env `FIREBASE_PROJECT_ID=irish-lab` + `MAIN_SITE_URL`
 - verify token เองใน [firebase-auth.js](firebase-auth.js) (ไม่ใช้ firebase-admin — หนัก/boot ช้า)
 - เว็บหลัก (https://irish-tech.com/en) form POST `{token,name}` → `/auth/firebase` → ตั้ง session → ชื่อเติมอัตโนมัติตอนยืม
 - **admin = คนที่อยู่ใน collection `member` ของ Firestore เว็บหลัก** ([firebase-member.js](firebase-member.js)) — ถูกถอดออก = ลดเป็น staff, Firestore ล่ม = คงสิทธิ์เดิม
