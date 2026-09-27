@@ -56,6 +56,8 @@ cd client && npm run build
 - verify token เองใน [firebase-auth.js](firebase-auth.js) (ไม่ใช้ firebase-admin — หนัก/boot ช้า)
 - เว็บหลัก form POST `{token,name}` → `/auth/firebase` → ตั้ง session → คนนั้นเป็น staff, ชื่อเติมอัตโนมัติตอนยืม
 - ไม่ตั้ง env = ปิด SSO ระบบทำงานเหมือนเดิม (guest + admin รหัสผ่าน)
+- **เปิด SSO = ปิดทางยืมแบบ guest อัตโนมัติ** (บังคับที่ `/api/orders`) · `ALLOW_GUEST=1` = เปิดคู่กันชั่วคราว
+- ช่องรหัสบัตรที่เมนูซ้ายยังอยู่ ไว้ให้คนที่ยืมก่อนมีระบบ login ตามของตัวเอง
 
 ## ยังไม่ได้ทำ / ค้างไว้
 - Barcode/QR, แจ้งเตือนอีเมล/เกินกำหนด, import ของเดิม (CSV), สคริปต์ backup อัตโนมัติ

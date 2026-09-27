@@ -5,7 +5,7 @@ import { useCart } from './Cart.jsx';
 
 export const catLabel = (i) => i.category || TYPE_LABEL[i.type];
 
-export default function Items({ me, focusItem, onFocused, guestCard, onGuestIdentity }) {
+export default function Items({ me, cfg, focusItem, onFocused, guestCard, onGuestIdentity }) {
   // จัดการคลังได้เฉพาะ admin — คนอื่นกดได้แค่ "ขอยืม/ขอเบิก" (ลงตะกร้า) แล้วรออนุมัติ
   const isAdmin = me.role === 'admin';
   const [q, setQ] = useState('');
@@ -17,7 +17,11 @@ export default function Items({ me, focusItem, onFocused, guestCard, onGuestIden
   const [showEmpty, setShowEmpty] = useState(false); // แสดงของใช้แล้วทิ้งที่เบิกหมด
   const [detail, setDetail] = useState(null); // item ที่กำลังดูรายละเอียด
   const [cat, setCat] = useState(''); // หมวดที่กรอง ('' = ทั้งหมด)
+  const [needLogin, setNeedLogin] = useState(false); // กดยืมทั้งที่ยังไม่ล็อกอิน (ตอนเปิด SSO)
   const toast = useToast();
+  // เปิด SSO แล้ว = ยืมไม่ได้ถ้าไม่ล็อกอิน → กดยืมแล้วชวนไปเข้าสู่ระบบแทนที่จะเปิดฟอร์ม
+  const mustLogin = me.role === 'guest' && !!cfg && cfg.guestBorrow === false;
+  const askRequest = (item) => (mustLogin ? setNeedLogin(true) : setRequesting(item));
   const shown = cat === '__parts__' ? items.filter((i) => !i.is_kit)
     : cat ? items.filter((i) => catLabel(i) === cat) : items;
   const expandedItem = items.find((x) => x.id === expanded) || null;
@@ -54,7 +58,7 @@ export default function Items({ me, focusItem, onFocused, guestCard, onGuestIden
     if (!it) return;
     if (it.tracked) setExpanded(it.id);   // track รายตัว = กางรายการหน่วย
     else if (isAdmin) setMoving(it);      // ไม่ track = เปิดฟอร์มยืม/คืน/รับเข้า
-    else setRequesting(it);               // staff = เปิดฟอร์มขอยืม
+    else askRequest(it);                  // staff = เปิดฟอร์มขอยืม (guest ตอนเปิด SSO = ชวน login)
     setTimeout(() => {
       document.getElementById('item-' + it.id)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
     }, 50);
@@ -129,7 +133,7 @@ export default function Items({ me, focusItem, onFocused, guestCard, onGuestIden
                               ดูตัวที่ถูกยืม <span className="caret">{isOpen ? '▲' : '▼'}</span>
                             </button>
                           )}
-                          <button className="btn small primary" disabled={i.free_qty <= 0} onClick={(e) => { e.stopPropagation(); setRequesting(i); }}>
+                          <button className="btn small primary" disabled={i.free_qty <= 0} onClick={(e) => { e.stopPropagation(); askRequest(i); }}>
                             {i.type === 'consumable' ? 'ขอเบิก' : 'ขอยืม'}
                           </button>
                         </>
@@ -172,6 +176,7 @@ export default function Items({ me, focusItem, onFocused, guestCard, onGuestIden
           onNow={onBorrowNow}
         />
       )}
+      {needLogin && <NeedLoginModal cfg={cfg} onClose={() => setNeedLogin(false)} />}
       {detail && <DetailModal item={detail} onClose={() => setDetail(null)} />}
       {expandedItem && (
         <UnitsPanel
@@ -179,7 +184,7 @@ export default function Items({ me, focusItem, onFocused, guestCard, onGuestIden
           me={me}
           onChanged={load}
           onClose={() => setExpanded(null)}
-          onRequest={() => { setRequesting(expandedItem); setExpanded(null); }}
+          onRequest={() => { askRequest(expandedItem); setExpanded(null); }}
         />
       )}
     </>
@@ -215,6 +220,26 @@ function DetailModal({ item, onClose }) {
       )}
       <div className="detail-head">สเปค / รายละเอียด</div>
       <div className="detail-spec">{(item.spec || '').trim() || '— ยังไม่ได้ใส่ข้อมูล —'}</div>
+    </Modal>
+  );
+}
+
+// ตอนเปิด SSO: คนที่ยังไม่ล็อกอินกดยืม → บอกให้ไป login ที่เว็บแลปหลักก่อน
+function NeedLoginModal({ cfg, onClose }) {
+  return (
+    <Modal title="ต้องเข้าสู่ระบบก่อนยืมของ" onClose={onClose}>
+      <p className="muted" style={{ lineHeight: 1.7 }}>
+        ยืมของต้องใช้บัญชีเว็บแลป เพื่อให้รู้ว่าใครยืมอะไรไว้ และตามของคืนได้
+        <br />เข้าสู่ระบบที่เว็บแลปหลักแล้วกดปุ่ม “ยืมของ” จากที่นั่น — ชื่อผู้ยืมจะเติมให้อัตโนมัติ
+      </p>
+      {cfg?.mainSiteUrl && (
+        <a className="btn primary sso-btn" href={cfg.mainSiteUrl} style={{ marginTop: 12 }}>
+          🔑 ไปเข้าสู่ระบบที่เว็บแลป
+        </a>
+      )}
+      <div className="hint" style={{ marginTop: 10, textAlign: 'center' }}>
+        เป็นแอดมินคลัง? กดปุ่ม “🔑 Admin” ที่เมนูซ้ายล่างเพื่อเข้าด้วยรหัสผ่าน
+      </div>
     </Modal>
   );
 }

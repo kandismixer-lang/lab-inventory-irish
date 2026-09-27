@@ -254,9 +254,19 @@ app.post('/api/auth/firebase', async (req, res) => {
   }
 });
 
-// ค่าคอนฟิกที่หน้าเว็บต้องรู้ (เปิด SSO ไหม / ลิงก์เว็บแลปหลัก)
+// เปิด SSO แล้ว = ปิดทางยืมแบบ guest (กรอกชื่อ+รหัสบัตร) ทุกคนต้อง login เว็บแลปก่อน
+// ยังไม่ได้ตั้ง FIREBASE_PROJECT_ID = ยังให้ guest ยืมได้เหมือนเดิม (เว็บไม่ตายระหว่างรอเปิดใช้จริง)
+// ALLOW_GUEST=1 = เปิด SSO แล้วแต่ยังให้ guest ยืมคู่กันไว้ (ช่วงเปลี่ยนผ่าน)
+const guestBorrowAllowed = () => !fbAuth.enabled() || process.env.ALLOW_GUEST === '1';
+
+// ค่าคอนฟิกที่หน้าเว็บต้องรู้ (เปิด SSO ไหม / ลิงก์เว็บแลปหลัก / ยืมแบบไม่ล็อกอินได้ไหม)
 app.get('/api/config', (_req, res) =>
-  res.json({ sso: fbAuth.enabled(), mainSiteUrl: MAIN_SITE_URL, projectId: fbAuth.projectId() })
+  res.json({
+    sso: fbAuth.enabled(),
+    mainSiteUrl: MAIN_SITE_URL,
+    projectId: fbAuth.projectId(),
+    guestBorrow: guestBorrowAllowed(),
+  })
 );
 
 app.post('/api/change-password', requireAuth, requireUser, (req, res) => {
@@ -1024,6 +1034,9 @@ function guestKey(req) {
 app.post('/api/orders', requireAuth, (req, res) => {
   const block = guestThrottle(req);
   if (block) return res.status(429).json({ error: block });
+  // เปิด SSO แล้ว = ต้องมีบัญชี (บังคับที่ server ไม่ใช่แค่ซ่อนปุ่ม)
+  if (req.user.role === 'guest' && !guestBorrowAllowed())
+    return res.status(401).json({ error: 'ต้องเข้าสู่ระบบด้วยบัญชีเว็บแลปก่อนถึงจะยืมของได้' });
   const { note, items, person, card } = req.body || {};
   const who = (person || '').trim() || req.user.fullname || req.user.username;
   if (!Array.isArray(items) || items.length === 0)

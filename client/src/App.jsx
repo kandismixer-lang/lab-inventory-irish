@@ -243,7 +243,9 @@ function Shell({ me, onMe, guestName, onGuestName }) {
                   </>
                 )}
                 <label className="guest-name">
-                  <span className="hint">รหัสบัตรนักศึกษา/เบอร์โทร</span>
+                  <span className="hint">
+                    {cfg && !cfg.guestBorrow ? 'เคยยืมไว้ก่อนมีระบบล็อกอิน? ใส่รหัสบัตรเพื่อดูของที่ยืม' : 'รหัสบัตรนักศึกษา/เบอร์โทร'}
+                  </span>
                   <input
                     value={guestCard}
                     inputMode="numeric"
@@ -275,7 +277,7 @@ function Shell({ me, onMe, guestName, onGuestName }) {
         </aside>
         <main>
           <Comp key={view + '-' + refreshKey} me={me} go={go} focusItem={focusItem} onFocused={() => setFocusItem(null)}
-            guestCard={isGuest ? guestCard : ''} onGuestIdentity={isGuest ? setGuestIdentity : undefined} />
+            cfg={cfg} guestCard={isGuest ? guestCard : ''} onGuestIdentity={isGuest ? setGuestIdentity : undefined} />
         </main>
         {view !== 'items' && (
           <button className="borrow-fab" onClick={() => setView('items')}>

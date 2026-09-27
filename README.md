@@ -112,6 +112,7 @@ server {
 | `FIREBASE_PROJECT_ID` | — | เปิด SSO กับเว็บแลปหลัก (ค่าของแลป: `irish-lab`) ไม่ตั้ง = ปิด SSO |
 | `MAIN_SITE_URL` | — | ลิงก์เว็บแลปหลัก — โชว์ปุ่ม “เข้าสู่ระบบด้วยบัญชีเว็บแลป” |
 | `FIREBASE_ADMIN_EMAILS` | — | อีเมลที่ให้เป็น admin ของคลัง คั่นด้วย `,` |
+| `ALLOW_GUEST` | — | `1` = เปิด SSO แล้วยังให้ยืมแบบ guest คู่กันไว้ (ปกติเปิด SSO = ปิด guest) |
 
 รายละเอียด SSO: [FIREBASE_SSO_PLAN.md](FIREBASE_SSO_PLAN.md)
 
