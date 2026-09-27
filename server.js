@@ -4,7 +4,8 @@ const express = require('express');
 const cookieSession = require('cookie-session');
 const bcrypt = require('bcryptjs');
 const db = require('./db');
-const fbAuth = require('./firebase-auth'); // SSO เว็บแลปหลัก (ตรวจ Firebase ID token)
+const fbAuth = require('./firebase-auth');     // SSO เว็บแลปหลัก (ตรวจ Firebase ID token)
+const fbMember = require('./firebase-member'); // เช็ค collection member ของเว็บหลัก → ให้เป็น admin
 // ใช้ connection เดียวกับ server ระหว่างตั้งข้อมูลเริ่มต้น — ตอน Render ปลุกเว็บจะไม่ sync Turso ซ้ำอีก process
 require('./scripts/init-db');
 
@@ -161,12 +162,18 @@ const FB_ADMIN_EMAILS = new Set(
 );
 
 // หาหรือสร้างบัญชีฝั่งเราจาก token ที่ตรวจแล้ว — อ้างอิงคนด้วย firebase_uid (ชื่อ/อีเมลเปลี่ยนได้)
-function upsertFirebaseUser(info, formName) {
+// isMember: true=อยู่ใน collection member · false=ไม่อยู่ (ถูกถอด → ลดสิทธิ์) · null=เช็คไม่ได้ (คงสิทธิ์เดิม)
+function upsertFirebaseUser(info, formName, isMember = null) {
   const email = (info.email || '').trim();
   // ชื่อ: claim name (กรณี A) → ชื่อที่เว็บหลักส่งมาในฟอร์ม (กรณี B) → หน้า @ ของอีเมล
   const name = (info.name || (formName || '').trim() || email.split('@')[0] || 'ผู้ใช้เว็บแลป').slice(0, 80);
   const c = info.claims || {};
-  const wantAdmin = c.admin === true || c.role === 'admin' || (!!email && FB_ADMIN_EMAILS.has(email.toLowerCase()));
+  // เป็น admin ของคลังได้ 3 ทาง: อยู่ใน collection member ของเว็บหลัก / custom claim / อยู่ในรายชื่ออีเมลที่ตั้งไว้
+  const claimAdmin = c.admin === true || c.role === 'admin' || (!!email && FB_ADMIN_EMAILS.has(email.toLowerCase()));
+  // สิทธิ์ของบัญชี SSO ยึดตามเว็บหลักเป็นหลัก — ถูกถอดออกจาก member เมื่อไหร่ก็ลดเป็น staff ทันทีตอนเข้าครั้งถัดไป
+  // (เช็ค Firestore ไม่ได้ = isMember null → คงสิทธิ์เดิม ไม่ลดเพราะระบบเขาล่ม)
+  const roleFor = (current) =>
+    claimAdmin || isMember === true ? 'admin' : isMember === false ? 'staff' : current || 'staff';
   const pick = (id) => db.prepare('SELECT id, username, fullname, role FROM users WHERE id = ?').get(id);
 
   let row = db.prepare('SELECT * FROM users WHERE firebase_uid = ?').get(info.uid);
@@ -176,7 +183,7 @@ function upsertFirebaseUser(info, formName) {
   if (row) {
     // อัปเดตชื่อทุกครั้งที่เข้า (เปลี่ยนชื่อที่เว็บหลัก = เปลี่ยนตาม) · เลื่อนเป็น admin ได้ แต่ไม่ลดสิทธิ์ที่แอดมินเราตั้งไว้เอง
     db.prepare('UPDATE users SET fullname = ?, email = ?, firebase_uid = ?, active = 1, role = ? WHERE id = ?')
-      .run(name, email, info.uid, wantAdmin ? 'admin' : row.role, row.id);
+      .run(name, email, info.uid, roleFor(row.role), row.id);
     return pick(row.id);
   }
 
@@ -187,7 +194,7 @@ function upsertFirebaseUser(info, formName) {
   try {
     const r = db.prepare(
       'INSERT INTO users (username, password, fullname, role, firebase_uid, email) VALUES (?,?,?,?,?,?)'
-    ).run(username, unusable, name, wantAdmin ? 'admin' : 'staff', info.uid, email);
+    ).run(username, unusable, name, roleFor('staff'), info.uid, email);
     return pick(Number(r.lastInsertRowid));
   } catch (e) {
     // ชนกันพอดี (กดสองแท็บพร้อมกัน) — อีกฝั่งสร้างไปแล้ว ใช้ตัวนั้น
@@ -225,8 +232,9 @@ app.post('/auth/firebase', express.urlencoded({ extended: false, limit: '64kb' }
   const block = ssoThrottle(req);
   if (block) return res.status(429).send(ssoErrorPage(block));
   try {
-    const info = await fbAuth.verifyIdToken((req.body?.token || '').trim());
-    const user = upsertFirebaseUser(info, req.body?.name);
+    const token = (req.body?.token || '').trim();
+    const info = await fbAuth.verifyIdToken(token);
+    const user = upsertFirebaseUser(info, req.body?.name, await fbMember.isMember(info, token));
     req.session.uid = user.id;
     delete req.session.gcard; delete req.session.gname; delete req.session.gkey; // ล้างตัวตนแบบ guest ที่ค้างอยู่
     res.redirect(302, safeNext(req.body?.next));
@@ -245,7 +253,7 @@ app.post('/api/auth/firebase', async (req, res) => {
   const token = (req.body?.token || (req.headers.authorization || '').replace(/^Bearer\s+/i, '')).trim();
   try {
     const info = await fbAuth.verifyIdToken(token);
-    const user = upsertFirebaseUser(info, req.body?.name);
+    const user = upsertFirebaseUser(info, req.body?.name, await fbMember.isMember(info, token));
     req.session.uid = user.id;
     delete req.session.gcard; delete req.session.gname; delete req.session.gkey;
     res.json(user);

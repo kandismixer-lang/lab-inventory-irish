@@ -12,10 +12,14 @@
 ### 1. ตั้ง env บน Render (Dashboard → Environment)
 | ตัวแปร | ค่า | จำเป็น |
 |---|---|---|
-| `FIREBASE_PROJECT_ID` | `irish-lab` | ✅ ไม่ตั้ง = ปิด SSO ทั้งระบบ |
-| `MAIN_SITE_URL` | `https://<โดเมนเว็บแลปหลัก>` | ใช้โชว์ปุ่ม "เข้าสู่ระบบด้วยบัญชีเว็บแลป" ที่เมนูซ้าย |
-| `FIREBASE_ADMIN_EMAILS` | `a@x.com,b@x.com` | อีเมลที่ให้เป็น admin ของคลังด้วย (ไม่ตั้ง = ทุกคนเป็น staff) |
+| `FIREBASE_PROJECT_ID` | `irish-lab` | ✅ **สวิตช์หลัก** ไม่ตั้ง = ปิด SSO ทั้งระบบ |
+| `MAIN_SITE_URL` | `https://irish-tech.com/en` | ตั้งไว้ใน `render.yaml` แล้ว — ใช้โชว์ปุ่ม "เข้าสู่ระบบด้วยบัญชีเว็บแลป" |
+| `FIREBASE_MEMBER_COLLECTION` | `member` | ตั้งไว้ใน `render.yaml` แล้ว — คนใน collection นี้ = admin ของคลัง |
+| `FIREBASE_SERVICE_ACCOUNT` | JSON ทั้งก้อน | เฉพาะกรณี security rules ไม่ยอมให้ผู้ใช้อ่าน `member` (ดูหัวข้อถัดไป) |
+| `FIREBASE_ADMIN_EMAILS` | `a@x.com,b@x.com` | (ไม่บังคับ) รายชื่ออีเมล admin แบบกำหนดเอง เสริมจาก `member` |
 | `ALLOW_GUEST` | `1` | (ไม่บังคับ) เปิด SSO แล้วแต่ยังให้ยืมแบบ guest คู่กันไว้ช่วงเปลี่ยนผ่าน |
+
+> ⚠️ ใส่ `FIREBASE_PROJECT_ID` **หลัง**ทีมเว็บหลักเพิ่มปุ่มเสร็จแล้วเท่านั้น เพราะใส่ปุ๊บ = ยืมแบบ guest ปิดทันที
 
 ### 2. ส่งโค้ดปุ่มนี้ให้ทีมเว็บหลัก
 วางปุ่ม "ยืมของ / เข้าคลังแลป" ในเว็บหลัก (ต้องกดตอน login อยู่):
@@ -46,7 +50,17 @@ async function goToBorrowSite() {
 
 **ห้ามส่ง token ทาง URL query** (`?token=...`) — จะค้างใน log เซิร์ฟเวอร์และประวัติเบราว์เซอร์ ใช้ form POST เท่านั้น
 
-### 3. ทดสอบ
+### 3. ใครเป็น admin ของคลัง — ดูจาก collection `member`
+คนที่อยู่ใน collection `member` ของเว็บหลัก = **admin ของคลัง** · ที่เหลือ = staff (ขอยืมได้อย่างเดียว)
+
+- เราไปอ่าน Firestore ตอน login **ในนามของผู้ใช้เอง** (ใช้ ID token ของเขา) — ใช้ได้ถ้า security rules ยอมให้คนที่ login แล้วอ่าน `member`
+- ถ้า rules ไม่ยอม (log จะขึ้น `rules ของเว็บหลักไม่ยอมให้อ่าน collection member`) → โหลด service account key จาก Firebase Console → Project settings → Service accounts แล้วเอา JSON ทั้งก้อนใส่ env `FIREBASE_SERVICE_ACCOUNT` (อ่านได้โดยไม่ติด rules)
+- **ไม่ต้องรู้โครงสร้างเอกสารล่วงหน้า** — โค้ดลองให้ 4 แบบ: รหัสเอกสาร = uid → รหัสเอกสาร = อีเมล → ฟิลด์ที่เก็บ uid (`firebase_uid`/`uid`/`user_id`/`userId`/`id`) → ฟิลด์อีเมล (`email`/`Email`/`mail`) · ถ้าเว็บหลักใช้ชื่อฟิลด์อื่น ตั้ง `FIREBASE_MEMBER_UID_FIELD` / `FIREBASE_MEMBER_EMAIL_FIELD` เพิ่มได้
+- **ถูกถอดออกจาก `member` = ลดเป็น staff อัตโนมัติ** ตอนเข้าครั้งถัดไป (สิทธิ์ยึดตามเว็บหลักเป็นหลัก)
+- **Firestore ล่ม/อ่านไม่ได้ = คงสิทธิ์เดิมไว้** ไม่ลดสิทธิ์ใครเพราะระบบเขามีปัญหา และยัง login ได้ตามปกติ
+- ผลเช็คแคช 10 นาที (`FIREBASE_MEMBER_CACHE_MS`) — เพิ่มคนเข้า `member` แล้วอาจต้องรอถึง 10 นาที + เข้าใหม่
+
+### 4. ทดสอบ
 กดปุ่มจากเว็บหลัก → ต้องเด้งเข้าเว็บคลังโดยเมนูซ้ายขึ้นชื่อจริง (ไม่ใช่ "ผู้เยี่ยมชม") → กดยืมของ ช่อง "ชื่อผู้ยืม" ต้องเติมมาให้แล้ว และไม่มีช่องรหัสบัตร
 
 ## สิ่งที่ทำไปแล้ว (โค้ด)
@@ -55,6 +69,7 @@ async function goToBorrowSite() {
 |---|---|
 | [firebase-auth.js](firebase-auth.js) | ตรวจ Firebase ID token เอง (JWT RS256 + กุญแจสาธารณะ Google, แคชตาม `Cache-Control`) |
 | [db.js](db.js) | คอลัมน์ `users.firebase_uid` (UNIQUE เฉพาะที่ไม่ NULL) + `users.email` |
+| [firebase-member.js](firebase-member.js) | อ่าน collection `member` ของเว็บหลัก (Firestore REST) → ตัดสินว่าใครเป็น admin · รองรับทั้ง ID token ของผู้ใช้และ service account |
 | [server.js](server.js) | `POST /auth/firebase` (form จากเว็บหลัก → redirect), `POST /api/auth/firebase` (JSON), `GET /api/config` |
 | [client/src/App.jsx](client/src/App.jsx) | ปุ่ม "เข้าสู่ระบบด้วยบัญชีเว็บแลป" (โชว์เมื่อยังไม่ล็อกอิน + ตั้ง `MAIN_SITE_URL` แล้ว) |
 | [client/src/Items.jsx](client/src/Items.jsx) | ฟอร์มยืมบอกว่าชื่อมาจากบัญชี (แก้ได้ถ้ายืมแทนคนอื่น) |
@@ -88,11 +103,14 @@ async function goToBorrowSite() {
 - ✅ flow จริง: ผู้ใช้ SSO ขอยืม (ไม่กรอกชื่อ/บัตร) → เห็นเฉพาะคำขอตัวเอง → admin อนุมัติ → สต็อก 5→3 → คืน → กลับเป็น 5
 - ✅ เปิด SSO แล้ว guest ยิง `/api/orders` ตรงๆ → 401 และสต็อกไม่ถูกแตะ
 - ✅ ยังไม่ตั้ง `FIREBASE_PROJECT_ID` → `guestBorrow: true` และ guest ยังยืมได้เหมือนเดิม
+- ✅ อยู่ใน `member` → เป็น admin (ทดสอบครบ 3 แบบ: รหัสเอกสาร=uid / รหัสเอกสาร=อีเมล / ฟิลด์ `firebase_uid`)
+- ✅ ไม่อยู่ใน `member` → staff · ถูกถอดออกภายหลัง → ลดเป็น staff ตอนเข้าครั้งถัดไป
+- ✅ Firestore ปฏิเสธ/ล่ม → ยัง login ได้ และ admin เดิมไม่ถูกลดสิทธิ์
 
 ## ยังค้าง / ต้องตัดสินใจ
-- [ ] โดเมนเว็บแลปหลัก (ใส่ `MAIN_SITE_URL`) และทีมเว็บหลักเพิ่มปุ่มให้
+- [ ] ทีมเว็บหลักเพิ่มปุ่ม "ยืมของ" ให้ (โค้ดอยู่ข้างบน) — เสร็จแล้วค่อยใส่ `FIREBASE_PROJECT_ID`
+- [ ] เช็คว่า security rules ยอมให้ผู้ใช้อ่าน collection `member` ไหม ถ้าไม่ → ใส่ `FIREBASE_SERVICE_ACCOUNT`
 - [ ] `display name` อยู่ใน Firebase Auth หรือแค่ใน Firestore (กำหนดว่าปุ่มต้องส่ง `name` มาด้วยไหม) — โค้ดเรารองรับทั้งสองแบบแล้ว
-- [ ] อีเมลไหนบ้างเป็น admin ของคลัง (`FIREBASE_ADMIN_EMAILS`)
 - [ ] ผู้ใช้เก่าที่ยืมแบบ guest ไว้ — ประวัติผูกกับรหัสบัตร ไม่ย้ายเข้าบัญชี SSO อัตโนมัติ (ถ้าต้องการ ทำสคริปต์จับคู่ทีหลังได้)
 
 ## ทางยืมแบบ guest (ตัดสินใจแล้ว: ปิด)

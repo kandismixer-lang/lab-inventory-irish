@@ -54,7 +54,8 @@ cd client && npm run build
 ## SSO เว็บแลปหลัก (Firebase)
 โค้ดพร้อมแล้ว (ดู [FIREBASE_SSO_PLAN.md](FIREBASE_SSO_PLAN.md)) — เปิดใช้ด้วย env `FIREBASE_PROJECT_ID=irish-lab` + `MAIN_SITE_URL`
 - verify token เองใน [firebase-auth.js](firebase-auth.js) (ไม่ใช้ firebase-admin — หนัก/boot ช้า)
-- เว็บหลัก form POST `{token,name}` → `/auth/firebase` → ตั้ง session → คนนั้นเป็น staff, ชื่อเติมอัตโนมัติตอนยืม
+- เว็บหลัก (https://irish-tech.com/en) form POST `{token,name}` → `/auth/firebase` → ตั้ง session → ชื่อเติมอัตโนมัติตอนยืม
+- **admin = คนที่อยู่ใน collection `member` ของ Firestore เว็บหลัก** ([firebase-member.js](firebase-member.js)) — ถูกถอดออก = ลดเป็น staff, Firestore ล่ม = คงสิทธิ์เดิม
 - ไม่ตั้ง env = ปิด SSO ระบบทำงานเหมือนเดิม (guest + admin รหัสผ่าน)
 - **เปิด SSO = ปิดทางยืมแบบ guest อัตโนมัติ** (บังคับที่ `/api/orders`) · `ALLOW_GUEST=1` = เปิดคู่กันชั่วคราว
 - ช่องรหัสบัตรที่เมนูซ้ายยังอยู่ ไว้ให้คนที่ยืมก่อนมีระบบ login ตามของตัวเอง

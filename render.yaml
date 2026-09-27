@@ -24,10 +24,20 @@ services:
         sync: false
       - key: TURSO_TOKEN
         sync: false
-      # SSO กับเว็บแลปหลัก (Firebase) — ไม่ตั้ง FIREBASE_PROJECT_ID = ปิด SSO (ใช้ guest/admin แบบเดิม)
+      # ---- SSO กับเว็บแลปหลัก (Firebase) ----
+      # สวิตช์เปิด/ปิดทั้งระบบ: ใส่ irish-lab ในหน้า Render เมื่อพร้อมใช้จริง
+      # ⚠️ เปิดเมื่อไหร่ = ยืมแบบ guest (กรอกชื่อ+รหัสบัตร) ปิดทันที ทุกคนต้อง login เว็บแลปก่อน
+      #    ต้องให้ทีมเว็บหลักเพิ่มปุ่ม "ยืมของ" เสร็จก่อนค่อยเปิด (ดู FIREBASE_SSO_PLAN.md)
       - key: FIREBASE_PROJECT_ID
         sync: false
       - key: MAIN_SITE_URL
+        value: https://irish-tech.com/en
+      # คนที่อยู่ใน collection นี้ของเว็บหลัก = admin ของคลัง
+      - key: FIREBASE_MEMBER_COLLECTION
+        value: member
+      # ใส่ JSON ของ service account (ทั้งก้อน) เฉพาะกรณี security rules ไม่ยอมให้ผู้ใช้อ่าน collection member
+      - key: FIREBASE_SERVICE_ACCOUNT
         sync: false
+      # รายชื่ออีเมล admin แบบกำหนดเอง (สำรอง/เสริมจาก collection member)
       - key: FIREBASE_ADMIN_EMAILS
         sync: false
