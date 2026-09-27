@@ -114,7 +114,9 @@ server {
 | `FIREBASE_MEMBER_COLLECTION` | `member` | collection ใน Firestore ของเว็บหลัก — คนที่อยู่ในนี้ = admin ของคลัง |
 | `FIREBASE_SERVICE_ACCOUNT` | — | JSON service account (ใช้เมื่อ security rules ไม่ยอมให้ผู้ใช้อ่าน `member`) |
 | `FIREBASE_ADMIN_EMAILS` | — | อีเมลที่ให้เป็น admin ของคลัง คั่นด้วย `,` (เสริมจาก `member`) |
-| `ALLOW_GUEST` | — | `1` = เปิด SSO แล้วยังให้ยืมแบบ guest คู่กันไว้ (ปกติเปิด SSO = ปิด guest) |
+| `ALLOW_GUEST` | — | `1` = เปิด SSO แล้วยังให้ใช้งานแบบไม่ล็อกอินคู่กันไว้ (ปกติเปิด SSO = ทั้งเว็บต้องล็อกอิน) |
+| `SSO_ALLOWED_ORIGINS` | — | origin เพิ่มเติมที่ยิง `/auth/firebase` ได้ คั่นด้วย `,` (ปกติใช้ของ `MAIN_SITE_URL` พอ) |
+| `SSO_MAX_PER_MIN` | 30 | เพดานการยิง `/auth/firebase` ต่อ IP ต่อนาที |
 
 รายละเอียด SSO: [FIREBASE_SSO_PLAN.md](FIREBASE_SSO_PLAN.md)
 

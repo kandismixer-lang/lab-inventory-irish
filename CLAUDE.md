@@ -57,8 +57,8 @@ cd client && npm run build
 - เว็บหลัก (https://irish-tech.com/en) form POST `{token,name}` → `/auth/firebase` → ตั้ง session → ชื่อเติมอัตโนมัติตอนยืม
 - **admin = คนที่อยู่ใน collection `member` ของ Firestore เว็บหลัก** ([firebase-member.js](firebase-member.js)) — ถูกถอดออก = ลดเป็น staff, Firestore ล่ม = คงสิทธิ์เดิม
 - ไม่ตั้ง env = ปิด SSO ระบบทำงานเหมือนเดิม (guest + admin รหัสผ่าน)
-- **เปิด SSO = ปิดทางยืมแบบ guest อัตโนมัติ** (บังคับที่ `/api/orders`) · `ALLOW_GUEST=1` = เปิดคู่กันชั่วคราว
-- ช่องรหัสบัตรที่เมนูซ้ายยังอยู่ ไว้ให้คนที่ยืมก่อนมีระบบ login ตามของตัวเอง
+- **เปิด SSO = ทั้งเว็บต้องล็อกอินก่อน** — middleware ปิด `/api/*` ทั้งหมด เปิดแค่ `/api/config|login|logout|me|auth/firebase`
+  หน้าเว็บแสดง LoginGate เต็มจอ (ปุ่มไปเว็บหลัก + ทางสำรองรหัสผ่านสำหรับแอดมิน) · `ALLOW_GUEST=1` = เปิดคู่กันชั่วคราว
 
 ## ยังไม่ได้ทำ / ค้างไว้
 - Barcode/QR, แจ้งเตือนอีเมล/เกินกำหนด, import ของเดิม (CSV), สคริปต์ backup อัตโนมัติ

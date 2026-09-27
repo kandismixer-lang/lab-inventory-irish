@@ -24,9 +24,11 @@ export default function App() {
 
 function Root() {
   const [me, setMe] = useState(undefined); // undefined=กำลังเช็ค, null=ยังไม่ login
+  const [cfg, setCfg] = useState(undefined); // { sso, mainSiteUrl, guestBorrow }
   const [guestName, setGuestName] = useState(() => localStorage.getItem('guestName') || '');
   useEffect(() => {
     api('/api/me').then(setMe).catch(() => setMe(null));
+    api('/api/config').then(setCfg).catch(() => setCfg({}));
   }, []);
   const saveGuestName = (n) => {
     const v = (n || '').trim();
@@ -34,11 +36,13 @@ function Root() {
     setGuestName(v);
   };
 
-  if (me === undefined) return <Booting />;
+  if (me === undefined || cfg === undefined) return <Booting />;
   // server คืน guest (role 'guest') แบบ 200 ด้วย — ถือว่ายังไม่ login จริง ให้ใช้ชื่อจาก browser
   const loggedIn = me && me.role !== 'guest';
+  // เปิด SSO แล้ว = ยังไม่ล็อกอิน ห้ามเห็นอะไรเลย (server ก็ปิด /api/* ไว้ด้วย ไม่ใช่แค่ซ่อนหน้าจอ)
+  if (!loggedIn && cfg.sso && cfg.guestBorrow === false) return <LoginGate cfg={cfg} onLogin={setMe} />;
   const guest = { role: 'guest', username: 'guest', fullname: guestName || 'ผู้เยี่ยมชม' };
-  return <Shell me={loggedIn ? me : guest} onMe={setMe} guestName={guestName} onGuestName={saveGuestName} />;
+  return <Shell me={loggedIn ? me : guest} cfg={cfg} onMe={setMe} guestName={guestName} onGuestName={saveGuestName} />;
 }
 
 // หน้ารอตอนเปิดแอป — server free tier หลับ ต้องปลุก 30-50 วิ
@@ -82,6 +86,62 @@ function LoginModal({ onClose, onLogin }) {
         <button className="btn primary" type="submit" style={{ marginTop: 12, width: '100%' }}>เข้าสู่ระบบ</button>
       </form>
     </Modal>
+  );
+}
+
+// ประตูหน้าเว็บตอนเปิด SSO — ยังไม่ล็อกอินเห็นแค่หน้านี้ ไม่เห็นข้อมูลคลังเลย
+function LoginGate({ cfg, onLogin }) {
+  const [usePw, setUsePw] = useState(false); // ทางสำรองสำหรับแอดมินคลัง (เผื่อเว็บหลัก/Firebase ล่ม)
+  const [err, setErr] = useState('');
+  const submit = async (e) => {
+    e.preventDefault();
+    const f = e.target;
+    try {
+      onLogin(await api('/api/login', { method: 'POST', body: { username: f.username.value, password: f.password.value } }));
+    } catch (er) { setErr(er.message); }
+  };
+  return (
+    <div className="login-wrap">
+      <div className="login-fx" aria-hidden="true">
+        <span className="fx-grid" />
+        <span className="fx-glow fx-glow-a" />
+        <span className="fx-glow fx-glow-b" />
+        <span className="fx-stars" />
+      </div>
+
+      <div className="login-hero">
+        <div className="login-mark">
+          <span className="mark-ring" aria-hidden="true" />
+          <span className="brand-logo full" aria-hidden="true" />
+        </div>
+        <div className="login-tagline">Intelligent Robot &amp; Industrial System Hub</div>
+      </div>
+
+      <div className="card login-card">
+        <h1>Inventory IRiSH Lab</h1>
+        <p className="muted">ต้องเข้าสู่ระบบด้วยบัญชีเว็บแลปก่อนใช้งาน</p>
+        {cfg.mainSiteUrl && (
+          <>
+            <a className="btn primary sso-btn" href={cfg.mainSiteUrl}>🔑 เข้าสู่ระบบด้วยบัญชีเว็บแลป</a>
+            <div className="hint" style={{ textAlign: 'center' }}>
+              ระบบจะพาไปที่เว็บแลปหลัก — เข้าสู่ระบบแล้วกดปุ่ม “Equipment Loan” เพื่อกลับมาที่นี่
+            </div>
+          </>
+        )}
+        {usePw ? (
+          <form onSubmit={submit} style={{ marginTop: 14 }}>
+            <label>ชื่อผู้ใช้<input name="username" autoComplete="username" autoFocus required /></label>
+            <label>รหัสผ่าน<input name="password" type="password" autoComplete="current-password" required /></label>
+            <button className="btn" type="submit" style={{ width: '100%', marginTop: 8 }}>เข้าสู่ระบบ</button>
+            <div className="err">{err}</div>
+          </form>
+        ) : (
+          <button className="btn small" onClick={() => setUsePw(true)} style={{ marginTop: 14, width: '100%' }}>
+            เข้าด้วยรหัสผ่าน (เฉพาะแอดมินคลัง)
+          </button>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -142,7 +202,7 @@ const VIEWS = {
 const canSee = (v, me) =>
   !(v.adminOnly && me.role !== 'admin') && !(v.needLogin && me.role === 'guest');
 
-function Shell({ me, onMe, guestName, onGuestName }) {
+function Shell({ me, cfg, onMe, guestName, onGuestName }) {
   const [view, setView] = useState('dashboard');
   const [changingPw, setChangingPw] = useState(false);
   const [loggingIn, setLoggingIn] = useState(false);
@@ -150,7 +210,6 @@ function Shell({ me, onMe, guestName, onGuestName }) {
   const [focusItem, setFocusItem] = useState(null); // id ของของที่จะให้หน้ารายการเปิดรอ
   const [refreshKey, setRefreshKey] = useState(0); // บั๊มพ์เพื่อรีโหลดข้อมูลหน้าปัจจุบัน
   const [guestCard, setGuestCard] = useState(() => localStorage.getItem('guestCard') || '');
-  const [cfg, setCfg] = useState(null); // { sso, mainSiteUrl } — เปิด SSO เว็บแลปหลักไว้ไหม
   const toast = useToast();
   const isGuest = me.role === 'guest';
   const Comp = VIEWS[view].comp;
@@ -185,8 +244,6 @@ function Shell({ me, onMe, guestName, onGuestName }) {
     const card = (guestCard || '').trim();
     if (card) api('/api/guest/name', { method: 'POST', body: { card } }).then((r) => { if (r?.name && r.name !== guestName) onGuestName(r.name); setRefreshKey((k) => k + 1); }).catch(() => {});
   }, []);
-
-  useEffect(() => { api('/api/config').then(setCfg).catch(() => {}); }, []);
 
   // เปลี่ยนหน้า + สั่งโฟกัสของ (จากแดชบอร์ด)
   const go = (v, payload) => {

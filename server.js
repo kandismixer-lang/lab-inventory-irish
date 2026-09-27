@@ -92,6 +92,24 @@ function resolveCategory(category, fallbackType) {
   return { category: type === 'tool' ? 'เครื่องมือ' : 'วัสดุสิ้นเปลือง', type };
 }
 
+// เปิด SSO แล้ว = ปิดทางใช้งานแบบไม่ล็อกอิน (guest กรอกชื่อ+รหัสบัตร) ทุกคนต้อง login เว็บแลปก่อน
+// ยังไม่ได้ตั้ง FIREBASE_PROJECT_ID = ทำงานเหมือนเดิมทุกอย่าง (เว็บไม่ตายระหว่างรอเปิดใช้จริง)
+// ALLOW_GUEST=1 = เปิด SSO แล้วแต่ยังให้ guest ใช้งานคู่กันไว้ (ช่วงเปลี่ยนผ่าน)
+const guestBorrowAllowed = () => !fbAuth.enabled() || process.env.ALLOW_GUEST === '1';
+
+// ---------- ประตูหน้า: เปิด SSO แล้วต้อง login ก่อนถึงจะใช้ API ใดๆ ได้ ----------
+// ไม่ใช่แค่ห้ามยืม — คนที่ยังไม่ล็อกอินต้องไม่เห็นข้อมูลคลัง/คำขอ/ชื่อคนยืมเลย
+// (ยกเว้นเส้นที่จำเป็นต่อการล็อกอินเอง ไม่งั้นหน้าเว็บจะเข้าสู่ระบบไม่ได้)
+const OPEN_PATHS = new Set(['/api/config', '/api/login', '/api/logout', '/api/me', '/api/auth/firebase']);
+// ต้องไม่ mount ที่ '/api' เพราะ req.path ใน middleware ที่ mount ไว้จะถูกตัด prefix ออก ('/login' ไม่ใช่ '/api/login')
+app.use((req, res, next) => {
+  if (!req.path.startsWith('/api/')) return next();
+  if (guestBorrowAllowed() || OPEN_PATHS.has(req.path)) return next();
+  if (currentUser(req).role === 'guest')
+    return res.status(401).json({ error: 'ต้องเข้าสู่ระบบด้วยบัญชีเว็บแลปก่อน' });
+  next();
+});
+
 // ---------- auth ----------
 // กัน brute-force รหัสผ่าน (เว็บ public) — จำกัดครั้งที่ผิดต่อ IP
 const _loginFails = new Map(); // ip -> { count, until }
@@ -178,7 +196,10 @@ function upsertFirebaseUser(info, formName, isMember = null) {
 
   let row = db.prepare('SELECT * FROM users WHERE firebase_uid = ?').get(info.uid);
   // ยังไม่เคยผูก: ถ้ามีบัญชีเดิมอีเมลตรงกัน (แอดมินสร้างรอไว้) ให้ผูกเข้าด้วยกัน
-  if (!row && email) row = db.prepare("SELECT * FROM users WHERE email = ? AND email <> '' AND firebase_uid IS NULL").get(email);
+  // ⚠️ ต้อง emailVerified เท่านั้น — Firebase สมัคร email/password ด้วยอีเมลของคนอื่นได้โดยยังไม่ยืนยัน
+  // ถ้าไม่เช็ค คนนอกสมัครด้วยอีเมลของแอดมินแล้วสวมบัญชีเดิม (พร้อมสิทธิ์) ได้ทันที
+  if (!row && email && info.emailVerified)
+    row = db.prepare("SELECT * FROM users WHERE email = ? AND email <> '' AND firebase_uid IS NULL").get(email);
 
   if (row) {
     // อัปเดตชื่อทุกครั้งที่เข้า (เปลี่ยนชื่อที่เว็บหลัก = เปลี่ยนตาม) · เลื่อนเป็น admin ได้ แต่ไม่ลดสิทธิ์ที่แอดมินเราตั้งไว้เอง
@@ -206,18 +227,53 @@ function upsertFirebaseUser(info, formName, isMember = null) {
 
 // จำกัดการยิง token ต่อ IP (ตรวจลายเซ็นกิน CPU)
 const _ssoHits = new Map();
+const SSO_MAX_PER_MIN = Number(process.env.SSO_MAX_PER_MIN ?? 30);
 function ssoThrottle(req) {
   const now = Date.now(), ip = req.ip || 'unknown';
   const hits = (_ssoHits.get(ip) || []).filter((t) => now - t < 60000);
-  if (hits.length >= 30) return 'เข้าสู่ระบบถี่เกินไป พัก 1 นาทีแล้วลองใหม่';
+  if (hits.length >= SSO_MAX_PER_MIN) return 'เข้าสู่ระบบถี่เกินไป พัก 1 นาทีแล้วลองใหม่';
   hits.push(now); _ssoHits.set(ip, hits);
   return null;
 }
 
 // login แล้วพากลับไปหน้าไหน — รับเฉพาะ path ภายในเว็บเรา (กัน open redirect)
+// ต้อง parse ด้วย URL จริง ไม่ใช่ regex: เบราว์เซอร์แปลง backslash เป็น slash และตัดอักขระควบคุมทิ้ง
+// ทำให้ '/\evil.com' กับ '/<tab>/evil.com' กลายเป็น '//evil.com' = หลุดออกนอกเว็บ ทั้งที่ regex เห็นว่าขึ้นต้นด้วย / เดี่ยว
+const NEXT_BASE = 'http://internal.invalid';
 function safeNext(v) {
-  const s = (v || '').trim();
-  return /^\/(?!\/)/.test(s) ? s : '/';
+  try {
+    const u = new URL(v || '', NEXT_BASE);
+    if (u.origin !== NEXT_BASE) return '/'; // ชี้ออกนอกเว็บเรา (ทุกรูปแบบ) → กลับหน้าแรก
+    return (u.pathname || '/') + u.search + u.hash;
+  } catch {
+    return '/';
+  }
+}
+
+// origin ที่ยอมให้ยิง form POST ข้ามเว็บเข้ามา login ได้ (กัน login-CSRF: เว็บอื่นยัด token ของตัวเอง
+// ใส่ฟอร์มซ่อนแล้วให้เบราว์เซอร์เหยื่อยิงมา ทำให้เหยื่อกลายเป็นล็อกอินด้วยบัญชีคนอื่นโดยไม่รู้ตัว)
+// ไม่ได้ตั้ง MAIN_SITE_URL = ไม่เช็ค (ไม่รู้ว่าใครควรยิงมาได้)
+const SSO_ORIGINS = (() => {
+  const set = new Set();
+  const add = (raw) => {
+    try {
+      const o = new URL(raw).origin;
+      set.add(o);
+      // ยอมทั้งแบบมีและไม่มี www (เว็บหลักอาจเสิร์ฟทั้งสองโดเมน)
+      const h = new URL(o).hostname;
+      set.add(h.startsWith('www.') ? o.replace('://www.', '://') : o.replace('://', '://www.'));
+    } catch {}
+  };
+  if (MAIN_SITE_URL) add(MAIN_SITE_URL);
+  (process.env.SSO_ALLOWED_ORIGINS || '').split(',').map((x) => x.trim()).filter(Boolean).forEach(add);
+  return set;
+})();
+// origin ไหนยิง /auth/firebase ได้ — เบราว์เซอร์ส่ง Origin มาทุกครั้งที่ POST ข้ามเว็บ
+// ไม่มี header Origin (เช่น สคริปต์/เทสต์) = ปล่อยผ่าน เพราะเคส login-CSRF ต้องเกิดผ่านเบราว์เซอร์เท่านั้น
+function ssoOriginAllowed(req) {
+  const origin = req.get('origin');
+  if (!origin || SSO_ORIGINS.size === 0) return true;
+  return SSO_ORIGINS.has(origin) || origin === `${req.protocol}://${req.get('host')}`;
 }
 function ssoErrorPage(msg) {
   const esc = String(msg).replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
@@ -231,6 +287,10 @@ function ssoErrorPage(msg) {
 app.post('/auth/firebase', express.urlencoded({ extended: false, limit: '64kb' }), async (req, res) => {
   const block = ssoThrottle(req);
   if (block) return res.status(429).send(ssoErrorPage(block));
+  if (!ssoOriginAllowed(req)) {
+    console.warn('SSO: ปฏิเสธคำขอ login จาก origin แปลกปลอม:', req.get('origin'));
+    return res.status(403).send(ssoErrorPage('คำขอเข้าสู่ระบบมาจากเว็บที่ไม่ได้รับอนุญาต'));
+  }
   try {
     const token = (req.body?.token || '').trim();
     const info = await fbAuth.verifyIdToken(token);
@@ -261,11 +321,6 @@ app.post('/api/auth/firebase', async (req, res) => {
     res.status(401).json({ error: e.message || 'ตรวจ token ไม่ผ่าน' });
   }
 });
-
-// เปิด SSO แล้ว = ปิดทางยืมแบบ guest (กรอกชื่อ+รหัสบัตร) ทุกคนต้อง login เว็บแลปก่อน
-// ยังไม่ได้ตั้ง FIREBASE_PROJECT_ID = ยังให้ guest ยืมได้เหมือนเดิม (เว็บไม่ตายระหว่างรอเปิดใช้จริง)
-// ALLOW_GUEST=1 = เปิด SSO แล้วแต่ยังให้ guest ยืมคู่กันไว้ (ช่วงเปลี่ยนผ่าน)
-const guestBorrowAllowed = () => !fbAuth.enabled() || process.env.ALLOW_GUEST === '1';
 
 // ค่าคอนฟิกที่หน้าเว็บต้องรู้ (เปิด SSO ไหม / ลิงก์เว็บแลปหลัก / ยืมแบบไม่ล็อกอินได้ไหม)
 app.get('/api/config', (_req, res) =>

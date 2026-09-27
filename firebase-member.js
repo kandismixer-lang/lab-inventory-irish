@@ -14,7 +14,10 @@ const crypto = require('crypto');
 
 const FIRESTORE_URL = process.env.FIRESTORE_URL || 'https://firestore.googleapis.com';
 const COLLECTION = (process.env.FIREBASE_MEMBER_COLLECTION || 'member').trim();
-const TIMEOUT_MS = 6000;
+const TIMEOUT_MS = 6000;           // ต่อ 1 คำขอ
+// เพดานรวมทั้งการเช็ค 1 ครั้ง — การหาเอกสารลองได้ถึง ~10 คำขอเรียงกัน ถ้า Firestore "ช้าแต่ไม่ล่ม"
+// จะกลายเป็นผู้ใช้รอหน้าเว็บค้างเป็นนาที เลยต้องมีเพดานรวม ไม่ใช่แค่ timeout ต่อคำขอ
+const TOTAL_TIMEOUT_MS = Number(process.env.FIREBASE_MEMBER_TIMEOUT_MS ?? 8000);
 // จำผลไว้ 10 นาที (ไม่ยิง Firestore ทุกครั้งที่เข้าเว็บ) — ตั้ง 0 เพื่อเช็คสดทุกครั้ง
 const CACHE_MS = Number(process.env.FIREBASE_MEMBER_CACHE_MS ?? 10 * 60_000);
 
@@ -64,11 +67,13 @@ async function serviceAccountToken() {
 }
 
 // ---------- เรียก Firestore ----------
-async function call(url, authToken, init = {}) {
+async function call(url, authToken, init = {}, deadline = 0) {
+  const left = deadline ? deadline - Date.now() : TIMEOUT_MS;
+  if (left <= 0) throw new Error('หมดเวลารอ Firestore');
   const res = await fetch(url, {
     ...init,
     headers: { authorization: 'Bearer ' + authToken, 'content-type': 'application/json', ...(init.headers || {}) },
-    signal: AbortSignal.timeout(TIMEOUT_MS),
+    signal: AbortSignal.timeout(Math.min(TIMEOUT_MS, left)),
   });
   return res;
 }
@@ -77,8 +82,9 @@ async function call(url, authToken, init = {}) {
 //   1. รหัสเอกสาร = uid   2. รหัสเอกสาร = อีเมล   3. query ฟิลด์ที่เก็บ uid   4. query ฟิลด์ที่เก็บอีเมล
 async function lookup(uid, email, authToken) {
   const base = docsUrl();
+  const deadline = Date.now() + TOTAL_TIMEOUT_MS; // เพดานรวมของการค้นหาทั้งชุด
   for (const id of [uid, email].filter(Boolean)) {
-    const r = await call(`${base}/${COLLECTION}/${encodeURIComponent(id)}`, authToken);
+    const r = await call(`${base}/${COLLECTION}/${encodeURIComponent(id)}`, authToken, {}, deadline);
     if (r.ok) return { found: true, how: 'รหัสเอกสาร = ' + (id === uid ? 'uid' : 'อีเมล') };
     if (r.status === 403) throw new Error('rules ของเว็บหลักไม่ยอมให้อ่าน collection ' + COLLECTION);
     if (r.status !== 404) throw new Error('Firestore ตอบ ' + r.status);
@@ -94,7 +100,7 @@ async function lookup(uid, email, authToken) {
           limit: 1,
         },
       }),
-    });
+    }, deadline);
     if (r.status === 403) throw new Error('rules ของเว็บหลักไม่ยอมให้ query collection ' + COLLECTION);
     if (!r.ok) continue; // ฟิลด์นี้ไม่มีจริง/query ไม่ได้ → ลองชื่อถัดไป
     const rows = await r.json();
