@@ -21,34 +21,66 @@
 
 > ⚠️ ใส่ `FIREBASE_PROJECT_ID` **หลัง**ทีมเว็บหลักเพิ่มปุ่มเสร็จแล้วเท่านั้น เพราะใส่ปุ๊บ = ยืมแบบ guest ปิดทันที
 
-### 2. ส่งโค้ดปุ่มนี้ให้ทีมเว็บหลัก
-วางปุ่ม "ยืมของ / เข้าคลังแลป" ในเว็บหลัก (ต้องกดตอน login อยู่):
+### 2. ส่งโค้ดปุ่มนี้ให้ทีมเว็บหลัก (ยังไม่ทำ — ติดอยู่ตรงนี้)
 
-```js
-async function goToBorrowSite() {
-  const user = getAuth().currentUser;            // SDK v9 (v8: firebase.auth().currentUser)
-  if (!user) return alert('กรุณาเข้าสู่ระบบก่อน');
-  const token = await user.getIdToken();
+**ปัญหาปัจจุบัน:** เมนู "Equipment Loan" ที่ irish-tech.com เป็นลิงก์ธรรมดา
+`<a href="https://lab-inventory-t9oe.onrender.com">` — ไม่ได้ส่ง ID token มา คนกดเข้ามาจึงยังเป็นผู้เยี่ยมชม
+ต้องเปลี่ยนเป็นปุ่มที่ดึง token แล้ว **form POST** มาให้เรา
 
-  const f = document.createElement('form');
-  f.method = 'POST';
-  f.action = 'https://<โดเมนเว็บยืมของ>/auth/firebase';
-  const fields = {
-    token,
-    name: user.displayName || '',   // ถ้าชื่ออยู่แค่ใน Firestore ให้ใส่ชื่อจากที่นั่นแทน
-    // next: '/requests',           // (ไม่บังคับ) หน้าที่จะพาไปหลังเข้าระบบ
+> ⚠️ ห้ามส่ง token ทาง URL (`?token=...`) เพราะจะค้างใน log เซิร์ฟเวอร์และประวัติเบราว์เซอร์ — ใช้ form POST เท่านั้น
+
+---
+#### 📋 ข้อความสำหรับส่งต่อให้ทีมเว็บหลัก
+
+> ขอเปลี่ยนเมนู **Equipment Loan** จากลิงก์ธรรมดา เป็นปุ่มที่ส่ง Firebase ID token มาให้ระบบคลัง
+> เพื่อให้คนที่ login เว็บแลปอยู่แล้วเข้าไปยืมของได้เลยโดยไม่ต้อง login ซ้ำ และชื่อผู้ยืมถูกเติมให้อัตโนมัติ
+>
+> ปลายทาง: `POST https://lab-inventory-t9oe.onrender.com/auth/firebase`
+> ฟิลด์: `token` (จำเป็น, ได้จาก `user.getIdToken()`) · `name` (ถ้า displayName ว่าง ให้ใส่ชื่อจาก Firestore) · `next` (ไม่บังคับ)
+>
+> ระบบคลังจะตรวจลายเซ็น token กับ Google ทุกครั้ง แล้ว redirect เข้าเว็บคลังให้เอง
+> คนที่อยู่ใน collection `member` จะได้สิทธิ์ admin ของคลังอัตโนมัติ ที่เหลือเป็นผู้ยืมทั่วไป
+
+```jsx
+'use client';
+import { useEffect, useState } from 'react';
+import { getAuth, onAuthStateChanged } from 'firebase/auth';
+
+const BORROW_SITE = 'https://lab-inventory-t9oe.onrender.com/auth/firebase';
+
+export default function EquipmentLoanButton() {
+  const [user, setUser] = useState(null);
+  // ต้องรอ onAuthStateChanged — ตอนเพิ่งโหลดหน้า currentUser ยังเป็น null อยู่แม้ login ค้างไว้
+  useEffect(() => onAuthStateChanged(getAuth(), setUser), []);
+
+  const go = async () => {
+    if (!user) return alert('Please sign in first / กรุณาเข้าสู่ระบบก่อน');
+    const token = await user.getIdToken();
+    // ถ้า displayName ว่าง ให้ใส่ชื่อจากเอกสาร users ใน Firestore แทน
+    const name = user.displayName || '';
+
+    const f = document.createElement('form');
+    f.method = 'POST';
+    f.action = BORROW_SITE;
+    for (const [k, v] of Object.entries({ token, name })) {
+      const i = document.createElement('input');
+      i.type = 'hidden'; i.name = k; i.value = v;
+      f.appendChild(i);
+    }
+    document.body.appendChild(f);
+    f.submit();
   };
-  for (const [k, v] of Object.entries(fields)) {
-    const i = document.createElement('input');
-    i.type = 'hidden'; i.name = k; i.value = v;
-    f.appendChild(i);
-  }
-  document.body.appendChild(f);
-  f.submit();
+
+  return <button onClick={go}>Equipment Loan</button>;
 }
 ```
 
-**ห้ามส่ง token ทาง URL query** (`?token=...`) — จะค้างใน log เซิร์ฟเวอร์และประวัติเบราว์เซอร์ ใช้ form POST เท่านั้น
+**หมายเหตุสำหรับทีมเว็บหลัก**
+- ระบบคลังอยู่บน Render free tier — ถ้าไม่มีคนใช้นาน เซิร์ฟเวอร์จะหลับ ครั้งแรกอาจรอ 30–50 วินาที (token อายุ 1 ชม. ไม่หมดก่อนแน่นอน)
+- ถ้าอยากให้เปิดแท็บใหม่ ใส่ `f.target = '_blank'` ก่อน `f.submit()`
+- ไม่ต้องตั้ง CORS อะไรเพิ่ม (เป็น form POST แบบเปลี่ยนหน้า ไม่ใช่ fetch)
+- ถ้าโดเมนระบบคลังเปลี่ยน แจ้งด้วยเพื่อแก้ `BORROW_SITE`
+---
 
 ### 3. ใครเป็น admin ของคลัง — ดูจาก collection `member`
 คนที่อยู่ใน collection `member` ของเว็บหลัก = **admin ของคลัง** · ที่เหลือ = staff (ขอยืมได้อย่างเดียว)
@@ -108,7 +140,8 @@ async function goToBorrowSite() {
 - ✅ Firestore ปฏิเสธ/ล่ม → ยัง login ได้ และ admin เดิมไม่ถูกลดสิทธิ์
 
 ## ยังค้าง / ต้องตัดสินใจ
-- [ ] ทีมเว็บหลักเพิ่มปุ่ม "ยืมของ" ให้ (โค้ดอยู่ข้างบน) — เสร็จแล้วค่อยใส่ `FIREBASE_PROJECT_ID`
+- [ ] **ทีมเว็บหลักเปลี่ยนเมนู Equipment Loan เป็นปุ่มส่ง token** (โค้ดข้อ 2) ← ค้างอยู่ตรงนี้
+- [ ] เสร็จแล้วค่อยใส่ `FIREBASE_PROJECT_ID=irish-lab` ในหน้า Render (= สวิตช์เปิด SSO + ปิด guest)
 - [ ] เช็คว่า security rules ยอมให้ผู้ใช้อ่าน collection `member` ไหม ถ้าไม่ → ใส่ `FIREBASE_SERVICE_ACCOUNT`
 - [ ] `display name` อยู่ใน Firebase Auth หรือแค่ใน Firestore (กำหนดว่าปุ่มต้องส่ง `name` มาด้วยไหม) — โค้ดเรารองรับทั้งสองแบบแล้ว
 - [ ] ผู้ใช้เก่าที่ยืมแบบ guest ไว้ — ประวัติผูกกับรหัสบัตร ไม่ย้ายเข้าบัญชี SSO อัตโนมัติ (ถ้าต้องการ ทำสคริปต์จับคู่ทีหลังได้)
