@@ -24,3 +24,10 @@ services:
         sync: false
       - key: TURSO_TOKEN
         sync: false
+      # SSO กับเว็บแลปหลัก (Firebase) — ไม่ตั้ง FIREBASE_PROJECT_ID = ปิด SSO (ใช้ guest/admin แบบเดิม)
+      - key: FIREBASE_PROJECT_ID
+        sync: false
+      - key: MAIN_SITE_URL
+        sync: false
+      - key: FIREBASE_ADMIN_EMAILS
+        sync: false

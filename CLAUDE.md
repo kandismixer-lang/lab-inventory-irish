@@ -51,6 +51,12 @@ cd client && npm run build
 - ทดสอบ API ด้วย **node fetch** ไม่ใช่ curl — curl บน Windows ส่งภาษาไทยใน body เพี้ยน (mojibake) ทำให้ข้อมูลทดสอบเสีย
 - cookie-session ส่ง 2 cookie (sess + sess.sig) เวลาเทสต์ต้องเก็บทั้งคู่: `headers.getSetCookie().map(c=>c.split(';')[0]).join('; ')`
 
+## SSO เว็บแลปหลัก (Firebase)
+โค้ดพร้อมแล้ว (ดู [FIREBASE_SSO_PLAN.md](FIREBASE_SSO_PLAN.md)) — เปิดใช้ด้วย env `FIREBASE_PROJECT_ID=irish-lab` + `MAIN_SITE_URL`
+- verify token เองใน [firebase-auth.js](firebase-auth.js) (ไม่ใช้ firebase-admin — หนัก/boot ช้า)
+- เว็บหลัก form POST `{token,name}` → `/auth/firebase` → ตั้ง session → คนนั้นเป็น staff, ชื่อเติมอัตโนมัติตอนยืม
+- ไม่ตั้ง env = ปิด SSO ระบบทำงานเหมือนเดิม (guest + admin รหัสผ่าน)
+
 ## ยังไม่ได้ทำ / ค้างไว้
 - Barcode/QR, แจ้งเตือนอีเมล/เกินกำหนด, import ของเดิม (CSV), สคริปต์ backup อัตโนมัติ
 - มีข้อมูลทดสอบปนอยู่ (ชื่อบางอันเพี้ยนจาก curl) — รอถามผู้ใช้ว่าจะล้างไหม

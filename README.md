@@ -109,6 +109,11 @@ server {
 | `DB_PATH` | `./data/inventory.db` | ตำแหน่งไฟล์ฐานข้อมูล |
 | `SESSION_SECRET` | (ค่า dev) | **ต้องเปลี่ยน** ตอน production — กุญแจเซ็น cookie |
 | `ADMIN_USER` / `ADMIN_PASS` | admin / admin1234 | บัญชี admin ที่ `init-db` สร้าง |
+| `FIREBASE_PROJECT_ID` | — | เปิด SSO กับเว็บแลปหลัก (ค่าของแลป: `irish-lab`) ไม่ตั้ง = ปิด SSO |
+| `MAIN_SITE_URL` | — | ลิงก์เว็บแลปหลัก — โชว์ปุ่ม “เข้าสู่ระบบด้วยบัญชีเว็บแลป” |
+| `FIREBASE_ADMIN_EMAILS` | — | อีเมลที่ให้เป็น admin ของคลัง คั่นด้วย `,` |
+
+รายละเอียด SSO: [FIREBASE_SSO_PLAN.md](FIREBASE_SSO_PLAN.md)
 
 ## Backup
 

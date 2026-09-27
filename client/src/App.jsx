@@ -150,6 +150,7 @@ function Shell({ me, onMe, guestName, onGuestName }) {
   const [focusItem, setFocusItem] = useState(null); // id ของของที่จะให้หน้ารายการเปิดรอ
   const [refreshKey, setRefreshKey] = useState(0); // บั๊มพ์เพื่อรีโหลดข้อมูลหน้าปัจจุบัน
   const [guestCard, setGuestCard] = useState(() => localStorage.getItem('guestCard') || '');
+  const [cfg, setCfg] = useState(null); // { sso, mainSiteUrl } — เปิด SSO เว็บแลปหลักไว้ไหม
   const toast = useToast();
   const isGuest = me.role === 'guest';
   const Comp = VIEWS[view].comp;
@@ -184,6 +185,8 @@ function Shell({ me, onMe, guestName, onGuestName }) {
     const card = (guestCard || '').trim();
     if (card) api('/api/guest/name', { method: 'POST', body: { card } }).then((r) => { if (r?.name && r.name !== guestName) onGuestName(r.name); setRefreshKey((k) => k + 1); }).catch(() => {});
   }, []);
+
+  useEffect(() => { api('/api/config').then(setCfg).catch(() => {}); }, []);
 
   // เปลี่ยนหน้า + สั่งโฟกัสของ (จากแดชบอร์ด)
   const go = (v, payload) => {
@@ -231,6 +234,14 @@ function Shell({ me, onMe, guestName, onGuestName }) {
           <div className="userbox">
             {isGuest ? (
               <>
+                {cfg?.mainSiteUrl && (
+                  <>
+                    <a className="btn small primary sso-btn" href={cfg.mainSiteUrl}>🔑 เข้าสู่ระบบด้วยบัญชีเว็บแลป</a>
+                    <div className="hint" style={{ margin: '0 0 10px' }}>
+                      ล็อกอินที่เว็บแลปแล้วกดปุ่ม “ยืมของ” — ชื่อผู้ยืมเติมให้อัตโนมัติ ไม่ต้องกรอกรหัสบัตร
+                    </div>
+                  </>
+                )}
                 <label className="guest-name">
                   <span className="hint">รหัสบัตรนักศึกษา/เบอร์โทร</span>
                   <input

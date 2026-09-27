@@ -225,6 +225,8 @@ form label .muted, form label .hint { font-weight: 400; }
 .guest-name input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(34,211,238,.18); }
 @media (max-width: 900px) { .guest-name { min-width: 200px; } }
 .confirm-text-short { display: none; }
+/* ปุ่มเข้าสู่ระบบด้วยบัญชีเว็บแลปหลัก (SSO) — เป็น <a> เลยต้องบังคับให้หน้าตาเหมือนปุ่มเต็มแถว */
+.sso-btn { display: block; text-align: center; text-decoration: none; margin-bottom: 6px; }
 
 main { flex: 1; min-width: 0; max-width: 1120px; margin: 24px auto; padding: 0 24px 96px; }
 

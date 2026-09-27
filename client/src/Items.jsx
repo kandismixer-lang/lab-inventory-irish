@@ -251,6 +251,7 @@ export function RequestForm({ item, defaultPerson, needCard, defaultCard, onClos
           <input name="person" defaultValue={defaultPerson || ''} placeholder="ใส่ชื่อผู้ยืม" required autoFocus={!defaultPerson} />
         </label>
         {!defaultPerson && <div className="hint">กรุณาใส่ชื่อผู้ยืม เพื่อให้ตามของคืนได้</div>}
+        {!!defaultPerson && !needCard && <div className="hint">ชื่อจากบัญชีที่เข้าสู่ระบบ — แก้ได้ถ้ายืมแทนคนอื่น</div>}
         {needCard && (
           <>
             <label>รหัสบัตรนักศึกษา/เบอร์โทร <span className="col-out">*</span>

@@ -4,6 +4,7 @@ const express = require('express');
 const cookieSession = require('cookie-session');
 const bcrypt = require('bcryptjs');
 const db = require('./db');
+const fbAuth = require('./firebase-auth'); // SSO เว็บแลปหลัก (ตรวจ Firebase ID token)
 // ใช้ connection เดียวกับ server ระหว่างตั้งข้อมูลเริ่มต้น — ตอน Render ปลุกเว็บจะไม่ sync Turso ซ้ำอีก process
 require('./scripts/init-db');
 
@@ -149,6 +150,114 @@ app.post('/api/guest/name', requireAuth, (req, res) => {
   req.session.gname = name;
   res.json({ ok: true, name, card });
 });
+
+// ---------- SSO: เข้าสู่ระบบด้วยบัญชีเว็บแลปหลัก (Firebase) ----------
+// เว็บหลักกดปุ่ม "ยืมของ" → form POST { token, name? } มาที่ /auth/firebase → เราตรวจ token แล้วตั้ง session ให้
+// ใช้ form POST ไม่ใช่ query string เพราะ token ใน URL จะค้างใน log เซิร์ฟเวอร์/ประวัติเบราว์เซอร์
+const MAIN_SITE_URL = (process.env.MAIN_SITE_URL || '').trim();
+// อีเมลที่ให้เป็น admin ของคลังด้วย (คั่นด้วย ,) — role ต้องมาจากฝั่งเซิร์ฟเวอร์เท่านั้น ห้ามรับจากฟอร์ม
+const FB_ADMIN_EMAILS = new Set(
+  (process.env.FIREBASE_ADMIN_EMAILS || '').split(',').map((x) => x.trim().toLowerCase()).filter(Boolean)
+);
+
+// หาหรือสร้างบัญชีฝั่งเราจาก token ที่ตรวจแล้ว — อ้างอิงคนด้วย firebase_uid (ชื่อ/อีเมลเปลี่ยนได้)
+function upsertFirebaseUser(info, formName) {
+  const email = (info.email || '').trim();
+  // ชื่อ: claim name (กรณี A) → ชื่อที่เว็บหลักส่งมาในฟอร์ม (กรณี B) → หน้า @ ของอีเมล
+  const name = (info.name || (formName || '').trim() || email.split('@')[0] || 'ผู้ใช้เว็บแลป').slice(0, 80);
+  const c = info.claims || {};
+  const wantAdmin = c.admin === true || c.role === 'admin' || (!!email && FB_ADMIN_EMAILS.has(email.toLowerCase()));
+  const pick = (id) => db.prepare('SELECT id, username, fullname, role FROM users WHERE id = ?').get(id);
+
+  let row = db.prepare('SELECT * FROM users WHERE firebase_uid = ?').get(info.uid);
+  // ยังไม่เคยผูก: ถ้ามีบัญชีเดิมอีเมลตรงกัน (แอดมินสร้างรอไว้) ให้ผูกเข้าด้วยกัน
+  if (!row && email) row = db.prepare("SELECT * FROM users WHERE email = ? AND email <> '' AND firebase_uid IS NULL").get(email);
+
+  if (row) {
+    // อัปเดตชื่อทุกครั้งที่เข้า (เปลี่ยนชื่อที่เว็บหลัก = เปลี่ยนตาม) · เลื่อนเป็น admin ได้ แต่ไม่ลดสิทธิ์ที่แอดมินเราตั้งไว้เอง
+    db.prepare('UPDATE users SET fullname = ?, email = ?, firebase_uid = ?, active = 1, role = ? WHERE id = ?')
+      .run(name, email, info.uid, wantAdmin ? 'admin' : row.role, row.id);
+    return pick(row.id);
+  }
+
+  // บัญชีใหม่: username ใช้อีเมล ถ้าชนของเดิมใช้ fb_<uid> · รหัสผ่านสุ่มทิ้ง (login ด้วยรหัสผ่านไม่ได้ ต้องมาทาง SSO เท่านั้น)
+  let username = email || 'fb_' + info.uid.slice(0, 12);
+  if (db.prepare('SELECT 1 FROM users WHERE username = ?').get(username)) username = 'fb_' + info.uid.slice(0, 12);
+  const unusable = bcrypt.hashSync(require('crypto').randomBytes(24).toString('hex'), 10);
+  try {
+    const r = db.prepare(
+      'INSERT INTO users (username, password, fullname, role, firebase_uid, email) VALUES (?,?,?,?,?,?)'
+    ).run(username, unusable, name, wantAdmin ? 'admin' : 'staff', info.uid, email);
+    return pick(Number(r.lastInsertRowid));
+  } catch (e) {
+    // ชนกันพอดี (กดสองแท็บพร้อมกัน) — อีกฝั่งสร้างไปแล้ว ใช้ตัวนั้น
+    const again = db.prepare('SELECT id FROM users WHERE firebase_uid = ?').get(info.uid);
+    if (again) return pick(again.id);
+    throw e;
+  }
+}
+
+// จำกัดการยิง token ต่อ IP (ตรวจลายเซ็นกิน CPU)
+const _ssoHits = new Map();
+function ssoThrottle(req) {
+  const now = Date.now(), ip = req.ip || 'unknown';
+  const hits = (_ssoHits.get(ip) || []).filter((t) => now - t < 60000);
+  if (hits.length >= 30) return 'เข้าสู่ระบบถี่เกินไป พัก 1 นาทีแล้วลองใหม่';
+  hits.push(now); _ssoHits.set(ip, hits);
+  return null;
+}
+
+// login แล้วพากลับไปหน้าไหน — รับเฉพาะ path ภายในเว็บเรา (กัน open redirect)
+function safeNext(v) {
+  const s = (v || '').trim();
+  return /^\/(?!\/)/.test(s) ? s : '/';
+}
+function ssoErrorPage(msg) {
+  const esc = String(msg).replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
+  const back = MAIN_SITE_URL ? `<p><a href="${MAIN_SITE_URL}">◂ กลับไปเว็บแลป</a></p>` : '';
+  return `<!doctype html><meta charset="utf-8"><title>เข้าสู่ระบบไม่สำเร็จ</title>
+<div style="font-family:system-ui,sans-serif;max-width:480px;margin:12vh auto;padding:24px;line-height:1.7">
+<h2>เข้าสู่ระบบไม่สำเร็จ</h2><p>${esc}</p>${back}<p><a href="/">เข้าเว็บคลังแบบไม่ล็อกอิน</a></p></div>`;
+}
+
+// ปลายทางหลัก: form POST จากเว็บหลัก (ตอบเป็นการ redirect เข้าเว็บเรา)
+app.post('/auth/firebase', express.urlencoded({ extended: false, limit: '64kb' }), async (req, res) => {
+  const block = ssoThrottle(req);
+  if (block) return res.status(429).send(ssoErrorPage(block));
+  try {
+    const info = await fbAuth.verifyIdToken((req.body?.token || '').trim());
+    const user = upsertFirebaseUser(info, req.body?.name);
+    req.session.uid = user.id;
+    delete req.session.gcard; delete req.session.gname; delete req.session.gkey; // ล้างตัวตนแบบ guest ที่ค้างอยู่
+    res.redirect(302, safeNext(req.body?.next));
+  } catch (e) {
+    console.error('SSO ล้มเหลว:', e.message);
+    res.status(401).send(ssoErrorPage(e.message || 'ตรวจ token ไม่ผ่าน'));
+  }
+});
+// กันคนเปิด URL นี้ตรงๆ (bookmark) — ไม่มี token ก็เข้าหน้าแรกไป
+app.get('/auth/firebase', (_req, res) => res.redirect(302, '/'));
+
+// ปลายทางแบบ JSON (same-origin) — เผื่อทำปุ่ม login ด้วย Firebase ในเว็บเราเองภายหลัง
+app.post('/api/auth/firebase', async (req, res) => {
+  const block = ssoThrottle(req);
+  if (block) return res.status(429).json({ error: block });
+  const token = (req.body?.token || (req.headers.authorization || '').replace(/^Bearer\s+/i, '')).trim();
+  try {
+    const info = await fbAuth.verifyIdToken(token);
+    const user = upsertFirebaseUser(info, req.body?.name);
+    req.session.uid = user.id;
+    delete req.session.gcard; delete req.session.gname; delete req.session.gkey;
+    res.json(user);
+  } catch (e) {
+    res.status(401).json({ error: e.message || 'ตรวจ token ไม่ผ่าน' });
+  }
+});
+
+// ค่าคอนฟิกที่หน้าเว็บต้องรู้ (เปิด SSO ไหม / ลิงก์เว็บแลปหลัก)
+app.get('/api/config', (_req, res) =>
+  res.json({ sso: fbAuth.enabled(), mainSiteUrl: MAIN_SITE_URL, projectId: fbAuth.projectId() })
+);
 
 app.post('/api/change-password', requireAuth, requireUser, (req, res) => {
   const { oldPassword, newPassword } = req.body || {};
@@ -926,7 +1035,9 @@ app.post('/api/orders', requireAuth, (req, res) => {
     if (!item) return res.status(404).json({ error: `ไม่พบรายการของ (id ${it.item_id})` });
     const n = Math.max(1, parseInt(it.qty, 10) || 1);
     const due = /^\d{4}-\d{2}-\d{2}$/.test(it.due_date || '') ? it.due_date : '';
-    const linePerson = (it.person || person || '').trim(); // ชื่อผู้ยืมต่อรายการ (บังคับกรอก)
+    // ชื่อผู้ยืมต่อรายการ — คนที่ login แล้ว (รวมผู้ใช้จาก SSO เว็บแลป) ใช้ชื่อบัญชีอัตโนมัติ ไม่ต้องกรอก
+    // guest ยังบังคับพิมพ์ชื่อเอง (ไม่มีบัญชีให้อ้างอิง)
+    const linePerson = (it.person || person || (req.user.role === 'guest' ? '' : who)).trim();
     const lineCard = (it.card || card || '').trim();       // รหัสบัตรผู้ยืม (บังคับเฉพาะ guest ที่ไม่มีบัญชี)
     if (!linePerson) return res.status(400).json({ error: `กรุณากรอกชื่อผู้ยืมของ ${item.name}` });
     if (req.user.role === 'guest' && !lineCard) return res.status(400).json({ error: `กรุณากรอกรหัสบัตรผู้ยืมของ ${item.name}` });

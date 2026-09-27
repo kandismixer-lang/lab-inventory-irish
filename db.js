@@ -191,6 +191,12 @@ addColumn('kit_components', 'unit_id', 'INTEGER');  // ผูกหน่วย�
 addColumn('requests', 'want_unit_id', 'INTEGER');   // หน่วยที่จองไว้ล่วงหน้าจาก kit component ผูกหน่วย — admin ไม่ต้องเลือกซ้ำตอนอนุมัติ
 addColumn('requests', 'card', "TEXT NOT NULL DEFAULT ''"); // รหัสบัตร (ปชช/นักศึกษา) ของผู้ยืม — ใช้ยืนยันตัวตน/ดึงของที่ยืม
 
+// SSO เว็บแลปหลัก (Firebase) — ผูกบัญชีของเรากับ uid ฝั่งเขา
+addColumn('users', 'firebase_uid', 'TEXT');                  // uid จาก Firebase (ตัวระบุตัวคนที่แท้จริง ชื่อเปลี่ยนได้)
+addColumn('users', 'email', "TEXT NOT NULL DEFAULT ''");     // อีเมลจาก token (ไว้ให้ admin ดูว่าใครเป็นใคร)
+// UNIQUE แบบมีเงื่อนไข — บัญชีเดิม (admin/staff/guest) firebase_uid เป็น NULL ได้หลายแถว
+db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_fbuid ON users(firebase_uid) WHERE firebase_uid IS NOT NULL');
+
 // migration: หุ่นยนต์โมเดลใหม่ — "กันของไว้ ไม่ตัดออกจากคลัง" (เดิมตัด/borrowed จริงตอนประกอบ)
 // รันครั้งเดียว (เช็ค _migrations กันรันซ้ำตอน restart — ไม่งั้นคืน qty component ซ้ำทุกครั้ง)
 db.exec('CREATE TABLE IF NOT EXISTS _migrations (name TEXT PRIMARY KEY)');
