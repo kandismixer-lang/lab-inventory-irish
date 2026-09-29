@@ -28,10 +28,11 @@ services:
       # เปิดแล้ว (โหมดเปลี่ยนผ่าน): SSO ทำงาน แต่ยังให้ใช้งานแบบไม่ล็อกอินคู่กันไว้
       - key: FIREBASE_PROJECT_ID
         value: irish-lab
-      # ⚠️ ลบ ALLOW_GUEST ออกเมื่อทีมเว็บหลักเปลี่ยนเมนู Equipment Loan เป็นปุ่มส่ง token แล้ว
-      #    ลบเมื่อไหร่ = ทั้งเว็บบังคับ login ทันที · ถ้าลบก่อนที่ปุ่มเขาจะพร้อม ผู้ใช้จะติดวงกลม
+      # เปิดใช้จริงแล้ว: "0" = บังคับ login ทั้งเว็บ (ปุ่ม Equipment Loan บน irish-tech.com ส่ง token แล้ว)
+      #    ตั้ง "0" แทนการลบ key เพราะลบออกจาก render.yaml แล้ว Render อาจคงค่าเดิม "1" ไว้บนเซิร์ฟ
+      #    ถอยกลับ = เปลี่ยนเป็น "1" (คนไม่ล็อกอินใช้งานได้อีกครั้ง)
       - key: ALLOW_GUEST
-        value: "1"
+        value: "0"
       - key: MAIN_SITE_URL
         value: https://irish-tech.com/en
       # endpoint โปรไฟล์ของเว็บหลัก (server-to-server) → role "admin" = admin คลัง, display_name = ชื่อผู้ยืม
