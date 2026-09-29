@@ -19,6 +19,10 @@
 **ยังขาด: URL ของ endpoint** (ข้อความที่ส่งมาไม่มีลิงก์) → ใส่ env `MAIN_SITE_PROFILE_URL` บน Render
 และยืนยันวิธีส่ง token ว่าเป็น `Authorization: Bearer` (ที่เราทำไว้) ถูกต้อง
 
+**2026-09-29 (ต่อ):** เว็บหลักให้ URL แล้ว → `MAIN_SITE_PROFILE_URL=https://irish-tech.com/api/users/me` (ตั้งใน render.yaml)
+จะเปลี่ยนเป็น `/api/users/me/basic` เมื่อเขาแจ้งว่า deploy แล้ว ·
+**⚠️ `SSO_ALLOWED_ORIGINS=http://localhost:3000` ตั้งใน Render dashboard ชั่วคราว (ไม่อยู่ใน render.yaml)** ให้เครื่อง dev ของเว็บหลักทดสอบปุ่มได้ — **ต้องลบออกจาก dashboard เมื่อเขาแจ้งว่าทดสอบผ่าน ก่อนบังคับ login**
+
 **ลำดับเปิดใช้:** ใส่ `MAIN_SITE_PROFILE_URL` → กดปุ่มจริงบนเว็บหลักทดสอบ (เว็บหลักบอกว่าโค้ดทดสอบใน Console ใช้ไม่ได้)
 → ผ่านแล้วค่อยลบ `ALLOW_GUEST` = บังคับ login
 
