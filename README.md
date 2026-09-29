@@ -111,9 +111,8 @@ server {
 | `ADMIN_USER` / `ADMIN_PASS` | admin / admin1234 | บัญชี admin ที่ `init-db` สร้าง |
 | `FIREBASE_PROJECT_ID` | — | เปิด SSO กับเว็บแลปหลัก (ค่าของแลป: `irish-lab`) ไม่ตั้ง = ปิด SSO |
 | `MAIN_SITE_URL` | — | ลิงก์เว็บแลปหลัก — โชว์ปุ่ม “เข้าสู่ระบบด้วยบัญชีเว็บแลป” |
-| `FIREBASE_MEMBER_COLLECTION` | `member` | collection ใน Firestore ของเว็บหลัก — คนที่อยู่ในนี้ = admin ของคลัง |
-| `FIREBASE_SERVICE_ACCOUNT` | — | JSON service account (ใช้เมื่อ security rules ไม่ยอมให้ผู้ใช้อ่าน `member`) |
-| `FIREBASE_ADMIN_EMAILS` | — | อีเมลที่ให้เป็น admin ของคลัง คั่นด้วย `,` (เสริมจาก `member`) |
+| `MAIN_SITE_PROFILE_URL` | — | endpoint โปรไฟล์ของเว็บหลัก (server-to-server, Bearer ID token) — role `admin` = admin คลัง, `display_name` = ชื่อผู้ยืม |
+| `FIREBASE_ADMIN_EMAILS` | — | อีเมล (ยืนยันแล้ว) ที่ให้เป็น admin ของคลัง คั่นด้วย `,` (เสริมจาก role ของเว็บหลัก) |
 | `ALLOW_GUEST` | — | `1` = เปิด SSO แล้วยังให้ใช้งานแบบไม่ล็อกอินคู่กันไว้ (ปกติเปิด SSO = ทั้งเว็บต้องล็อกอิน) |
 | `SSO_ALLOWED_ORIGINS` | — | origin เพิ่มเติมที่ยิง `/auth/firebase` ได้ คั่นด้วย `,` (ปกติใช้ของ `MAIN_SITE_URL` พอ) |
 | `SSO_MAX_PER_MIN` | 30 | เพดานการยิง `/auth/firebase` ต่อ IP ต่อนาที |

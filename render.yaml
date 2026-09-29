@@ -34,12 +34,10 @@ services:
         value: "1"
       - key: MAIN_SITE_URL
         value: https://irish-tech.com/en
-      # คนที่อยู่ใน collection นี้ของเว็บหลัก = admin ของคลัง
-      - key: FIREBASE_MEMBER_COLLECTION
-        value: member
-      # ใส่ JSON ของ service account (ทั้งก้อน) เฉพาะกรณี security rules ไม่ยอมให้ผู้ใช้อ่าน collection member
-      - key: FIREBASE_SERVICE_ACCOUNT
+      # endpoint โปรไฟล์ของเว็บหลัก (server-to-server) → role "admin" = admin คลัง, display_name = ชื่อผู้ยืม
+      # กรอก URL ที่ทีมเว็บหลักให้มาในหน้า Render · ไม่ตั้ง = role คงเดิม/ชื่อจาก token (ยังเข้าได้)
+      - key: MAIN_SITE_PROFILE_URL
         sync: false
-      # รายชื่ออีเมล admin แบบกำหนดเอง (สำรอง/เสริมจาก collection member)
+      # (ไม่บังคับ) รายชื่ออีเมล admin คลังแบบกำหนดเอง เสริมจาก role ของเว็บหลัก
       - key: FIREBASE_ADMIN_EMAILS
         sync: false

@@ -23,33 +23,26 @@ const jwkServer = http.createServer((req, res) => {
   res.end(JSON.stringify({ keys: [jwk] }));
 });
 
-// Firestore ปลอม: collection member มี 2 แบบ — ผูกด้วยรหัสเอกสาร และผูกด้วยฟิลด์
-const MEMBER_DOC_IDS = new Set(['UID_MEMBER_DOC', 'member@irish.ac.th']);
-const MEMBER_BY_FIELD = new Set(['UID_MEMBER_FIELD']);
-let fsDown = false;
-const fsServer = http.createServer((req, res) => {
-  let body = '';
-  req.on('data', (d) => (body += d));
-  req.on('end', () => {
-    res.setHeader('content-type', 'application/json');
-    if (fsDown) { res.statusCode = 500; return res.end('{"error":{"message":"firestore down"}}'); }
-    const m = /\/documents\/member\/([^?]+)$/.exec(req.url);
-    if (m) {
-      const id = decodeURIComponent(m[1]);
-      if (id.startsWith('UID_403')) { res.statusCode = 403; return res.end('{"error":{"message":"denied"}}'); }
-      if (MEMBER_DOC_IDS.has(id)) return res.end(JSON.stringify({ name: 'projects/x/databases/(default)/documents/member/' + id, fields: {} }));
-      res.statusCode = 404; return res.end('{"error":{"message":"not found"}}');
-    }
-    if (req.url.endsWith(':runQuery')) {
-      const f = JSON.parse(body || '{}').structuredQuery?.where?.fieldFilter;
-      const val = f?.value?.stringValue;
-      // เว็บหลักเก็บ uid ไว้ในฟิลด์ firebase_uid
-      if (f?.field?.fieldPath === 'firebase_uid' && MEMBER_BY_FIELD.has(val))
-        return res.end(JSON.stringify([{ document: { name: 'member/x', fields: {} } }]));
-      return res.end(JSON.stringify([{ readTime: new Date().toISOString() }]));
-    }
-    res.statusCode = 404; res.end('{}');
-  });
+// endpoint โปรไฟล์ปลอมของเว็บหลัก — รับ Bearer ID token แล้วตอบ role/display_name/email (+ข้อมูลส่วนตัวที่ต้องทิ้ง)
+const ADMIN_SUBS = new Set(['UID_ADMIN', 'UID_KEEP']);
+const PROFILE_NAMES = { UID_TEST_2: 'ชื่อจากฐานข้อมูลเว็บหลัก', UID_EVIL: 'ชื่อจริงจากเว็บหลัก' };
+let profileDown = false;
+let lastAuthHeader = '';
+const profileServer = http.createServer((req, res) => {
+  res.setHeader('content-type', 'application/json');
+  lastAuthHeader = req.headers.authorization || '';
+  if (profileDown) { res.statusCode = 500; return res.end('{"ok":false}'); }
+  const tok = lastAuthHeader.replace(/^Bearer\s+/i, '');
+  let p = {};
+  try { p = JSON.parse(Buffer.from(tok.split('.')[1] || '', 'base64url').toString()); } catch {}
+  if (!tok || !p.sub || p.sub === 'UID_401') { res.statusCode = 401; return res.end('{"ok":false}'); }
+  if (p.sub === 'UID_NOPROFILE') return res.end('{"ok":true,"user":null}');
+  res.end(JSON.stringify({ ok: true, user: {
+    role: ADMIN_SUBS.has(p.sub) ? 'admin' : 'user',
+    display_name: PROFILE_NAMES[p.sub] ?? p.name ?? '',
+    email: p.email || '',
+    phone: '0812345678', birthday: '2000-01-01', province: 'กรุงเทพ', // ต้องไม่ไปถึงคลัง
+  } }));
 });
 
 const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
@@ -97,11 +90,31 @@ async function run() {
   me = await (await fetch(BASE + '/api/me', { headers: { cookie: cookies } })).json();
   t('เข้าซ้ำ = บัญชีเดิม + ชื่ออัปเดตตามเว็บหลัก', me.id === idBefore && me.fullname === 'นักศึกษา เปลี่ยนชื่อ', JSON.stringify(me));
 
-  // 3. กรณี B: token ไม่มี claim name → ใช้ name จากฟอร์ม
-  r = await postForm({ token: mint({ sub: 'UID_TEST_2', name: undefined, email: 'b@irish.ac.th' }), name: 'ชื่อจากฐานข้อมูลเว็บหลัก' });
+  t('ส่ง ID token ไปเว็บหลักแบบ Bearer', /^Bearer ey/.test(lastAuthHeader), lastAuthHeader.slice(0, 12));
+  t('ข้อมูลส่วนตัวอื่น (เบอร์/วันเกิด) ไม่หลุดมาถึงคลัง', !JSON.stringify(me).includes('0812345678') && me.phone === undefined, JSON.stringify(me));
+
+  // 3. ชื่อต้องมาจาก display_name ของเว็บหลัก ไม่ใช่ name ในฟอร์ม (ฟอร์มปลอมได้)
+  r = await postForm({ token: mint({ sub: 'UID_TEST_2', name: undefined, email: 'b@irish.ac.th' }), name: 'ชื่อปลอมจากฟอร์ม' });
   const c2 = jar(r);
   const me2 = await (await fetch(BASE + '/api/me', { headers: { cookie: c2 } })).json();
-  t('กรณี B: ไม่มี claim name → ใช้ชื่อจากฟอร์ม', me2.fullname === 'ชื่อจากฐานข้อมูลเว็บหลัก' && me2.id !== idBefore, JSON.stringify(me2));
+  t('ชื่อ = display_name เว็บหลัก (ไม่สนชื่อในฟอร์ม)', me2.fullname === 'ชื่อจากฐานข้อมูลเว็บหลัก' && me2.id !== idBefore, JSON.stringify(me2));
+
+  // 3b. endpoint ล่ม → ใช้ชื่อในฟอร์มเป็นค่าสำรอง (ยังเข้าได้)
+  profileDown = true;
+  r = await postForm({ token: mint({ sub: 'UID_TEST_3', name: undefined, email: 'c@irish.ac.th' }), name: 'ชื่อสำรองจากฟอร์ม' });
+  profileDown = false;
+  const me3 = await (await fetch(BASE + '/api/me', { headers: { cookie: jar(r) } })).json();
+  t('endpoint ล่ม → ใช้ชื่อในฟอร์มเป็นค่าสำรอง + เป็น staff', me3.fullname === 'ชื่อสำรองจากฟอร์ม' && me3.role === 'staff', JSON.stringify(me3));
+
+  // 3c. เว็บหลักตอบ 401 → ปฏิเสธการเข้า
+  const r401 = await postForm({ token: mint({ sub: 'UID_401' }) });
+  const got401 = (r401.headers.getSetCookie?.() || []).some((c) => /^sess=.+/.test(c));
+  t('เว็บหลักตอบ 401 → ปฏิเสธ ไม่ตั้ง session', r401.status === 401 && !got401, 'status=' + r401.status);
+
+  // 3d. user:null (มีบัญชี Firebase แต่ยังไม่เคย login เว็บ) → ผู้ยืมทั่วไป ใช้ชื่อจาก token
+  r = await postForm({ token: mint({ sub: 'UID_NOPROFILE', email: 'np@irish.ac.th', name: 'ยังไม่มีโปรไฟล์' }), name: 'ชื่อฟอร์ม' });
+  const meNp = await (await fetch(BASE + '/api/me', { headers: { cookie: jar(r) } })).json();
+  t('user:null → staff + ชื่อจาก token (ไม่ใช้ฟอร์ม)', meNp.role === 'staff' && meNp.fullname === 'ยังไม่มีโปรไฟล์', JSON.stringify(meNp));
 
   // 4. token ปลอม/ผิดเงื่อนไข ต้องไม่ผ่านทุกกรณี
   const now = Math.floor(Date.now() / 1000);
@@ -127,12 +140,12 @@ async function run() {
   const meEvil = await (await fetch(BASE + '/api/me', { headers: { cookie: cEvil } })).json();
   const users = await fetch(BASE + '/api/users', { headers: { cookie: cEvil } });
   t('ส่ง role=admin มาในฟอร์ม → ยังเป็น staff', meEvil.role === 'staff' && users.status === 403, meEvil.role + '/' + users.status);
+  t('ปลอมชื่อในฟอร์ม → ได้ชื่อจริงจากเว็บหลัก', meEvil.fullname === 'ชื่อจริงจากเว็บหลัก', meEvil.fullname);
 
-  // 6. custom claim admin=true → เป็น admin ของคลัง
+  // 6. admin ต้องมาจาก role ของเว็บหลักเท่านั้น — claim ใน token อย่างเดียวไม่พอ
   r = await postForm({ token: mint({ sub: 'UID_BOSS', email: 'boss@x.com', name: 'อาจารย์', admin: true }) });
-  const cBoss = jar(r);
-  const meBoss = await (await fetch(BASE + '/api/me', { headers: { cookie: cBoss } })).json();
-  t('custom claim admin=true → role admin', meBoss.role === 'admin', JSON.stringify(meBoss));
+  const meBoss = await (await fetch(BASE + '/api/me', { headers: { cookie: jar(r) } })).json();
+  t('claim admin=true แต่เว็บหลักบอก user → staff', meBoss.role === 'staff', JSON.stringify(meBoss));
 
   // 7. open redirect
   r = await postForm({ token: mint(), next: 'https://evil.example.com/steal' });
@@ -217,40 +230,29 @@ async function run() {
   const afterG = (await (await fetch(BASE + '/api/items/' + item.id, { headers: { cookie: ac } })).json()).item;
   t('สต็อกไม่ถูกแตะจากคำขอ guest ที่ถูกปฏิเสธ', afterG.qty === 5, 'qty=' + afterG.qty);
 
-  // 11. collection member ของเว็บหลัก → เป็น admin ของคลัง
+  // 11. role "admin" บนเว็บหลัก → เป็น admin ของคลัง
   const loginAs = async (payload, extra = {}) => {
     const rr = await postForm({ token: mint(payload), ...extra });
     const ck = jar(rr);
     return await (await fetch(BASE + '/api/me', { headers: { cookie: ck } })).json();
   };
-  const mDoc = await loginAs({ sub: 'UID_MEMBER_DOC', email: 'md@irish.ac.th', name: 'สมาชิก (รหัสเอกสาร)' });
-  t('อยู่ใน member (รหัสเอกสาร = uid) → admin', mDoc.role === 'admin', JSON.stringify(mDoc));
-
-  const mMail = await loginAs({ sub: 'UID_MEMBER_MAIL', email: 'member@irish.ac.th', name: 'สมาชิก (อีเมล)' });
-  t('อยู่ใน member (รหัสเอกสาร = อีเมล) → admin', mMail.role === 'admin', JSON.stringify(mMail));
-
-  const mField = await loginAs({ sub: 'UID_MEMBER_FIELD', email: 'mf@irish.ac.th', name: 'สมาชิก (ฟิลด์)' });
-  t('อยู่ใน member (ฟิลด์ firebase_uid) → admin', mField.role === 'admin', JSON.stringify(mField));
+  const mAdmin = await loginAs({ sub: 'UID_ADMIN', email: 'ad@irish.ac.th', name: 'แอดมินเว็บแลป' });
+  t('role admin บนเว็บหลัก → admin คลัง', mAdmin.role === 'admin', JSON.stringify(mAdmin));
 
   const notM = await loginAs({ sub: 'UID_OUTSIDER', email: 'out@irish.ac.th', name: 'คนนอก' });
-  t('ไม่อยู่ใน member → staff', notM.role === 'staff', JSON.stringify(notM));
-  const outUsers = await fetch(BASE + '/api/users', { headers: { cookie: cookies } });
+  t('role user บนเว็บหลัก → staff', notM.role === 'staff', JSON.stringify(notM));
 
-  const denied = await loginAs({ sub: 'UID_403_X', email: 'x403@irish.ac.th', name: 'rules ปฏิเสธ' });
-  t('Firestore ปฏิเสธ → ยัง login ได้เป็น staff (ไม่ล็อกคนออก)', denied.role === 'staff', JSON.stringify(denied));
+  // ถูกลด role ที่เว็บหลัก → ลดเป็น staff ตอนเข้าครั้งถัดไป
+  ADMIN_SUBS.delete('UID_ADMIN');
+  const demoted = await loginAs({ sub: 'UID_ADMIN', email: 'ad@irish.ac.th', name: 'แอดมินเว็บแลป' });
+  t('ถูกลด role ที่เว็บหลัก → ลดเป็น staff', demoted.role === 'staff' && demoted.id === mAdmin.id, JSON.stringify(demoted));
 
-  // ถูกถอดออกจาก collection member → ลดสิทธิ์เป็น staff ตอนเข้าครั้งถัดไป
-  MEMBER_DOC_IDS.delete('UID_MEMBER_DOC');
-  const demoted = await loginAs({ sub: 'UID_MEMBER_DOC', email: 'md@irish.ac.th', name: 'สมาชิก (รหัสเอกสาร)' });
-  t('ถูกถอดออกจาก member → ลดเป็น staff', demoted.role === 'staff', JSON.stringify(demoted));
-
-  // Firestore ล่มตอนที่เคยเป็น admin อยู่ → ต้องคงสิทธิ์เดิม ไม่ลดเพราะระบบเขาล่ม
-  MEMBER_DOC_IDS.add('UID_KEEP');
+  // endpoint ล่มตอนที่เคยเป็น admin อยู่ → คงสิทธิ์เดิม ไม่ลดเพราะระบบเขาล่ม
   const keep1 = await loginAs({ sub: 'UID_KEEP', email: 'keep@irish.ac.th', name: 'คงสิทธิ์' });
-  fsDown = true;
+  profileDown = true;
   const keep2 = await loginAs({ sub: 'UID_KEEP', email: 'keep@irish.ac.th', name: 'คงสิทธิ์' });
-  fsDown = false;
-  t('Firestore ล่ม → admin เดิมไม่ถูกลดสิทธิ์', keep1.role === 'admin' && keep2.role === 'admin', keep1.role + '→' + keep2.role);
+  profileDown = false;
+  t('endpoint ล่ม → admin เดิมไม่ถูกลดสิทธิ์', keep1.role === 'admin' && keep2.role === 'admin', keep1.role + '→' + keep2.role);
 
   // 11b. ประตูหน้าเว็บ: ยังไม่ล็อกอิน = ไม่เห็นข้อมูลอะไรเลย (ไม่ใช่แค่ยืมไม่ได้)
   const closed = ['/api/items', '/api/requests', '/api/dashboard', '/api/broken', '/api/locations', '/api/requests/counts', '/api/guest/name'];
@@ -273,7 +275,7 @@ async function run() {
   return fail;
 }
 
-fsServer.listen(4556);
+profileServer.listen(4556);
 jwkServer.listen(4555, async () => {
   const child = spawn(process.execPath, ['server.js'], {
     cwd: ROOT,
@@ -284,9 +286,7 @@ jwkServer.listen(4555, async () => {
       SESSION_SECRET: 'test-secret-only',
       FIREBASE_PROJECT_ID: PROJECT,
       FIREBASE_JWK_URL: 'http://127.0.0.1:4555/jwk',
-      FIRESTORE_URL: 'http://127.0.0.1:4556',
-      FIREBASE_MEMBER_COLLECTION: 'member',
-      FIREBASE_MEMBER_CACHE_MS: '0',
+      MAIN_SITE_PROFILE_URL: 'http://127.0.0.1:4556/api/lab-profile',
       SSO_MAX_PER_MIN: '500', // เทสต์ยิงถี่กว่าคนจริงมาก
       MAIN_SITE_URL: 'https://irish-lab.example.com',
       TURSO_URL: '',
@@ -302,6 +302,6 @@ jwkServer.listen(4555, async () => {
   try { code = await run(); } catch (e) { console.error('ทดสอบพัง:', e); }
   child.kill();
   jwkServer.close();
-  fsServer.close();
+  profileServer.close();
   process.exit(code ? 1 : 0);
 });
