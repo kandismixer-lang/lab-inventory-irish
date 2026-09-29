@@ -36,9 +36,9 @@ services:
       - key: MAIN_SITE_URL
         value: https://irish-tech.com/en
       # endpoint โปรไฟล์ของเว็บหลัก (server-to-server) → role "admin" = admin คลัง, display_name = ชื่อผู้ยืม
-      # ตอนนี้ใช้ /api/users/me (มีฟิลด์เกิน ฝั่งเราทิ้งเอง) · เว็บหลัก deploy /api/users/me/basic แล้วจะแจ้งให้เปลี่ยน
+      # /basic ตอบแค่ role, display_name, email (ไม่มีเบอร์โทร/วันเกิดข้ามระบบ)
       - key: MAIN_SITE_PROFILE_URL
-        value: https://irish-tech.com/api/users/me
+        value: https://irish-tech.com/api/users/me/basic
       # (ไม่บังคับ) รายชื่ออีเมล admin คลังแบบกำหนดเอง เสริมจาก role ของเว็บหลัก
       - key: FIREBASE_ADMIN_EMAILS
         sync: false
