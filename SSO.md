@@ -23,6 +23,20 @@
 จะเปลี่ยนเป็น `/api/users/me/basic` เมื่อเขาแจ้งว่า deploy แล้ว ·
 **⚠️ `SSO_ALLOWED_ORIGINS=http://localhost:3000` ตั้งใน Render dashboard ชั่วคราว (ไม่อยู่ใน render.yaml)** ให้เครื่อง dev ของเว็บหลักทดสอบปุ่มได้ — **ต้องลบออกจาก dashboard เมื่อเขาแจ้งว่าทดสอบผ่าน ก่อนบังคับ login**
 
+**2026-09-29 ทดสอบจากเครื่อง dev เว็บหลักผ่าน — ปุ่มส่ง token เข้าคลังได้แล้ว** · รออาจารย์ขึ้นโค้ดเว็บหลักบนเซิร์ฟ
+
+### 🚀 วันเปิดใช้จริง — เตรียมไว้แล้วใน branch `sso-go-live`
+มี 2 commit แยกกัน ทำทีละขั้นได้:
+| commit | ทำอะไร | ทำเมื่อ |
+|---|---|---|
+| `feat(sso): บังคับ login ทั้งเว็บ` | `ALLOW_GUEST="0"` (ตั้ง 0 แทนการลบ key — ลบแล้ว Render อาจคงค่า 1 ไว้) | ปุ่มบน irish-tech.com จริงขึ้นแล้ว + กดทดสอบผ่าน |
+| `chore(sso): ใช้ endpoint /basic` | `MAIN_SITE_PROFILE_URL` → `/api/users/me/basic` | เว็บหลักแจ้งว่า deploy `/basic` แล้ว |
+
+เปิดทั้งคู่พร้อมกัน: `git checkout main && git merge sso-go-live && git push`
+เอาทีละอัน: `git cherry-pick <hash>` บน main แล้ว push
+ก่อนเปิด: ลบ `SSO_ALLOWED_ORIGINS` (localhost) ออกจาก Render dashboard ถ้ายังค้าง · ใส่ `FIREBASE_ADMIN_EMAILS` ถ้ามีแอดมินคลังที่บนเว็บแลปเป็นแค่ user
+ถอยกลับ: เปลี่ยน `ALLOW_GUEST` เป็น `"1"` แล้ว push
+
 **ลำดับเปิดใช้:** ใส่ `MAIN_SITE_PROFILE_URL` → กดปุ่มจริงบนเว็บหลักทดสอบ (เว็บหลักบอกว่าโค้ดทดสอบใน Console ใช้ไม่ได้)
 → ผ่านแล้วค่อยลบ `ALLOW_GUEST` = บังคับ login
 
