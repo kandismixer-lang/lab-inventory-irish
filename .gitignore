@@ -2,3 +2,6 @@ node_modules/
 client/node_modules/
 data/
 *.log
+
+# เอกสาร .md เก็บไว้ในเครื่องเท่านั้น ไม่ขึ้น GitHub
+*.md
