@@ -25,6 +25,7 @@ const jwkServer = http.createServer((req, res) => {
 
 // endpoint โปรไฟล์ปลอมของเว็บหลัก — รับ Bearer ID token แล้วตอบ role/display_name/email (+ข้อมูลส่วนตัวที่ต้องทิ้ง)
 const ADMIN_SUBS = new Set(['UID_ADMIN', 'UID_KEEP']);
+const MEMBER_SUBS = new Set(['UID_MEMBER']);
 const PROFILE_NAMES = { UID_TEST_2: 'ชื่อจากฐานข้อมูลเว็บหลัก', UID_EVIL: 'ชื่อจริงจากเว็บหลัก' };
 let profileDown = false;
 let lastAuthHeader = '';
@@ -38,7 +39,7 @@ const profileServer = http.createServer((req, res) => {
   if (!tok || !p.sub || p.sub === 'UID_401') { res.statusCode = 401; return res.end('{"ok":false}'); }
   if (p.sub === 'UID_NOPROFILE') return res.end('{"ok":true,"user":null}');
   res.end(JSON.stringify({ ok: true, user: {
-    role: ADMIN_SUBS.has(p.sub) ? 'admin' : 'user',
+    role: ADMIN_SUBS.has(p.sub) ? 'admin' : MEMBER_SUBS.has(p.sub) ? 'member' : 'user',
     display_name: PROFILE_NAMES[p.sub] ?? p.name ?? '',
     email: p.email || '',
     phone: '0812345678', birthday: '2000-01-01', province: 'กรุงเทพ', // ต้องไม่ไปถึงคลัง
@@ -241,6 +242,13 @@ async function run() {
 
   const notM = await loginAs({ sub: 'UID_OUTSIDER', email: 'out@irish.ac.th', name: 'คนนอก' });
   t('role user บนเว็บหลัก → staff', notM.role === 'staff', JSON.stringify(notM));
+
+  // member = ถูก admin เว็บหลักแต่งตั้งแล้ว → admin คลัง · ถูกถอดกลับเป็น user → staff
+  const mMember = await loginAs({ sub: 'UID_MEMBER', email: 'mem@irish.ac.th', name: 'สมาชิกแลป' });
+  t('role member บนเว็บหลัก → admin คลัง', mMember.role === 'admin', JSON.stringify(mMember));
+  MEMBER_SUBS.delete('UID_MEMBER');
+  const unMember = await loginAs({ sub: 'UID_MEMBER', email: 'mem@irish.ac.th', name: 'สมาชิกแลป' });
+  t('ถูกถอดจาก member → staff', unMember.role === 'staff' && unMember.id === mMember.id, JSON.stringify(unMember));
 
   // ถูกลด role ที่เว็บหลัก → ลดเป็น staff ตอนเข้าครั้งถัดไป
   ADMIN_SUBS.delete('UID_ADMIN');

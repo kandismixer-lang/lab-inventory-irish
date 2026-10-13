@@ -4,7 +4,9 @@
 // เขาเลยเปิด endpoint ให้แทน: ส่ง ID token ไป → ได้ role / display_name / email กลับมา
 //
 // ตอบกลับ:
-//   200 {"ok":true,"user":{...}}  มีโปรไฟล์ → ใช้ role ("admin"/"user"), display_name, email
+//   200 {"ok":true,"user":{...}}  มีโปรไฟล์ → ใช้ role, display_name, email
+//                                  role บนเว็บหลัก: "user" (สมัครเอง) → "member" (admin เว็บหลักแต่งตั้ง) / "admin"
+//                                  member หรือ admin = admin คลัง · user = ผู้ยืมทั่วไป
 //   200 {"ok":true,"user":null}   มีบัญชี Firebase แต่ยังไม่เคย login เว็บ → ผู้ยืมทั่วไป
 //   401                            token ไม่ถูกต้อง/หมดอายุ → ปฏิเสธการเข้า
 //
@@ -12,6 +14,8 @@
 //   - คำตอบมีข้อมูลอื่นติดมา (เบอร์โทร วันเกิด จังหวัด) → หยิบแค่ 3 ฟิลด์ ที่เหลือทิ้งทันที ไม่เก็บ ไม่ log
 //   - ไม่เก็บ ID token หลังตั้ง session (มันใช้เรียก API เว็บหลักในนามผู้ใช้ได้ 1 ชม.) — โมดูลนี้แค่ส่งต่อ ไม่แคช
 const PROFILE_URL = () => (process.env.MAIN_SITE_PROFILE_URL || '').trim();
+// role ที่ได้สิทธิ์ admin คลัง — "user" ห้ามอยู่ในนี้ (ใครก็สมัคร Firebase ได้เอง)
+const ADMIN_ROLES = new Set(['admin', 'member']);
 const TIMEOUT_MS = Number(process.env.MAIN_SITE_PROFILE_TIMEOUT_MS ?? 6000);
 const enabled = () => !!PROFILE_URL();
 
@@ -49,7 +53,7 @@ async function fetchProfile(idToken) {
   const u = body.user;
   // หยิบแค่ 3 ฟิลด์ที่ตกลงกันไว้ — ห้ามส่ง u ทั้งก้อนต่อ (มีเบอร์โทร/วันเกิด/จังหวัด)
   return {
-    role: u.role === 'admin' ? 'admin' : 'user',
+    role: ADMIN_ROLES.has(String(u.role || '').trim().toLowerCase()) ? 'admin' : 'user',
     name: typeof u.display_name === 'string' ? u.display_name.trim().slice(0, 80) : '',
     email: typeof u.email === 'string' ? u.email.trim().slice(0, 200) : '',
   };

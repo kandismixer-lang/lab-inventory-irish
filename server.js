@@ -188,7 +188,7 @@ function upsertFirebaseUser(info, formName, profile) {
   // name ในฟอร์มมาจากเบราว์เซอร์ (ปลอมได้) — ใช้เฉพาะตอน endpoint เช็คไม่ได้เท่านั้น
   const fallbackForm = profile === undefined ? (formName || '').trim() : '';
   const name = ((profile && profile.name) || info.name || fallbackForm || email.split('@')[0] || 'ผู้ใช้เว็บแลป').slice(0, 80);
-  // admin ของคลัง = role "admin" บนเว็บแลป (หรืออยู่ในรายชื่ออีเมลที่ตั้งเองใน FIREBASE_ADMIN_EMAILS)
+  // admin ของคลัง = role "member"/"admin" บนเว็บแลป (หรืออยู่ในรายชื่ออีเมลที่ตั้งเองใน FIREBASE_ADMIN_EMAILS)
   const listAdmin = !!email && info.emailVerified && FB_ADMIN_EMAILS.has(email.toLowerCase());
   // ยึดตามเว็บหลัก — ถูกลด role ที่เว็บหลักเมื่อไหร่ ก็เป็น staff ทันทีตอนเข้าครั้งถัดไป
   // เช็คไม่ได้ (undefined) = คงสิทธิ์เดิม ไม่ลดเพราะระบบเขาล่ม
