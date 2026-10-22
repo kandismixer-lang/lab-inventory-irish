@@ -113,7 +113,7 @@ export default function Items({ me, cfg, focusItem, onFocused, guestCard, onGues
                     <span className={'badge ' + i.type} style={{ marginLeft: 8 }}>{catLabel(i)}</span>
                     <span className="hint">📍 {i.location || 'ไม่ระบุที่เก็บ'}</span>
                     {i.tracked ? <span className="hint">📇 track รายตัว</span> : null}
-                    {i.image ? <img className="item-thumb" src={i.image} alt={i.name} loading="lazy" onClick={(e) => { e.stopPropagation(); setDetail(i); }} /> : null}
+                    {i.image ? <img className="item-thumb" src={i.image_thumb || i.image} alt={i.name} loading="lazy" onClick={(e) => { e.stopPropagation(); setDetail(i); }} /> : null}
                     {/* ปุ่มทั้งหมดรวมอยู่ในช่องรายการ — ประหยัดคอลัมน์บนมือถือ */}
                     <div className="row-actions">
                       <button type="button" className="btn small info" onClick={(e) => { e.stopPropagation(); setDetail(i); }}>รายละเอียด</button>

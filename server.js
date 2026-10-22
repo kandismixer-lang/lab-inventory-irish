@@ -5,7 +5,8 @@ const cookieSession = require('cookie-session');
 const bcrypt = require('bcryptjs');
 const db = require('./db');
 const fbAuth = require('./firebase-auth');     // SSO เว็บแลปหลัก (ตรวจ Firebase ID token)
-const fbProfile = require('./firebase-profile'); // ถาม role/ชื่อจาก endpoint ของเว็บหลัก (server-to-server)
+const fbProfile = require('./firebase-profile');
+const { makeThumb } = require('./thumb');      // รูปย่อหน้า Stock (jpeg-js) // ถาม role/ชื่อจาก endpoint ของเว็บหลัก (server-to-server)
 // ใช้ connection เดียวกับ server ระหว่างตั้งข้อมูลเริ่มต้น — ตอน Render ปลุกเว็บจะไม่ sync Turso ซ้ำอีก process
 require('./scripts/init-db');
 
@@ -411,13 +412,15 @@ const ITEM_SELECT = `
 // รูปของเก็บใน DB เป็น data URL (รูปละ ~100+ KB) — ถ้าส่งไปกับรายการทุกชิ้น หน้าแดชบอร์ด/Stock/แชท
 // ต้องโหลดหลาย MB ทุกครั้ง (ทั้งที่แดชบอร์ดไม่แสดงรูปเลย) → ส่งเป็น URL แทน ให้เบราว์เซอร์โหลดแยกเฉพาะรูปที่แสดง + cache
 // ?v= = hash ของรูป: เปลี่ยนรูปแล้ว URL เปลี่ยน เบราว์เซอร์จึง cache ยาวได้โดยไม่ค้างรูปเก่า
-function imageUrl(i) {
+// image_thumb = รูปย่อสำหรับหน้า Stock (ใช้ v เดียวกับรูปเต็ม — เปลี่ยนรูปแล้วรูปย่อเปลี่ยน URL ตาม)
+// ทับคอลัมน์ image_thumb จาก DB เสมอ — ห้ามส่ง data URL ของรูปย่อออกไปกับรายการ
+function imageUrls(i) {
   const img = i.image || '';
-  if (!img.startsWith('data:')) return img; // '' หรือ path /uploads/... แบบเก่า
+  if (!img.startsWith('data:')) return { image: img, image_thumb: img }; // '' หรือ path /uploads/... แบบเก่า
   const v = require('crypto').createHash('sha1').update(img).digest('hex').slice(0, 10);
-  return `/api/items/${i.id}/image?v=${v}`;
+  return { image: `/api/items/${i.id}/image?v=${v}`, image_thumb: `/api/items/${i.id}/thumb?v=${v}` };
 }
-const withImageUrl = (i) => ({ ...i, image: imageUrl(i) });
+const withImageUrl = (i) => ({ ...i, ...imageUrls(i) });
 
 // คำนวณ 5 ช่อง: มีทั้งหมด / ถูกยืม / ถูกนำไปประกอบ(กันไว้ในหุ่นที่ยังไม่ถูกยืม) / คงเหลือในคลัง / คงเหลือหลังประกอบ
 // ของที่ถูกนำไปประกอบเข้าหุ่น "ไม่ถูกตัดออกจากคลัง" — แค่กันไว้ (units.status='reserved' / kit_components แถวที่ยังไม่ตัด items.qty)
@@ -454,7 +457,7 @@ function decorateItem(i) {
           : '',
       }
     : {};
-  return { ...i, image: imageUrl(i), out_qty: out, total_qty: total, in_kit_qty: inKit, qty: stock, free_qty: freeStock, ...extra };
+  return { ...i, ...imageUrls(i), out_qty: out, total_qty: total, in_kit_qty: inKit, qty: stock, free_qty: freeStock, ...extra };
 }
 
 // หุ่นถูกยืมออกไปจริงไหม (out_qty>0) — ใช้กันแก้/ลบตอนถูกยืม (ไม่ใช้ qty<1 เพราะหุ่นเปล่าเก่า qty=0 แต่ไม่ถูกยืม)
@@ -618,12 +621,28 @@ app.get('/api/items/:id', requireAuth, (req, res) => {
 // ส่งรูปของเป็นไฟล์จริง (แปลงจาก data URL ใน DB) — URL มี ?v=hash จึง cache ได้ยาว
 // รับเฉพาะ raster: ห้ามเสิร์ฟ SVG จาก origin เรา (เปิดลิงก์ตรงแล้วรันสคริปต์ในโดเมนเราได้)
 const ITEM_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
-app.get('/api/items/:id/image', requireAuth, (req, res) => {
-  const row = db.prepare('SELECT image FROM items WHERE id = ?').get(req.params.id);
-  const m = (row?.image || '').match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+function sendDataUrlImage(res, dataUrl) {
+  const m = (dataUrl || '').match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
   if (!m || !ITEM_IMAGE_TYPES.has(m[1].toLowerCase())) return res.status(404).end();
   res.set({ 'Cache-Control': 'private, max-age=31536000, immutable', 'X-Content-Type-Options': 'nosniff' });
   res.type(m[1]).send(Buffer.from(m[2], 'base64'));
+}
+app.get('/api/items/:id/image', requireAuth, (req, res) => {
+  const row = db.prepare('SELECT image FROM items WHERE id = ?').get(req.params.id);
+  sendDataUrlImage(res, row?.image);
+});
+// รูปย่อ — รูปเก่าที่ยังไม่มีรูปย่อ ทำครั้งแรกที่มีคนขอแล้วเก็บไว้ (ไม่ทำตอน boot จะได้ไม่ถ่วง cold start)
+// ทำไม่ได้ (ไม่ใช่ JPEG / เล็กอยู่แล้ว) = ส่งรูปเต็มแทน
+app.get('/api/items/:id/thumb', requireAuth, (req, res) => {
+  const row = db.prepare('SELECT image, image_thumb FROM items WHERE id = ?').get(req.params.id);
+  if (!row) return res.status(404).end();
+  let thumb = row.image_thumb;
+  if (!thumb && row.image) {
+    thumb = makeThumb(row.image);
+    // AND image=? กันเขียนรูปย่อของรูปเก่าทับ ถ้ามีคนเปลี่ยนรูประหว่างนั้น
+    if (thumb) db.prepare('UPDATE items SET image_thumb=? WHERE id=? AND image=?').run(thumb, req.params.id, row.image);
+  }
+  sendDataUrlImage(res, thumb || row.image);
 });
 
 app.post('/api/items', requireAuth, requireAdmin, (req, res) => {
@@ -669,7 +688,7 @@ app.post('/api/items', requireAuth, requireAdmin, (req, res) => {
       return newId;
     });
     const imgPath = saveImage(req.body?.image, `item-${id}`);
-    if (imgPath) db.prepare('UPDATE items SET image=? WHERE id=?').run(imgPath, id);
+    if (imgPath) db.prepare('UPDATE items SET image=?, image_thumb=? WHERE id=?').run(imgPath, makeThumb(imgPath), id);
     db.flushNow(); // sync ทันที — ให้ GET รอบถัดไปเห็นของใหม่เลย (ไม่ต้องรอรอบ 30 วิ)
     res.json({ id });
   } catch (e) {
@@ -743,10 +762,10 @@ app.put('/api/items/:id', requireAuth, requireAdmin, (req, res) => {
   }
   // image: '' = สั่งลบรูปเดิม, data URL = รูปใหม่, ไม่ส่งมา = คงเดิม
   if (req.body?.image === '') {
-    db.prepare("UPDATE items SET image='' WHERE id=?").run(item.id);
+    db.prepare("UPDATE items SET image='', image_thumb='' WHERE id=?").run(item.id);
   } else {
     const imgPath = saveImage(req.body?.image, `item-${item.id}`);
-    if (imgPath) db.prepare('UPDATE items SET image=? WHERE id=?').run(imgPath, item.id);
+    if (imgPath) db.prepare('UPDATE items SET image=?, image_thumb=? WHERE id=?').run(imgPath, makeThumb(imgPath), item.id);
   }
   db.flushNow(); // sync ทันที — ให้ GET รอบถัดไปเห็นการแก้ไขเลย
   res.json({ ok: true });
@@ -1550,3 +1569,16 @@ app.get('*', (req, res) => {
 app.listen(PORT, () => {
   console.log(`Lab Inventory ทำงานที่ http://localhost:${PORT}`);
 });
+
+// ทำรูปย่อให้รูปเก่าที่ยังไม่มี — ทีละรูปห่างกัน 3 วิ เริ่มหลัง boot 30 วิ
+// (ย่อ 1 รูปบล็อก event loop ~0.2–1 วิ ถ้าปล่อยให้ทำตอนเปิดหน้า Stock ครั้งแรกพร้อมกันหลายรูป หน้าจะค้าง)
+// ทำครั้งเดียวจบ — เก็บลง DB/Turso แล้ว รอบต่อไปไม่มีอะไรต้องทำ
+setTimeout(function backfillThumbs() {
+  const row = db.prepare("SELECT id, image FROM items WHERE image_thumb = '' AND image LIKE 'data:image/jp%' AND id NOT IN (SELECT value FROM json_each(?)) LIMIT 1")
+    .get(JSON.stringify(backfillThumbs.skip || []));
+  if (!row) return;
+  const thumb = makeThumb(row.image);
+  if (thumb) db.prepare('UPDATE items SET image_thumb=? WHERE id=? AND image=?').run(thumb, row.id, row.image);
+  else (backfillThumbs.skip = backfillThumbs.skip || []).push(row.id); // ย่อไม่ได้ (เล็กอยู่แล้ว/ไฟล์เสีย) ข้ามไป
+  setTimeout(backfillThumbs, 3000).unref();
+}, 30_000).unref();
