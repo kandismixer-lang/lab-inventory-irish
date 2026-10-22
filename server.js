@@ -408,6 +408,17 @@ const ITEM_SELECT = `
        WHERE u2.item_id = i.id AND u2.active = 1 AND u2.status = 'reserved' AND ki.active = 1 AND ki.qty = 0) AS borrowed_via_kit_units
   FROM items i`;
 
+// รูปของเก็บใน DB เป็น data URL (รูปละ ~100+ KB) — ถ้าส่งไปกับรายการทุกชิ้น หน้าแดชบอร์ด/Stock/แชท
+// ต้องโหลดหลาย MB ทุกครั้ง (ทั้งที่แดชบอร์ดไม่แสดงรูปเลย) → ส่งเป็น URL แทน ให้เบราว์เซอร์โหลดแยกเฉพาะรูปที่แสดง + cache
+// ?v= = hash ของรูป: เปลี่ยนรูปแล้ว URL เปลี่ยน เบราว์เซอร์จึง cache ยาวได้โดยไม่ค้างรูปเก่า
+function imageUrl(i) {
+  const img = i.image || '';
+  if (!img.startsWith('data:')) return img; // '' หรือ path /uploads/... แบบเก่า
+  const v = require('crypto').createHash('sha1').update(img).digest('hex').slice(0, 10);
+  return `/api/items/${i.id}/image?v=${v}`;
+}
+const withImageUrl = (i) => ({ ...i, image: imageUrl(i) });
+
 // คำนวณ 5 ช่อง: มีทั้งหมด / ถูกยืม / ถูกนำไปประกอบ(กันไว้ในหุ่นที่ยังไม่ถูกยืม) / คงเหลือในคลัง / คงเหลือหลังประกอบ
 // ของที่ถูกนำไปประกอบเข้าหุ่น "ไม่ถูกตัดออกจากคลัง" — แค่กันไว้ (units.status='reserved' / kit_components แถวที่ยังไม่ตัด items.qty)
 // จนกว่าหุ่นตัวนั้นจะถูกยืมออกจริง (kit.qty=0) ถึงนับเป็น "ถูกยืม" (derive สดจากสถานะหุ่น ไม่มี logic แยกตอนยืม/คืนหุ่น)
@@ -443,7 +454,7 @@ function decorateItem(i) {
           : '',
       }
     : {};
-  return { ...i, out_qty: out, total_qty: total, in_kit_qty: inKit, qty: stock, free_qty: freeStock, ...extra };
+  return { ...i, image: imageUrl(i), out_qty: out, total_qty: total, in_kit_qty: inKit, qty: stock, free_qty: freeStock, ...extra };
 }
 
 // หุ่นถูกยืมออกไปจริงไหม (out_qty>0) — ใช้กันแก้/ลบตอนถูกยืม (ไม่ใช้ qty<1 เพราะหุ่นเปล่าเก่า qty=0 แต่ไม่ถูกยืม)
@@ -601,7 +612,18 @@ app.get('/api/items/:id', requireAuth, (req, res) => {
     )
     .all(req.params.id);
   const components = item.is_kit ? kitComponents(item.id) : undefined;
-  res.json({ item: { ...item, ...(components ? { components } : {}) }, history });
+  res.json({ item: { ...withImageUrl(item), ...(components ? { components } : {}) }, history });
+});
+
+// ส่งรูปของเป็นไฟล์จริง (แปลงจาก data URL ใน DB) — URL มี ?v=hash จึง cache ได้ยาว
+// รับเฉพาะ raster: ห้ามเสิร์ฟ SVG จาก origin เรา (เปิดลิงก์ตรงแล้วรันสคริปต์ในโดเมนเราได้)
+const ITEM_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
+app.get('/api/items/:id/image', requireAuth, (req, res) => {
+  const row = db.prepare('SELECT image FROM items WHERE id = ?').get(req.params.id);
+  const m = (row?.image || '').match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+  if (!m || !ITEM_IMAGE_TYPES.has(m[1].toLowerCase())) return res.status(404).end();
+  res.set({ 'Cache-Control': 'private, max-age=31536000, immutable', 'X-Content-Type-Options': 'nosniff' });
+  res.type(m[1]).send(Buffer.from(m[2], 'base64'));
 });
 
 app.post('/api/items', requireAuth, requireAdmin, (req, res) => {
@@ -1423,7 +1445,8 @@ app.get('/api/dashboard', requireAuth, (req, res) => {
     .prepare(
       `SELECT * FROM items WHERE active=1 AND type='consumable' AND qty <= min_qty AND min_qty > 0 ORDER BY name`
     )
-    .all();
+    .all()
+    .map(withImageUrl);
   // รายการทั้งหมด (ทุกหมวด) — ใช้สูตรเดียวกับหน้ารายการของ + แนบรายชื่อผู้ยืมรายตัว
   const borrowedOut = db
     .prepare(`${ITEM_SELECT} WHERE i.active=1 AND (i.type='tool' OR i.qty > 0) ORDER BY i.name`)
