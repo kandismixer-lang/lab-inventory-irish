@@ -626,7 +626,7 @@ function ItemForm({ item, me, onClose, onSaved }) {
         )}
         {tracked && !!item?.tracked && <div className="hint">ไปกด "Stock Check" เพื่อเพิ่ม/แก้รหัสหน่วย</div>}
         {tracked && !item?.tracked && (
-          <div style={{ marginTop: 8, padding: '10px 12px', background: '#f1f5ff', borderRadius: 8 }}>
+          <div style={{ marginTop: 8, padding: '10px 12px', background: 'rgba(96,165,250,.12)', borderRadius: 8 }}>
             <div className="hint" style={{ marginTop: 0 }}>
               {item
                 ? `เปิด track รายตัว — ของเดิม ${item.qty} ${item.unit} จะถูกแทนด้วยรหัสรายชิ้น (คงเหลือนับจากจำนวนหน่วยที่สร้าง)`

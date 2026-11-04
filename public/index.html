@@ -4,14 +4,24 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>คลัง IRiSH LAB</title>
-    <meta name="theme-color" content="#0a0a12" />
+    <meta name="theme-color" content="#000000" />
+    <script>
+      /* ตั้งธีมก่อน render กันจอกระพริบ (dark เป็นค่าเริ่มต้น) */
+      (function () {
+        var t = 'dark';
+        try { var v = localStorage.getItem('theme'); if (v === 'light' || v === 'dark') t = v; } catch (e) {}
+        document.documentElement.setAttribute('data-theme', t);
+        var m = document.querySelector('meta[name="theme-color"]');
+        if (m) m.setAttribute('content', t === 'light' ? '#f4f5f7' : '#000000');
+      })();
+    </script>
     <link rel="icon" type="image/png" href="/icon-192.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
-    <script type="module" crossorigin src="/assets/index-DRd52Ezl.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-BcmShVX4.css">
+    <script type="module" crossorigin src="/assets/index-BopRotCP.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-CRVyn0u-.css">
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root"></div>
   </body>
 </html>

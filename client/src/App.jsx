@@ -89,6 +89,132 @@ function LoginModal({ onClose, onLogin }) {
   );
 }
 
+// ไอคอนกุญแจ (SVG inline แทนอีโมจิ)
+const KeyIcon = () => (
+  <svg className="ico-key" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <circle cx="8" cy="15" r="4" /><path d="M10.8 12.2 20 3" /><path d="m16 7 3 3" /><path d="m14 9 2 2" />
+  </svg>
+);
+
+// ธีม สว่าง/มืด — data-theme บน <html> (ตั้งก่อน render โดย inline script ใน index.html), จำค่าใน localStorage
+const THEME_COLORS = { dark: '#000000', light: '#f4f5f7' };
+function useTheme() {
+  const [theme, setTheme] = useState(() => (document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark'));
+  const toggle = () => {
+    const next = theme === 'light' ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', next);
+    const m = document.querySelector('meta[name="theme-color"]');
+    if (m) m.setAttribute('content', THEME_COLORS[next]);
+    try { localStorage.setItem('theme', next); } catch (e) { /* storage ใช้ไม่ได้ — ข้าม */ }
+    setTheme(next);
+  };
+  return [theme, toggle];
+}
+function ThemeToggle({ className = '' }) {
+  const [theme, toggle] = useTheme();
+  const label = theme === 'light' ? 'สลับเป็นธีมมืด' : 'สลับเป็นธีมสว่าง';
+  return (
+    <button type="button" className={'theme-toggle ' + className} onClick={toggle} aria-label={label} title={label}>
+      {theme === 'light' ? (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />
+        </svg>
+      ) : (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+        </svg>
+      )}
+    </button>
+  );
+}
+
+// ---- หน้า Login: หัวข้อคำวน (ยืม/เบิก/คืน/ตรวจนับ) + ไอคอน SVG inline ----
+const ICON_GRADS = {
+  borrow: ['#F6DE68', '#E9C22E'], issue: ['#FBB07C', '#F2772F'], ret: ['#8ED8A8', '#3FB874'], count: ['#E49BDF', '#C564C4'],
+};
+function IconDefs({ id }) {
+  const [a, b] = ICON_GRADS[id];
+  return (
+    <defs>
+      <linearGradient id={'ig-' + id} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={a} /><stop offset="1" stopColor={b} /></linearGradient>
+    </defs>
+  );
+}
+const WordIcon = ({ id }) => {
+  const f = 'url(#ig-' + id + ')';
+  const hl = <ellipse cx="12" cy="6.5" rx="6.5" ry="2.4" fill="#fff" opacity=".35" />;
+  let body;
+  if (id === 'borrow') { // กล่องวางบนถาด/มือรับ
+    body = (<><rect x="6.5" y="2.5" width="11" height="9.5" rx="3" fill={f} /><path d="M2.5 13.5h19l-2.2 7.2a1.5 1.5 0 0 1-1.4 1H6.1a1.5 1.5 0 0 1-1.4-1z" fill={f} /><path d="M9 7.5h6" stroke="#fff" strokeOpacity=".7" strokeWidth="1.8" strokeLinecap="round" /></>);
+  } else if (id === 'issue') { // กล่องเปิดฝา
+    body = (<><path d="M3 10.5h18v8a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3z" fill={f} /><path d="M3 10.5 5.5 4h13l2.5 6.5z" fill={f} /><path d="M3 10.5 5.5 4h13l2.5 6.5z" fill="#fff" opacity=".3" /><path d="M10 15h4" stroke="#fff" strokeOpacity=".75" strokeWidth="1.8" strokeLinecap="round" /></>);
+  } else if (id === 'ret') { // ลูกศรวนกลับ
+    body = (<><circle cx="12" cy="12" r="10" fill={f} /><path d="M16.5 9.2A5.5 5.5 0 1 0 17.5 14" fill="none" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" /><path d="M17 5.5v4.2h-4.2" fill="none" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" /></>);
+  } else { // คลิปบอร์ดเช็ก
+    body = (<><rect x="4.5" y="4" width="15" height="18" rx="3.5" fill={f} /><rect x="8.5" y="1.8" width="7" height="4.6" rx="1.8" fill="#fff" opacity=".85" /><path d="m8.2 14 2.6 2.6 5-5.4" fill="none" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" /></>);
+  }
+  return (<svg viewBox="0 0 24 24" aria-hidden="true"><IconDefs id={id} />{body}{id !== 'ret' && hl}</svg>);
+};
+const WORDS = [{ id: 'borrow', t: 'ยืม' }, { id: 'issue', t: 'เบิก' }, { id: 'ret', t: 'คืน' }, { id: 'count', t: 'ตรวจนับ' }];
+const Word = ({ w, cls }) => (<span className={'rw ' + cls} aria-hidden="true"><span className="rw-ico"><WordIcon id={w.id} /></span><span>{w.t}</span></span>);
+
+// ครอบหน้า Login ทั้งสองแบบ: พื้นหลัง/หัวข้อคำวน/แถบล่าง (ธีม light) — ฟอร์มจริงส่งมาเป็น children
+function LoginScene({ children }) {
+  const [st, setSt] = useState({ cur: 0, prev: null });
+  const { cur, prev } = st;
+  useEffect(() => {
+    let reduce = false;
+    try { reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { /* ข้าม */ }
+    if (reduce) return undefined; // ลดการเคลื่อนไหว = นิ่งที่คำ "ยืม"
+    let timer = null;
+    const tick = () => setSt((s) => ({ cur: (s.cur + 1) % WORDS.length, prev: s.cur }));
+    const start = () => { if (!timer) timer = setInterval(tick, 1750); };
+    const stop = () => { if (timer) { clearInterval(timer); timer = null; } };
+    const vis = () => { if (document.hidden) stop(); else start(); };
+    document.addEventListener('visibilitychange', vis);
+    vis();
+    return () => { document.removeEventListener('visibilitychange', vis); stop(); };
+  }, []);
+  return (
+    <div className="login-wrap" data-word={cur}>
+      <ThemeToggle className="login-theme" />
+      <div className="login-fx" aria-hidden="true">
+        <span className="vela-panel vela-p0" /><span className="vela-panel vela-p1" />
+        <span className="vela-panel vela-p2" /><span className="vela-panel vela-p3" />
+        <span className="vela-grain" />
+        <span className="fx-grid" />
+        <span className="fx-glow fx-glow-a" />
+        <span className="fx-glow fx-glow-b" />
+        <span className="fx-stars" />
+      </div>
+
+      <div className="login-hero">
+        <div className="login-mark">
+          <span className="mark-ring" aria-hidden="true" />
+          <span className="brand-logo full" aria-hidden="true" />
+        </div>
+        <h2 className="login-headline" aria-live="off">
+          <span className="sr-only">ยืม เบิก คืน ตรวจนับ ของในแลป</span>
+          <span className="rw-line" aria-hidden="true">
+            {WORDS.map((w) => <Word key={'g' + w.id} w={w} cls="ghost" />)}
+            {prev !== null && prev !== cur && <Word key={'o' + prev + '-' + cur} w={WORDS[prev]} cls="out" />}
+            <Word key={'i' + cur} w={WORDS[cur]} cls="in" />
+          </span>
+          <span className="rw-fixed" aria-hidden="true">ของในแลป</span>
+        </h2>
+        <div className="login-tagline">Intelligent Robot &amp; Industrial System Hub</div>
+      </div>
+
+      {children}
+
+      <div className="login-foot" aria-hidden="true">
+        <svg viewBox="0 0 1440 62" preserveAspectRatio="none"><path d="M0 62 H1062 C1092 62 1098 54 1116 34 C1138 9 1146 1 1178 1 H1440 V62 Z" /></svg>
+        <div className="login-foot-body">Intelligent Robot &amp; Industrial System Hub</div>
+      </div>
+    </div>
+  );
+}
+
 // ประตูหน้าเว็บตอนเปิด SSO — ยังไม่ล็อกอินเห็นแค่หน้านี้ ไม่เห็นข้อมูลคลังเลย
 function LoginGate({ cfg, onLogin }) {
   const [usePw, setUsePw] = useState(false); // ทางสำรองสำหรับแอดมินคลัง (เผื่อเว็บหลัก/Firebase ล่ม)
@@ -101,28 +227,13 @@ function LoginGate({ cfg, onLogin }) {
     } catch (er) { setErr(er.message); }
   };
   return (
-    <div className="login-wrap">
-      <div className="login-fx" aria-hidden="true">
-        <span className="fx-grid" />
-        <span className="fx-glow fx-glow-a" />
-        <span className="fx-glow fx-glow-b" />
-        <span className="fx-stars" />
-      </div>
-
-      <div className="login-hero">
-        <div className="login-mark">
-          <span className="mark-ring" aria-hidden="true" />
-          <span className="brand-logo full" aria-hidden="true" />
-        </div>
-        <div className="login-tagline">Intelligent Robot &amp; Industrial System Hub</div>
-      </div>
-
+    <LoginScene>
       <div className="card login-card">
         <h1>Inventory IRiSH Lab</h1>
         <p className="muted">ต้องเข้าสู่ระบบด้วยบัญชีเว็บแลปก่อนใช้งาน</p>
         {cfg.mainSiteUrl && (
           <>
-            <a className="btn primary sso-btn" href={cfg.mainSiteUrl}>🔑 เข้าสู่ระบบด้วยบัญชีเว็บแลป</a>
+            <a className="btn primary sso-btn" href={cfg.mainSiteUrl}><KeyIcon />เข้าสู่ระบบด้วยบัญชีเว็บแลป</a>
             <div className="hint" style={{ textAlign: 'center' }}>
               ระบบจะพาไปที่เว็บแลปหลัก — เข้าสู่ระบบแล้วกดปุ่ม “Equipment Loan” เพื่อกลับมาที่นี่
             </div>
@@ -141,7 +252,7 @@ function LoginGate({ cfg, onLogin }) {
           </button>
         )}
       </div>
-    </div>
+    </LoginScene>
   );
 }
 
@@ -160,22 +271,7 @@ function Login({ onLogin }) {
     } catch (er) { setErr(er.message); }
   };
   return (
-    <div className="login-wrap">
-      <div className="login-fx" aria-hidden="true">
-        <span className="fx-grid" />
-        <span className="fx-glow fx-glow-a" />
-        <span className="fx-glow fx-glow-b" />
-        <span className="fx-stars" />
-      </div>
-
-      <div className="login-hero">
-        <div className="login-mark">
-          <span className="mark-ring" aria-hidden="true" />
-          <span className="brand-logo full" aria-hidden="true" />
-        </div>
-        <div className="login-tagline">Intelligent Robot &amp; Industrial System Hub</div>
-      </div>
-
+    <LoginScene>
       <form className="card login-card" onSubmit={submit}>
         <h1>Inventory IRiSH Lab</h1>
         <p className="muted">เข้าสู่ระบบเพื่อใช้งาน</p>
@@ -184,7 +280,7 @@ function Login({ onLogin }) {
         <button className="btn primary" type="submit">เข้าสู่ระบบ</button>
         <div className="err">{err}</div>
       </form>
-    </div>
+    </LoginScene>
   );
 }
 
@@ -289,11 +385,12 @@ function Shell({ me, cfg, onMe, guestName, onGuestName }) {
             )}
           </nav>
           <div className="userbox">
+            <ThemeToggle />
             {isGuest ? (
               <>
                 {cfg?.sso && cfg.mainSiteUrl && cfg.guestBorrow === false && (
                   <>
-                    <a className="btn small primary sso-btn" href={cfg.mainSiteUrl}>🔑 เข้าสู่ระบบด้วยบัญชีเว็บแลป</a>
+                    <a className="btn small primary sso-btn" href={cfg.mainSiteUrl}><KeyIcon />เข้าสู่ระบบด้วยบัญชีเว็บแลป</a>
                     <div className="hint" style={{ margin: '0 0 10px' }}>
                       ล็อกอินที่เว็บแลปแล้วกดปุ่ม “ยืมของ” — ชื่อผู้ยืมเติมให้อัตโนมัติ ไม่ต้องกรอกรหัสบัตร
                     </div>
@@ -321,7 +418,7 @@ function Shell({ me, cfg, onMe, guestName, onGuestName }) {
                   <span className="confirm-text-full">✓ ยืนยัน / ดึงของที่ยืม</span>
                   <span className="confirm-text-short">✓ ยืนยัน</span>
                 </button>
-                <button className="btn small" onClick={() => setLoggingIn(true)}>🔑 Admin</button>
+                <button className="btn small" onClick={() => setLoggingIn(true)}><KeyIcon />Admin</button>
               </>
             ) : (
               <>
